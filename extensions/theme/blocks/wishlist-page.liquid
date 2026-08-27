@@ -1,0 +1,33 @@
+{% comment %}
+  Wishlist Page app block (target: section).
+
+  Optional. Lets a merchant add a full-page wishlist to any page template (e.g. a
+  "Wishlist" page) from the theme editor — an alternative to the drawer, which is
+  the default entry point. Requires the "Wishlist & Stock Alerts" App Embed to be
+  enabled (it loads the runtime that defines window.__wishlistStock.renderPage).
+{% endcomment %}
+
+<div class="ws-page-block" {{ block.shopify_attributes }}>
+  {% render 'wishlist-page' %}
+</div>
+
+<script>
+  (function () {
+    function render() {
+      if (window.__wishlistStock && window.__wishlistStock.renderPage) {
+        window.__wishlistStock.renderPage();
+      }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
+    else render();
+    document.addEventListener('shopify:section:load', render);
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Wishlist Page",
+  "target": "section",
+  "settings": []
+}
+{% endschema %}

@@ -1,0 +1,142 @@
+// Wishlist & Back-in-Stock Notifications — data model
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Shopify OAuth sessions (managed by @shopify/shopify-app-session-storage-prisma).
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+
+  @@index([shop])
+}
+
+/// One row per installed store. Holds merchant-configured notification settings.
+model Shop {
+  id          String   @id @default(uuid())
+  shop        String   @unique // myshop.myshopify.com
+  accessToken String? // mirror of the offline token; Session remains the source of truth
+  installedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // --- Notification settings ---
+  emailProvider String  @default("resend") // resend | sendgrid | klaviyo
+  apiKey        String? // provider API key (encrypted at rest, see app/lib/crypto.server.ts)
+  senderEmail   String?
+  senderName    String?
+  emailSubject  String  @default("{{ product_title }} is back in stock!")
+  emailHeading  String  @default("Good news — it's back!")
+  emailBody     String  @default("The item you were waiting for is available again. Tap below before it sells out.")
+  buttonLabel   String  @default("Buy it now")
+
+  // --- SMS (optional) ---
+  smsEnabled       Boolean @default(false)
+  twilioAccountSid String?
+  twilioAuthToken  String? // encrypted at rest
+  twilioFromNumber String?
+
+  // --- Storefront behaviour ---
+  wishlistRequiresLogin Boolean @default(false)
+  doubleOptIn           Boolean @default(false)
+  alertsPerVariantCap   Int     @default(0) // 0 = unlimited
+
+  wishlists     WishlistItem[]
+  stockAlerts   StockAlert[]
+  webhookEvents WebhookEvent[]
+  rateLimits    RateLimitBucket[]
+}
+
+/// A saved product. Keyed by Shopify customer id when logged in, else by a browser guest token.
+model WishlistItem {
+  id         String   @id @default(uuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customerId String? // numeric Shopify customer id, null for anonymous visitors
+  guestToken String? // uuid persisted in localStorage for non-logged-in visitors
+  productId  String // numeric product id
+  variantId  String? // numeric variant id
+  handle     String? // cached product handle for fast storefront links
+  createdAt  DateTime @default(now())
+
+  @@unique([shopId, customerId, productId, variantId], name: "customer_product")
+  @@unique([shopId, guestToken, productId, variantId], name: "guest_product")
+  @@index([shopId, customerId])
+  @@index([shopId, guestToken])
+  @@index([shopId, productId])
+}
+
+/// A "notify me when available" subscription for one variant.
+model StockAlert {
+  id           String    @id @default(uuid())
+  shopId       String
+  shop         Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customerId   String?
+  email        String
+  phone        String?
+  productId    String
+  variantId    String
+  productTitle String?
+  variantTitle String?
+  locale       String?
+  // PENDING → SENDING → SENT | FAILED, or CANCELLED when the shopper unsubscribes.
+  status       String    @default("PENDING")
+  attempts     Int       @default(0)
+  lastError    String?
+  notifiedAt   DateTime?
+  convertedAt  DateTime? // set when the recipient's click leads back to the PDP/cart
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([shopId, variantId, email], name: "one_alert_per_email_variant")
+  @@index([shopId, variantId, status])
+  @@index([shopId, status, createdAt])
+}
+
+/// Webhook de-duplication: Shopify redelivers, and a restock can fire several inventory events.
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  webhookId   String // X-Shopify-Webhook-Id
+  topic       String
+  processedAt DateTime @default(now())
+
+  @@unique([shopId, webhookId])
+  @@index([processedAt])
+}
+
+/// Fixed-window rate limiting for the public App Proxy endpoints.
+model RateLimitBucket {
+  id          String   @id @default(uuid())
+  shopId      String?
+  shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  key         String // e.g. "stock-alert:1.2.3.4"
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@unique([key, windowStart])
+  @@index([windowStart])
+}

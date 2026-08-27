@@ -1,0 +1,23 @@
+{% comment %}
+  Wishlist Page – standalone page template for /pages/wishlist.
+  Create a page in Shopify Admin → Online Store → Pages → Add page,
+  set template to "page.wishlist" and assign this snippet in the template.
+
+  Or include directly in any page template:
+    {% render 'wishlist-page' %}
+{% endcomment %}
+
+<div class="ws-page" id="ws-wishlist-page">
+  <div class="ws-page__header">
+    <span class="ws-page__count" id="ws-page-count"></span>
+  </div>
+
+  <div class="ws-page__empty" id="ws-page-empty" style="display:none;">
+    <svg class="ws-page__empty-icon" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>
+    <h2>Your wishlist is empty</h2>
+    <p>Browse our products and save items you love.</p>
+    <a href="/collections/all" class="ws-btn ws-btn--primary">Browse Products</a>
+  </div>
+
+  <div class="ws-page__grid" id="ws-page-grid"></div>
+</div>

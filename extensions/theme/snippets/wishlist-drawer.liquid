@@ -1,0 +1,46 @@
+{% comment %}
+  Wishlist Drawer – off-canvas panel.
+  Include once in theme.liquid before </body>, or via the App Embed Block.
+
+  Usage in theme.liquid:
+    {% render 'wishlist-drawer' %}
+{% endcomment %}
+
+<div class="ws-drawer-overlay" id="ws-drawer-overlay" aria-hidden="true"></div>
+
+<aside
+  class="ws-drawer"
+  id="ws-drawer"
+  data-position="{{ settings.drawer_position | default: 'right' }}"
+  role="dialog"
+  aria-label="Your Wishlist"
+  aria-hidden="true"
+>
+  <div class="ws-drawer__header">
+    <h2 class="ws-drawer__title">
+      My Wishlist
+      <span class="ws-drawer__count" id="ws-drawer-count"></span>
+    </h2>
+    <button class="ws-drawer__close" id="ws-drawer-close" aria-label="Close wishlist">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+  </div>
+
+  <div class="ws-drawer__body" id="ws-drawer-body">
+    <div class="ws-drawer__empty" id="ws-drawer-empty" style="display:none;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M12 21s-6.716-4.434-9.333-7.14C-1.333 10.9 1.333 6 6 6c2.76 0 4 2 6 2s3.24-2 6-2c4.667 0 7.333 4.9 3.333 7.86C18.716 16.566 12 21 12 21z"/>
+      </svg>
+      <p>Your wishlist is empty</p>
+    </div>
+    <div id="ws-drawer-items"></div>
+  </div>
+</aside>
+
+{% comment %}
+  Header link – add to your header.liquid or navigation:
+  {% render 'wishlist-header-link' %}
+{% endcomment %}

@@ -1,0 +1,173 @@
+.index {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.heading,
+.text {
+  padding: 0;
+  margin: 0;
+}
+
+.heading {
+  font-size: 2.4rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.text {
+  font-size: 1.15rem;
+  padding-bottom: 1rem;
+  color: #4a4f54;
+  line-height: 1.6;
+  max-width: 34rem;
+}
+
+.content {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 48rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #475569;
+  letter-spacing: 0.02em;
+  justify-self: center;
+}
+
+.form {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.label {
+  display: grid;
+  gap: 0.3rem;
+  max-width: 22rem;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.input {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.button {
+  padding: 0.55rem 1.5rem;
+  background: #1a1a1a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.button:hover {
+  background: #333;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  padding-top: 1rem;
+  text-align: left;
+}
+
+.feature {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.featureIcon {
+  width: 40px;
+  height: 40px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  color: #6366f1;
+}
+
+.feature h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.feature p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  padding-top: 2rem;
+  margin: 0;
+  display: flex;
+  gap: 2rem;
+}
+
+.list > li {
+  max-width: 20rem;
+  text-align: left;
+}
+
+@media only screen and (max-width: 50rem) {
+  .features {
+    grid-template-columns: 1fr;
+  }
+
+  .list {
+    display: block;
+  }
+
+  .list > li {
+    padding-bottom: 1rem;
+  }
+
+  .heading {
+    font-size: 1.8rem;
+  }
+}
