@@ -22,7 +22,25 @@ import { requireShop } from "../lib/shop.server";
 import { listStockAlerts } from "../models/stock-alert.server";
 import { getShopContext } from "../lib/shopify-data.server";
 import { retryStuckAlerts } from "../lib/notifications/dispatch.server";
-import { useState } from "react";
+import { useState, useEffect, type ReactNode } from "react";
+
+/**
+ * Renders children only after the component has mounted on the client. Used to keep
+ * Polaris components that rely on useLayoutEffect (e.g. IndexTable) out of the server
+ * render, which silences the React "useLayoutEffect does nothing on the server" warning
+ * and avoids hydration mismatches. Falls back to `fallback` during SSR / first paint.
+ */
+function ClientOnly({
+  children,
+  fallback = null,
+}: {
+  children: ReactNode;
+  fallback?: ReactNode;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted ? <>{children}</> : <>{fallback}</>;
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -193,27 +211,29 @@ export default function Alerts() {
                   </InlineStack>
                 </InlineStack>
 
-                <IndexTable
-                  resourceName={resourceName}
-                  itemCount={rows.length}
-                  selectedItemsCount={0}
-                  headings={[
-                    { title: "Email" },
-                    { title: "Product" },
-                    { title: "Variant" },
-                    { title: "Status" },
-                    { title: "Created" },
-                    { title: "Attempts" },
-                  ]}
-                  loading={isLoading}
-                  emptyState={
-                    <Text as="p" variant="bodyMd" alignment="center">
-                      No alerts found.
-                    </Text>
-                  }
-                >
-                  {rowMarkup}
-                </IndexTable>
+                <ClientOnly fallback={<Box minHeight="20vh" />}>
+                  <IndexTable
+                    resourceName={resourceName}
+                    itemCount={rows.length}
+                    selectedItemsCount={0}
+                    headings={[
+                      { title: "Email" },
+                      { title: "Product" },
+                      { title: "Variant" },
+                      { title: "Status" },
+                      { title: "Created" },
+                      { title: "Attempts" },
+                    ]}
+                    loading={isLoading}
+                    emptyState={
+                      <Text as="p" variant="bodyMd" alignment="center">
+                        No alerts found.
+                      </Text>
+                    }
+                  >
+                    {rowMarkup}
+                  </IndexTable>
+                </ClientOnly>
 
                 {pageCount > 1 && (
                   <InlineStack align="center">
