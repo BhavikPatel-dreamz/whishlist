@@ -1,0 +1,40 @@
+name: Deploy Whishlist
+
+on:
+  push:
+    branches: [main]
+
+env:
+  VPS_APP_PATH: "/var/www/html/whishlist"
+  PM2_PROCESS_NAME: "whishlist"
+  
+jobs:
+  deploy:
+    runs-on: [self-hosted]
+    steps:
+      - name: Sync Code
+        run: |
+          if [ -d "${{ env.VPS_APP_PATH }}/.git" ]; then
+              cd "${{ env.VPS_APP_PATH }}"
+              git fetch origin
+              git reset --hard "origin/main"
+              git clean -fd
+          else
+              git clone -b main git@github.com:BhavikPatel-dreamz/whishlist.git "${{ env.VPS_APP_PATH }}"
+          fi
+
+      - name: Build
+        run: |
+          cd "${{ env.VPS_APP_PATH }}"
+          npm install
+          npm run build
+
+      - name: Start App
+        run: |
+          cd "${{ env.VPS_APP_PATH }}"
+          if pm2 list | grep -q "${{ env.PM2_PROCESS_NAME }}"; then
+              pm2 restart "${{ env.PM2_PROCESS_NAME }}"
+          else
+              pm2 start npm --name "${{ env.PM2_PROCESS_NAME }}" -- start
+          fi
+          pm2 save
