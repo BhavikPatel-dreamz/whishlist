@@ -8,6 +8,7 @@ import {
   numericId,
   readBody,
 } from "../lib/proxy.server";
+import db from "../db.server";
 import { rateLimit } from "../lib/rate-limit.server";
 import { formatMoney, getProductsByIds, type GraphqlClient } from "../lib/shopify-data.server";
 import {
@@ -104,6 +105,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       variantId,
       handle: body.handle || null,
     });
+    // If the client didn't supply a handle, try to resolve it from the Admin API
+    // so the storefront can enrich wishlist items (images/titles) via /products/{handle}.js.
+    if (!item.handle) {
+      try {
+        const admin = await ctx.admin();
+        const products = await getProductsByIds(admin, [item.productId]);
+        const product = products.get(item.productId);
+        if (product && product.handle) {
+          await db.wishlistItem.update({ where: { id: item.id }, data: { handle: product.handle } });
+          // reflect the saved handle in the returned item
+          item.handle = product.handle;
+        }
+      } catch (e) {
+        // ignore — enrichment is best-effort and shouldn't block the save
+      }
+    }
     const items = await listWishlist(ctx.shop.id, identity);
     return json({ ok: true, inWishlist: true, item: serialiseItem(item), count: items.length });
   } catch (error) {

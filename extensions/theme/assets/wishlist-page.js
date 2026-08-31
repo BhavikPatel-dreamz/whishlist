@@ -45,27 +45,33 @@
      faster than the server-side enriched path which makes a GraphQL call per item. */
   const productCache = new Map();
   async function enrichItem(item) {
-    if (item.title && item.url) return item;
+    if (item.title && item.url && typeof item.available !== 'undefined') return item;
     const handle = item.handle;
-    if (!handle) return item;
+    if (!handle) {
+      return { ...item, available: item.available !== undefined ? item.available : true };
+    }
     if (productCache.has(handle)) {
       const cached = productCache.get(handle);
-      return cached ? applyProductData(item, cached) : item;
+      return cached ? applyProductData(item, cached) : { ...item, available: true };
     }
     try {
       const resp = await fetch(`/products/${handle}.js`);
-      if (!resp.ok) { productCache.set(handle, null); return item; }
+      if (!resp.ok) { productCache.set(handle, null); return { ...item, available: true }; }
       const prod = await resp.json();
       productCache.set(handle, prod);
       return applyProductData(item, prod);
     } catch {
       productCache.set(handle, null);
-      return item;
+      return { ...item, available: true };
     }
   }
 
   function applyProductData(item, prod) {
-    const variant = (prod.variants || []).find(v => String(v.id) === String(item.variantId)) || (prod.variants || [])[0];
+    const variants = prod.variants || [];
+    let variant = variants.find(v => String(v.id) === String(item.variantId));
+    if (!variant) {
+      variant = variants.find(v => v.available) || variants[0];
+    }
     let price = item.price || '';
     if (variant && variant.price != null) {
       const num = parseFloat(variant.price);
@@ -85,8 +91,9 @@
       url: `/products/${prod.handle || item.handle}${variant ? `?variant=${variant.id}` : ''}`,
       image: (variant && variant.featured_image) ? variant.featured_image.src : (prod.images && prod.images[0] ? prod.images[0].src : item.image || ''),
       variantTitle: variant && variant.title !== 'Default Title' ? variant.title : item.variantTitle || null,
+      variantId: variant ? String(variant.id) : item.variantId,
       price,
-      available: variant ? variant.available : prod.available,
+      available: variant ? variant.available !== false : prod.available !== false,
     };
   }
 
@@ -217,12 +224,14 @@
       return;
     }
 
-    if (empty) empty.style.display = 'none';
-    body.innerHTML = items.map(drawerItemHTML).join('');
-    if (count) count.textContent = `(${items.length})`;
-    setHeaderCount(items.length);
+    const enriched = await enrichItems(items);
 
-    bindDrawerActions(body, items);
+    if (empty) empty.style.display = 'none';
+    body.innerHTML = enriched.map(drawerItemHTML).join('');
+    if (count) count.textContent = `(${enriched.length})`;
+    setHeaderCount(enriched.length);
+
+    bindDrawerActions(body, enriched);
   }
 
   function bindDrawerActions(container, items) {
