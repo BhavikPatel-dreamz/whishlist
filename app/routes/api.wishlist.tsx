@@ -33,7 +33,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopId: ctx.shop.id,
     });
 
-    const identity = await resolveIdentity(ctx.shop.id, ctx.loggedInCustomerId, ctx.url.searchParams.get("guest_token"));
+    const identity = await resolveIdentity(
+      ctx.shop.id,
+      ctx.loggedInCustomerId,
+      ctx.url.searchParams.get("guest_token"),
+      await ctx.admin(),
+    );
     const items = await listWishlist(ctx.shop.id, identity);
 
     // requiresLogin lets the storefront gate the heart before it even flips (the POST
@@ -160,23 +165,25 @@ async function resolveIdentity(
   shopId: string,
   loggedInCustomerId: string | null,
   guestToken: string | null,
-  admin: GraphqlClient,
+  admin?: GraphqlClient,
 ): Promise<Identity> {
   const identity = requireIdentity({ customerId: loggedInCustomerId, guestToken });
-  
+
   if (identity.customerId && identity.guestToken) {
     await mergeGuestWishlist(shopId, identity.guestToken, identity.customerId);
-    
+
     // Sync merged wishlist to metafield so it persists after app uninstall
-    try {
-      const items = await listWishlist(shopId, identity);
-      await syncWishlistToMetafield(admin, identity.customerId, items);
-    } catch (e) {
-      console.warn("Failed to sync merged wishlist to metafield:", e);
-      // Don't fail identity resolution if metafield sync fails
+    if (admin) {
+      try {
+        const items = await listWishlist(shopId, identity);
+        await syncWishlistToMetafield(admin, identity.customerId, items);
+      } catch (e) {
+        console.warn("Failed to sync merged wishlist to metafield:", e);
+        // Don't fail identity resolution if metafield sync fails
+      }
     }
   }
-  
+
   return { customerId: identity.customerId, guestToken: identity.guestToken };
 }
 

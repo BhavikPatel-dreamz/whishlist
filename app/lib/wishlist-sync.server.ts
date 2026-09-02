@@ -51,7 +51,7 @@ export async function syncWishlistToMetafield(
       }
     `;
 
-    const response = await client(mutation, {
+    const response = await client.graphql(mutation, {
       variables: {
         input: {
           id: customerId,
@@ -67,10 +67,23 @@ export async function syncWishlistToMetafield(
       },
     });
 
-    if (response.customerUpdate?.userErrors?.length > 0) {
+    const payload = (await response.json()) as {
+      data?: {
+        customerUpdate?: {
+          userErrors?: Array<{ field?: string[]; message: string }>;
+        };
+      };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (payload.errors?.length) {
+      throw new Error(payload.errors.map((error) => error.message).join("; "));
+    }
+
+    if (payload.data?.customerUpdate?.userErrors?.length) {
       console.warn(
         `Metafield sync errors for ${customerId}:`,
-        response.customerUpdate.userErrors,
+        payload.data.customerUpdate.userErrors,
       );
       return false;
     }
@@ -104,11 +117,24 @@ export async function getWishlistFromMetafield(
       }
     `;
 
-    const response = await client(query, {
+    const response = await client.graphql(query, {
       variables: { id: customerId },
     });
 
-    const value = response.customer?.metafield?.value;
+    const payload = (await response.json()) as {
+      data?: {
+        customer?: {
+          metafield?: { value?: string | null } | null;
+        } | null;
+      };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (payload.errors?.length) {
+      throw new Error(payload.errors.map((error) => error.message).join("; "));
+    }
+
+    const value = payload.data?.customer?.metafield?.value;
     if (!value) return [];
 
     return JSON.parse(value);

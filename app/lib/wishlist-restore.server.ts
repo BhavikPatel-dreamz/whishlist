@@ -35,8 +35,27 @@ export async function restoreWishlistsFromMetafields(
       }
     `;
 
-    const response = await admin(query);
-    const customers = response.customers?.edges || [];
+    const response = await admin.graphql(query);
+    const payload = (await response.json()) as {
+      data?: {
+        customers?: {
+          edges?: Array<{
+            node: {
+              id: string;
+              email?: string | null;
+              metafield?: { value?: string | null } | null;
+            };
+          }>;
+        };
+      };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (payload.errors?.length) {
+      throw new Error(payload.errors.map((error) => error.message).join("; "));
+    }
+
+    const customers = payload.data?.customers?.edges || [];
 
     for (const { node: customer } of customers) {
       if (!customer.metafield?.value) continue;

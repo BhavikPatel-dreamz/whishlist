@@ -4,18 +4,14 @@ import { restoreWishlistsFromMetafields } from "../lib/wishlist-restore.server";
 import { getOrCreateShop } from "../lib/shop.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, session, topic } = await authenticate.webhook(request);
+  const { shop, session, topic, admin } = await authenticate.webhook(request);
 
   console.log(`Received ${topic} webhook for ${shop}`);
 
   // On app install/reinstall, restore wishlists from customer metafields
-  if (topic === "APP_INSTALLED" || topic === "app/installed") {
+  if ((topic === "APP_INSTALLED" || topic === "app/installed") && admin) {
     try {
       const shopRecord = await getOrCreateShop(shop, session?.accessToken);
-      const admin = await authenticate.admin.clientFactory({
-        sessionId: session?.id || "",
-      });
-
       const result = await restoreWishlistsFromMetafields(shopRecord.id, admin);
       console.log(
         `Restored wishlists for ${result.restored} customers with ${result.errors} errors`,

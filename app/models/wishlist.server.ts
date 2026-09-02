@@ -234,9 +234,14 @@ export async function metricsForProducts(
     where: { shopId, productId: { in: productIds } },
     select: { productId: true, addsToCart: true, purchases: true },
   });
-  return rows.map((r) => ({
-    productId: r.productId,
-    addsToCart: r.addsToCart,
-    purchases: r.purchases,
-  }));
+  return rows
+    .filter(
+      (r): r is { productId: string; addsToCart: number; purchases: number } =>
+        !!r.productId,
+    )
+    .map((r) => ({
+      productId: r.productId,
+      addsToCart: r.addsToCart ?? 0,
+      purchases: r.purchases ?? 0,
+    }));
 }
