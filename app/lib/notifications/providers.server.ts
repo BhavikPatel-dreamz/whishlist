@@ -7,7 +7,8 @@ export type EmailMessage = {
   text: string;
 };
 
-export type SendResult = { ok: true; id?: string } | { ok: false; error: string };
+export type SendResult =
+  { ok: true; id?: string } | { ok: false; error: string };
 
 /**
  * Providers are plain fetch calls — no vendor SDKs — so the app stays dependency-light
@@ -17,8 +18,10 @@ export async function sendEmail(
   settings: ResolvedNotificationSettings,
   message: EmailMessage,
 ): Promise<SendResult> {
-  if (!settings.apiKey) return { ok: false, error: "No email provider API key configured" };
-  if (!settings.senderEmail) return { ok: false, error: "No sender email configured" };
+  if (!settings.apiKey)
+    return { ok: false, error: "No email provider API key configured" };
+  if (!settings.senderEmail)
+    return { ok: false, error: "No sender email configured" };
 
   try {
     switch (settings.provider) {
@@ -33,7 +36,10 @@ export async function sendEmail(
         return await sendWithResend(settings, message);
     }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
@@ -58,8 +64,15 @@ async function sendWithResend(
       text: message.text,
     }),
   });
-  const payload = (await response.json().catch(() => ({}))) as { id?: string; message?: string };
-  if (!response.ok) return { ok: false, error: payload.message || `Resend HTTP ${response.status}` };
+  const payload = (await response.json().catch(() => ({}))) as {
+    id?: string;
+    message?: string;
+  };
+  if (!response.ok)
+    return {
+      ok: false,
+      error: payload.message || `Resend HTTP ${response.status}`,
+    };
   return { ok: true, id: payload.id };
 }
 
@@ -72,23 +85,40 @@ async function sendWithBrevo(
   settings: ResolvedNotificationSettings,
   message: EmailMessage,
 ): Promise<SendResult> {
+  if (!settings.senderEmail) {
+    return {
+      ok: false,
+      error: "Sender email required for Brevo but not configured",
+    };
+  }
+
   const response = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
-      "api-key": settings.apiKey || process.env.BREVO_API_KEY || "",
+      "api-key": settings.apiKey,
       "Content-Type": "application/json",
       accept: "application/json",
     },
     body: JSON.stringify({
-      sender: { email: settings.senderEmail || "hingurusali@gmail.com", name: settings.senderName || undefined },
+      sender: {
+        email: settings.senderEmail,
+        name: settings.senderName || undefined,
+      },
       to: [{ email: message.to }],
       subject: message.subject,
       htmlContent: message.html,
       textContent: message.text,
     }),
   });
-  const payload = (await response.json().catch(() => ({}))) as { messageId?: string; message?: string };
-  if (!response.ok) return { ok: false, error: payload.message || `Brevo HTTP ${response.status}` };
+  const payload = (await response.json().catch(() => ({}))) as {
+    messageId?: string;
+    message?: string;
+  };
+  if (!response.ok)
+    return {
+      ok: false,
+      error: payload.message || `Brevo HTTP ${response.status}`,
+    };
   return { ok: true, id: payload.messageId };
 }
 
@@ -104,7 +134,10 @@ async function sendWithSendgrid(
     },
     body: JSON.stringify({
       personalizations: [{ to: [{ email: message.to }] }],
-      from: { email: settings.senderEmail, name: settings.senderName || undefined },
+      from: {
+        email: settings.senderEmail,
+        name: settings.senderName || undefined,
+      },
       subject: message.subject,
       content: [
         { type: "text/plain", value: message.text },
@@ -114,7 +147,10 @@ async function sendWithSendgrid(
   });
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    return { ok: false, error: `SendGrid HTTP ${response.status} ${body.slice(0, 200)}` };
+    return {
+      ok: false,
+      error: `SendGrid HTTP ${response.status} ${body.slice(0, 200)}`,
+    };
   }
   return { ok: true, id: response.headers.get("x-message-id") || undefined };
 }
@@ -145,7 +181,9 @@ async function sendWithKlaviyo(
             html: message.html,
             ...(message.properties || {}),
           },
-          metric: { data: { type: "metric", attributes: { name: "Back in Stock" } } },
+          metric: {
+            data: { type: "metric", attributes: { name: "Back in Stock" } },
+          },
           profile: {
             data: { type: "profile", attributes: { email: message.to } },
           },
@@ -155,7 +193,10 @@ async function sendWithKlaviyo(
   });
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    return { ok: false, error: `Klaviyo HTTP ${response.status} ${body.slice(0, 200)}` };
+    return {
+      ok: false,
+      error: `Klaviyo HTTP ${response.status} ${body.slice(0, 200)}`,
+    };
   }
   return { ok: true };
 }
@@ -167,8 +208,13 @@ export async function sendSms(
   body: string,
 ): Promise<SendResult> {
   if (!settings.smsEnabled) return { ok: false, error: "SMS disabled" };
-  const { twilioAccountSid: sid, twilioAuthToken: token, twilioFromNumber: sender } = settings;
-  if (!sid || !token || !sender) return { ok: false, error: "Twilio credentials incomplete" };
+  const {
+    twilioAccountSid: sid,
+    twilioAuthToken: token,
+    twilioFromNumber: sender,
+  } = settings;
+  if (!sid || !token || !sender)
+    return { ok: false, error: "Twilio credentials incomplete" };
 
   try {
     const response = await fetch(
@@ -179,13 +225,27 @@ export async function sendSms(
           Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`,
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({ To: to, From: sender, Body: body }).toString(),
+        body: new URLSearchParams({
+          To: to,
+          From: sender,
+          Body: body,
+        }).toString(),
       },
     );
-    const payload = (await response.json().catch(() => ({}))) as { sid?: string; message?: string };
-    if (!response.ok) return { ok: false, error: payload.message || `Twilio HTTP ${response.status}` };
+    const payload = (await response.json().catch(() => ({}))) as {
+      sid?: string;
+      message?: string;
+    };
+    if (!response.ok)
+      return {
+        ok: false,
+        error: payload.message || `Twilio HTTP ${response.status}`,
+      };
     return { ok: true, id: payload.sid };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
