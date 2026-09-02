@@ -11,6 +11,7 @@ import {
 import db from "../db.server";
 import { rateLimit } from "../lib/rate-limit.server";
 import { formatMoney, getProductsByIds, type GraphqlClient } from "../lib/shopify-data.server";
+import { syncWishlistToMetafield } from "../lib/wishlist-sync.server";
 import {
   addToWishlist,
   listWishlist,
@@ -76,10 +77,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const body = await readBody(request);
     const method = (body._method || request.method).toUpperCase();
 
+    const admin = await ctx.admin();
     const identity = await resolveIdentity(
       ctx.shop.id,
       ctx.loggedInCustomerId,
       body.guestToken || ctx.url.searchParams.get("guest_token"),
+      admin,
     );
 
     if (ctx.shop.wishlistRequiresLogin && !identity.customerId) {
@@ -93,6 +96,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (method === "DELETE") {
       const removed = await removeFromWishlist(ctx.shop.id, identity, { productId, variantId });
       const items = await listWishlist(ctx.shop.id, identity);
+      
+      // Sync to customer metafield if customer is logged in (persists after app uninstall)
+      if (identity.customerId) {
+        try {
+          await syncWishlistToMetafield(admin, identity.customerId, items);
+        } catch (e) {
+          console.warn("Failed to sync wishlist to metafield on delete:", e);
+          // Don't fail the request if metafield sync fails
+        }
+      }
+      
       return json({ ok: true, removed, inWishlist: false, count: items.length });
     }
 
@@ -109,7 +123,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // so the storefront can enrich wishlist items (images/titles) via /products/{handle}.js.
     if (!item.handle) {
       try {
-        const admin = await ctx.admin();
         const products = await getProductsByIds(admin, [item.productId]);
         const product = products.get(item.productId);
         if (product && product.handle) {
@@ -122,6 +135,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
     const items = await listWishlist(ctx.shop.id, identity);
+    
+    // Sync to customer metafield if customer is logged in (persists after app uninstall)
+    if (identity.customerId) {
+      try {
+        await syncWishlistToMetafield(admin, identity.customerId, items);
+      } catch (e) {
+        console.warn("Failed to sync wishlist to metafield on add:", e);
+        // Don't fail the request if metafield sync fails
+      }
+    }
+    
     return json({ ok: true, inWishlist: true, item: serialiseItem(item), count: items.length });
   } catch (error) {
     return errorResponse(error);
@@ -130,17 +154,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 /**
  * Resolves who is asking, and folds a guest wishlist into the customer's on first
- * authenticated request after login.
+ * authenticated request after login. Also syncs to metafield for persistence.
  */
 async function resolveIdentity(
   shopId: string,
   loggedInCustomerId: string | null,
   guestToken: string | null,
+  admin: GraphqlClient,
 ): Promise<Identity> {
   const identity = requireIdentity({ customerId: loggedInCustomerId, guestToken });
+  
   if (identity.customerId && identity.guestToken) {
     await mergeGuestWishlist(shopId, identity.guestToken, identity.customerId);
+    
+    // Sync merged wishlist to metafield so it persists after app uninstall
+    try {
+      const items = await listWishlist(shopId, identity);
+      await syncWishlistToMetafield(admin, identity.customerId, items);
+    } catch (e) {
+      console.warn("Failed to sync merged wishlist to metafield:", e);
+      // Don't fail identity resolution if metafield sync fails
+    }
   }
+  
   return { customerId: identity.customerId, guestToken: identity.guestToken };
 }
 
