@@ -546,6 +546,14 @@
     if (!form) return;
     if (pdpBoundForm) return;
 
+    // If the theme or a merchant has already placed a wishlist button inside the
+    // product form (a `.wishlist-heart`), avoid injecting another one to prevent
+    // duplicate hearts on the PDP.
+    if (form.querySelector && form.querySelector('.wishlist-heart')) {
+      pdpBoundForm = form;
+      return;
+    }
+
     let product = null;
     try {
       const resp = await fetch(`/products/${handle}.js`);
