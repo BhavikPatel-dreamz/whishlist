@@ -164,9 +164,9 @@ model WishlistMetric {
   id         String   @id @default(uuid())
   shopId     String
   shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  productId  String
-  addsToCart Int      @default(0)
-  purchases  Int      @default(0)
+  productId  String?
+  addsToCart Int ?     @default(0)
+  purchases  Int ?     @default(0)
   updatedAt  DateTime @updatedAt
 
   @@unique([shopId, productId])
