@@ -60,6 +60,7 @@ function SetupGuide({ shop, hasActivity }: { shop: string; hasActivity: boolean 
   const [open, setOpen] = useState(!hasActivity);
   const themeEditorUrl = `https://${shop}/admin/themes/current/editor?context=apps`;
   const newPageUrl = `https://${shop}/admin/pages/new`;
+  
 
   return (
     <Card>
