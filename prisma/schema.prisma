@@ -67,6 +67,7 @@ model Shop {
   stockAlerts   StockAlert[]
   webhookEvents WebhookEvent[]
   rateLimits    RateLimitBucket[]
+  uiConfig      UIConfig?
 }
 
 /// A saved product. Keyed by Shopify customer id when logged in, else by a browser guest token.
@@ -139,4 +140,20 @@ model RateLimitBucket {
 
   @@unique([key, windowStart])
   @@index([windowStart])
+}
+
+/// Per-store UI configuration: product card options and active extension toggle
+model UIConfig {
+  id                String   @id @default(uuid())
+  shopId            String   @unique
+  shop              Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  // Which extension is active for this store (none | wishlist | back_in_stock | both)
+  extensionActive   String   @default("none")
+  // Product card configuration stored as JSON for flexibility and future fields
+  productCardConfig Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([extensionActive])
 }

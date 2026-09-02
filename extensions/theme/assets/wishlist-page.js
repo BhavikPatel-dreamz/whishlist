@@ -1,9 +1,39 @@
 /**
- * Wishlist Drawer & Page – client-side rendering.
- * Relies on window.__wishlist_stock.proxyBase set by the App Embed Block.
+ * Wishlist Drawer & Page – client-side rendering (Wishlist extension only).
+ * Relies on window.__wishlist_stock.proxyBase set by the Wishlist App Embed.
+ *
+ * The standalone wishlist page renders saved products in a horizontal (row)
+ * layout. Which fields are shown (title, price, SKU, image) is controlled by the
+ * per-store UIConfig productCardConfig fetched from the proxy API.
  */
 (function () {
   const CFG = () => window.__wishlist_stock || { proxyBase: '/apps/wishlist-stock/api', settings: {} };
+
+  let uiConfig = null; // { extensionActive, productCardConfig } from /ui-config
+
+  function fetchConfig() {
+    const cfg = CFG();
+    return fetch(`${cfg.proxyBase}/ui-config`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.ok && data.config) {
+          uiConfig = data.config;
+          window.__wishlist_stock.uiConfig = uiConfig;
+        }
+      })
+      .catch(() => null);
+  }
+
+  /* Card display options, merged over defaults. Applied to the wishlist page. */
+  function cardCfg() {
+    const c = (uiConfig && uiConfig.productCardConfig) || {};
+    return {
+      displayTitle: c.displayTitle !== false,
+      displayPrice: c.displayPrice !== false,
+      displaySKU: !!c.displaySKU,
+      displayImage: c.displayImage !== false,
+    };
+  }
 
   /* ---------- Guest token ---------- */
   function getGuestToken() {
@@ -15,9 +45,7 @@
     return t;
   }
 
-  /* ---------- Header counter (kept in sync + cached for an instant paint next load) ----------
-     Mirrors wishlist-button.js by writing the same localStorage key, so the badge on
-     the next page load shows the right number before the wishlist fetch returns. */
+  /* ---------- Header counter ---------- */
   function setHeaderCount(n) {
     const v = Math.max(0, n | 0);
     try { localStorage.setItem('wishlist_count', String(v)); } catch { /* ignore */ }
@@ -39,10 +67,7 @@
     }
   }
 
-  /* ---------- Client-side enrichment (avoids Admin GraphQL round-trip) ----------
-     Uses the fast public /products/{handle}.js storefront endpoint to resolve
-     title, image, price, and availability for each item. This is dramatically
-     faster than the server-side enriched path which makes a GraphQL call per item. */
+  /* ---------- Client-side enrichment via /products/{handle}.js ---------- */
   const productCache = new Map();
   async function enrichItem(item) {
     if (item.title && item.url && typeof item.available !== 'undefined') return item;
@@ -68,16 +93,19 @@
 
   function applyProductData(item, prod) {
     const variants = prod.variants || [];
-    let variant = variants.find(v => String(v.id) === String(item.variantId));
+    let variant = variants.find((v) => String(v.id) === String(item.variantId));
     if (!variant) {
-      variant = variants.find(v => v.available) || variants[0];
+      variant = variants.find((v) => v.available) || variants[0];
     }
     let price = item.price || '';
     if (variant && variant.price != null) {
       const num = parseFloat(variant.price);
       if (!isNaN(num)) {
         try {
+          // `Shopify` is the storefront's global (currency/locale); not a module import.
+          // eslint-disable-next-line no-undef
           const currency = (typeof Shopify !== 'undefined' && Shopify.currency && Shopify.currency.active) || 'USD';
+          // eslint-disable-next-line no-undef
           price = new Intl.NumberFormat(Shopify.locale || 'en', { style: 'currency', currency }).format(num);
         } catch {
           price = `$${num.toFixed(2)}`;
@@ -93,6 +121,7 @@
       variantTitle: variant && variant.title !== 'Default Title' ? variant.title : item.variantTitle || null,
       variantId: variant ? String(variant.id) : item.variantId,
       price,
+      sku: variant ? variant.sku || null : item.sku || null,
       available: variant ? variant.available !== false : prod.available !== false,
     };
   }
@@ -101,12 +130,7 @@
     return Promise.all(items.map(enrichItem));
   }
 
-  /* ---------- Remove from wishlist ----------
-     Product-level delete (variantId intentionally omitted): the backend then clears
-     every row for this product, so the × always removes the card. Sending the
-     *displayed* variantId can 0-match when the stored row used a different or blank
-     variant (enrich falls back to variants[0]) — which is exactly why some items
-     animated away but "couldn't be deleted" and reappeared on the next render. */
+  /* ---------- Remove from wishlist (product-level) ---------- */
   async function removeItem(productId) {
     const cfg = CFG();
     try {
@@ -140,6 +164,18 @@
     }
   }
 
+  /* ---------- Notify for an out-of-stock item ----------
+     Prefer clicking an existing .notify-me button; otherwise fire a
+     `ws:open-bis` event that the Back-in-Stock embed listens for. */
+  function requestNotify(variantId, productId) {
+    const bis = document.querySelector(`.back-in-stock[data-variant-id="${variantId}"]`);
+    if (bis) {
+      const notifyBtn = bis.querySelector('.notify-me');
+      if (notifyBtn) { notifyBtn.click(); return; }
+    }
+    document.dispatchEvent(new CustomEvent('ws:open-bis', { detail: { variantId, productId } }));
+  }
+
   /* ---------- HTML builders ---------- */
   function buildProductUrl(item) {
     if (item.url) return item.url;
@@ -149,14 +185,16 @@
   }
 
   function drawerItemHTML(item) {
-    const image = item.image
+    const cfg = cardCfg();
+    const image = item.image && cfg.displayImage
       ? `<img src="${item.image}" alt="${item.title || ''}" loading="lazy" />`
       : '';
     const variant = item.variantTitle ? `<p class="ws-item__variant">${item.variantTitle}</p>` : '';
-    const price = item.price ? `<p class="ws-item__price">${item.price}</p>` : '';
+    const sku = item.sku && cfg.displaySKU ? `<p class="ws-item__sku">SKU: ${item.sku}</p>` : '';
+    const price = item.price && cfg.displayPrice ? `<p class="ws-item__price">${item.price}</p>` : '';
     const cartBtn = item.available
       ? `<button class="ws-btn ws-btn--primary ws-btn--small" data-action="add-to-cart" data-variant-id="${item.variantId}">Add to Cart</button>`
-      : `<button class="ws-btn ws-btn--small" data-action="notify" data-variant-id="${item.variantId}">Out of Stock</button>`;
+      : `<button class="ws-btn ws-btn--small" data-action="notify" data-variant-id="${item.variantId}" data-product-id="${item.productId}">Out of Stock</button>`;
     const link = buildProductUrl(item);
     const hasLink = link !== '#';
     const imageBox = hasLink
@@ -170,8 +208,9 @@
         </button>
         ${imageBox}
         <div class="ws-item__info">
-          <p class="ws-item__title"><a href="${link}">${item.title || 'Product'}</a></p>
+          ${cfg.displayTitle ? `<p class="ws-item__title"><a href="${link}">${item.title || 'Product'}</a></p>` : ''}
           ${variant}
+          ${sku}
           ${price}
           <div class="ws-item__actions">${cartBtn}</div>
         </div>
@@ -179,29 +218,33 @@
   }
 
   function pageCardHTML(item, index) {
-    const image = item.image
+    const cfg = cardCfg();
+    const image = item.image && cfg.displayImage
       ? `<img src="${item.image}" alt="${item.title || ''}" loading="lazy" />`
       : '';
-    const price = item.price ? `<p class="ws-page-card__price">${item.price}</p>` : '';
+    const variant = item.variantTitle ? `<p class="ws-page-card__variant">${item.variantTitle}</p>` : '';
+    const sku = item.sku && cfg.displaySKU ? `<p class="ws-page-card__sku">SKU: ${item.sku}</p>` : '';
+    const price = item.price && cfg.displayPrice ? `<p class="ws-page-card__price">${item.price}</p>` : '';
     const cartBtn = item.available
       ? `<button class="ws-btn ws-btn--primary ws-btn--small" data-action="add-to-cart" data-variant-id="${item.variantId}">Add to Cart</button>`
-      : `<button class="ws-btn ws-btn--small" data-action="notify" data-variant-id="${item.variantId}">Out of Stock</button>`;
+      : `<button class="ws-btn ws-btn--small" data-action="notify" data-variant-id="${item.variantId}" data-product-id="${item.productId}">Out of Stock</button>`;
     const link = buildProductUrl(item);
     const hasLink = link !== '#';
     const imageBox = hasLink
       ? `<a class="ws-page-card__image" href="${link}">${image}</a>`
       : `<div class="ws-page-card__image">${image}</div>`;
-    // Stagger the card fade-in for a polished cascade on load.
     const delay = `animation-delay:${Math.min((index || 0) * 60, 360)}ms`;
 
     return `
-      <div class="ws-page-card" data-product-id="${item.productId}" data-variant-id="${item.variantId || ''}" style="${delay}">
+      <div class="ws-page-card ws-page-card--row" data-product-id="${item.productId}" data-variant-id="${item.variantId || ''}" style="${delay}">
         <button class="ws-page-card__remove" data-action="remove" aria-label="Remove from wishlist">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
         ${imageBox}
         <div class="ws-page-card__body">
-          <p class="ws-page-card__title"><a href="${link}">${item.title || 'Product'}</a></p>
+          ${cfg.displayTitle ? `<p class="ws-page-card__title"><a href="${link}">${item.title || 'Product'}</a></p>` : ''}
+          ${variant}
+          ${sku}
           ${price}
           <div class="ws-page-card__actions">${cartBtn}</div>
         </div>
@@ -253,8 +296,8 @@
           btn.textContent = 'Added!';
           setTimeout(() => renderDrawer(), 800);
           if (typeof fetch === 'function') {
-            fetch('/cart.js').then(r => r.json()).then(c => {
-              document.dispatchEvent(new CustomEvent('cart:change', { detail: { cart: c } }));
+            fetch('/cart.js').then((r) => r.json()).then((cart) => {
+              document.dispatchEvent(new CustomEvent('cart:change', { detail: { cart } }));
             }).catch(() => { });
           }
         } else {
@@ -268,16 +311,10 @@
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         closeDrawer();
-        const variantId = btn.dataset.variantId;
-        const bis = document.querySelector(`.back-in-stock[data-variant-id="${variantId}"]`);
-        if (bis) {
-          const notifyBtn = bis.querySelector('.notify-me');
-          if (notifyBtn) notifyBtn.click();
-        }
+        requestNotify(btn.dataset.variantId, btn.dataset.productId);
       });
     });
 
-    // Make the drawer item info area clickable to navigate to the product page.
     container.querySelectorAll('.ws-item__info').forEach((info) => {
       info.addEventListener('click', (e) => {
         if (e.target.closest('button') || e.target.closest('a')) return;
@@ -290,7 +327,7 @@
     });
   }
 
-  /* ---------- Render Page ---------- */
+  /* ---------- Render Page (horizontal rows) ---------- */
   async function renderPage() {
     const grid = document.getElementById('ws-page-grid');
     const empty = document.getElementById('ws-page-empty');
@@ -314,8 +351,6 @@
       return;
     }
 
-    // Client-side enrichment: resolve product data using the fast storefront API
-    // instead of the server-side Admin GraphQL round-trip.
     const enriched = await enrichItems(items);
 
     if (empty) empty.style.display = 'none';
@@ -333,7 +368,7 @@
         const ok = await removeItem(card.dataset.productId);
         if (ok) {
           card.style.opacity = '0';
-          card.style.transform = 'scale(0.9)';
+          card.style.transform = 'scale(0.98)';
           setTimeout(() => renderPage(), 250);
         }
       });
@@ -348,8 +383,8 @@
         if (ok) {
           btn.textContent = 'Added!';
           if (typeof fetch === 'function') {
-            fetch('/cart.js').then(r => r.json()).then(c => {
-              document.dispatchEvent(new CustomEvent('cart:change', { detail: { cart: c } }));
+            fetch('/cart.js').then((r) => r.json()).then((cart) => {
+              document.dispatchEvent(new CustomEvent('cart:change', { detail: { cart } }));
             }).catch(() => { });
           }
         } else {
@@ -362,21 +397,13 @@
     container.querySelectorAll('[data-action="notify"]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const variantId = btn.dataset.variantId;
-        const bis = document.querySelector(`.back-in-stock[data-variant-id="${variantId}"]`);
-        if (bis) {
-          const notifyBtn = bis.querySelector('.notify-me');
-          if (notifyBtn) notifyBtn.click();
-        }
+        requestNotify(btn.dataset.variantId, btn.dataset.productId);
       });
     });
 
-    // Make the entire card body clickable to navigate to the product page.
     container.querySelectorAll('.ws-page-card__body').forEach((body) => {
       body.addEventListener('click', (e) => {
-        // Don't navigate when clicking buttons or existing links.
         if (e.target.closest('button') || e.target.closest('a')) return;
-        const card = body.closest('.ws-page-card');
         const link = body.querySelector('.ws-page-card__title a');
         if (link && link.href && link.href !== '#') {
           window.location.href = link.href;
@@ -405,9 +432,6 @@
   }
 
   /* ---------- Auto-mount page markup on the wishlist page ---------- */
-  // The header link points at a real page (App Embed "Wishlist page URL", default
-  // /pages/wishlist). If the merchant hasn't placed the "Wishlist Page" block there,
-  // inject the same markup so the page still renders. Idempotent + safe on any page.
   function autoMountPage() {
     const configured = (CFG().settings && CFG().settings.wishlistPageUrl) || '/pages/wishlist';
     const norm = (p) => {
@@ -415,10 +439,9 @@
       return (p.replace(/\/+$/, '') || '/').toLowerCase();
     };
     const cur = norm(window.location.pathname);
-    const want = norm(configured); // always starts with "/", so endsWith stays boundary-safe
+    const want = norm(configured);
     if (cur !== want && !cur.endsWith(want)) return;
 
-    // Block already placed on the page -> its markup is present; nothing to inject.
     if (document.getElementById('ws-wishlist-page')) return;
 
     const host =
@@ -441,14 +464,13 @@
       '<p>Browse our products and save items you love.</p>' +
       '<a href="/collections/all" class="ws-btn ws-btn--primary">Browse Products</a>' +
       '</div>' +
-      '<div class="ws-page__grid" id="ws-page-grid"></div>' +
+      '<div class="ws-page__grid ws-page__grid--rows" id="ws-page-grid"></div>' +
       '</div>';
     host.appendChild(mount);
   }
 
   /* ---------- Event wiring ---------- */
   function init() {
-    // Drawer triggers (heart buttons with data-open-drawer)
     document.addEventListener('click', (e) => {
       const trigger = e.target.closest('[data-open-drawer]');
       if (trigger) {
@@ -457,33 +479,35 @@
       }
     });
 
-    // Close drawer
     const closeBtn = document.getElementById('ws-drawer-close');
     const overlay = document.getElementById('ws-drawer-overlay');
     if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
     if (overlay) overlay.addEventListener('click', closeDrawer);
 
-    // Escape key
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeDrawer();
     });
 
-    // Render page if on wishlist page (auto-mount the markup first, so a blank
-    // /pages/wishlist still renders even without the Wishlist Page block).
     autoMountPage();
     if (document.getElementById('ws-wishlist-page')) {
       renderPage();
     }
-
-    // No eager renderDrawer() here: it used to make a full *enriched* wishlist fetch (a
-    // Shopify Admin GraphQL round-trip) on every page load just to populate a closed drawer.
-    // The drawer now renders lazily on open (openDrawer -> renderDrawer), and the header
-    // count is kept current by wishlist-button.js's cheap enrich=0 refresh, which always runs
-    // from the same App Embed. This removes one blocking GraphQL fetch from every page.
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  function boot() {
+    const start = () => {
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+      else init();
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => fetchConfig().then(start));
+    } else {
+      fetchConfig().then(start);
+    }
+  }
+
+  boot();
 
   // Expose for other scripts
   window.__wishlistStock = { openDrawer, closeDrawer, renderDrawer, renderPage, fetchWishlist };

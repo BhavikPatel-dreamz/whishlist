@@ -1,10 +1,51 @@
 /**
- * Back-in-Stock – modal form behaviour.
- * Relies on window.__wishlist_stock.proxyBase set by the App Embed Block.
+ * Back-in-Stock – notify button + modal form behaviour.
+ *
+ * Responsibilities (all driven by the Back-in-Stock App Embed):
+ *   1. Render the global subscribe modal ("Notify me when available").
+ *   2. Inject a "Notify me" button onto an out-of-stock product page when the
+ *      app block isn't manually placed (and keep it in sync on variant change).
+ *   3. Listen for `ws:open-bis` custom events so the separate Wishlist extension
+ *      can open the same modal for an out-of-stock saved item.
+ *
+ * Gating: the app's per-store UIConfig (extensionActive) decides whether this
+ * extension should render. If the store hasn't chosen back-in-stock, it's a no-op.
  */
 (function () {
-  const CFG = () => window.__wishlist_stock || { proxyBase: '/apps/wishlist-stock/api', settings: {} };
+  const CFG = () => window.__wishlist_stock || { proxyBase: '/apps/wishlist-stock/api', bisSettings: {}, customerEmail: '' };
 
+  const SETTINGS = () => {
+    const s = CFG().bisSettings || {};
+    return {
+      notifyButtonText: s.notifyButtonText || 'Notify me when available',
+      notifyModalTitle: s.notifyModalTitle || 'Get notified when this is back',
+      productButton: s.productButton !== false,
+    };
+  };
+
+  /* ---------- Per-store active-extension gate ---------- */
+  let active = null; // null = not yet known, true = render, false = skip
+  function fetchConfig() {
+    const cfg = CFG();
+    return fetch(`${cfg.proxyBase}/ui-config`)
+      .then((r) => r.json())
+      .catch(() => null);
+  }
+  async function initGate() {
+    try {
+      const data = await fetchConfig();
+      if (data && data.ok && data.config) {
+        const value = data.config.extensionActive || 'none';
+        active = value === 'back_in_stock' || value === 'both';
+      } else {
+        active = true; // no config recorded yet — default ON
+      }
+    } catch {
+      active = true;
+    }
+  }
+
+  /* ---------- Guest token (shared with wishlist) ---------- */
   function getGuestToken() {
     let t = localStorage.getItem('wishlist_guest_token');
     if (!t) {
@@ -14,7 +55,7 @@
     return t;
   }
 
-  // Inline message inside the form body — replaces the old blocking alert() popups.
+  /* ---------- Inline message inside the form body ---------- */
   function showMsg(text) {
     const msg = document.getElementById('ws-bis-msg');
     if (!msg) return;
@@ -23,7 +64,7 @@
   }
   function clearMsg() { showMsg(''); }
 
-  // Toggle between the form view and the success/"already subscribed" view.
+  /* ---------- Form / success view toggle ---------- */
   function showForm() {
     const formBody = document.getElementById('ws-bis-form-body');
     const actions = document.getElementById('ws-bis-actions');
@@ -44,7 +85,6 @@
     if (success) success.style.display = '';
     if (titleEl && title) titleEl.textContent = title;
     if (msgEl) msgEl.textContent = message || '';
-    // Offer Unsubscribe only when we know the email (so the DELETE can be keyed).
     if (unsub) unsub.style.display = opts && opts.canUnsubscribe ? '' : 'none';
   }
 
@@ -59,13 +99,11 @@
     const modal = document.getElementById('ws-bis-modal');
     if (!modal) return;
 
-    // Update hidden fields for this variant
     const vidInput = modal.querySelector('input[name="variantId"]');
     if (vidInput) vidInput.value = vid;
     const pidInput = modal.querySelector('input[name="productId"]');
     if (pidInput && container.dataset.productId) pidInput.value = container.dataset.productId;
 
-    // Reset to a clean form state
     showForm();
     clearMsg();
     const form = document.getElementById('ws-bis-form');
@@ -79,21 +117,17 @@
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
 
-    // Focus first input
     setTimeout(() => {
       const el = modal.querySelector('input[name="email"]');
       if (el) el.focus();
     }, 200);
 
-    // If we already know the shopper's email, pre-check whether they're on the list so the
-    // modal reflects live subscription state instead of always showing a blank form.
     const email = cfg.customerEmail;
     if (email && vid) {
       try {
         const params = new URLSearchParams({ variantId: vid, email });
         const resp = await fetch(`${cfg.proxyBase}/stock-alert?${params}`);
         const data = await resp.json();
-        // Only act if the modal is still open on the same variant.
         if (modal.classList.contains('is-open') && vidInput && vidInput.value === String(vid)) {
           if (data.ok && data.subscribed) {
             showSuccess(
@@ -148,7 +182,6 @@
           { canUnsubscribe: Boolean(body.email) },
         );
       } else if (data.code === 'already_available') {
-        // Not an error — the item is purchasable right now. Tell them inline.
         showMsg(data.message || "Good news — it's in stock right now.");
       } else {
         showMsg(data.message || 'Unable to sign you up. Please try again.');
@@ -186,30 +219,124 @@
     } finally {
       if (unsubBtn) { unsubBtn.disabled = false; unsubBtn.textContent = 'Unsubscribe'; }
     }
-    // Back to the form so they can re-subscribe if they change their mind.
     showForm();
     clearMsg();
     showMsg("You've been removed from this alert.");
   }
 
-  function init() {
-    // Open the modal on any "Notify me" click — delegated on the document so it also
-    // covers notify buttons injected after load (the PDP auto-injection and its
-    // variant-change re-renders), not just the ones present at DOMContentLoaded.
-    document.addEventListener('click', (e) => {
-      const button = e.target.closest && e.target.closest('.notify-me');
-      if (!button) return;
-      const container = button.closest('.back-in-stock');
-      if (!container) return;
-      e.preventDefault();
-      openModal(container);
-    });
+  /* ---------- PDP injection (notify only, when block isn't placed) ---------- */
+  function pdpHandle() {
+    const m = location.pathname.match(/\/products\/([^/?#]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
 
-    // Close modal
+  function mainProductForm() {
+    const forms = Array.from(document.querySelectorAll('form[action*="/cart/add"]'));
+    if (!forms.length) return null;
+    return (
+      forms.find((f) => !f.closest('.card, .card-wrapper') && f.closest('#MainContent, main, .product')) ||
+      forms.find((f) => !f.closest('.card, .card-wrapper')) ||
+      forms[0]
+    );
+  }
+
+  function currentVariantId(form) {
+    const fromUrl = new URLSearchParams(location.search).get('variant');
+    if (fromUrl) return fromUrl;
+    const input = form && form.querySelector('[name="id"]');
+    return input && input.value ? input.value : '';
+  }
+
+  function variantUnavailable(product, vid, form) {
+    if (product && Array.isArray(product.variants) && vid) {
+      const v = product.variants.find((x) => String(x.id) === String(vid));
+      if (v) return !v.available;
+    }
+    const addBtn = form && form.querySelector('[name="add"], .product-form__submit, button[type="submit"]');
+    if (addBtn && addBtn.disabled) return true;
+    return false;
+  }
+
+  function notifyMarkup(vid, pid) {
+    const label = SETTINGS().notifyButtonText;
+    return (
+      `<div class="back-in-stock" data-variant-id="${vid}" data-product-id="${pid}">` +
+      '<button class="notify-me" type="button">' +
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>' +
+      `${label}</button></div>`
+    );
+  }
+
+  function updatePdpVariant(product, form, wrap) {
+    const vid = currentVariantId(form);
+    const pid = (product && String(product.id)) || '';
+    const bis = wrap.querySelector('.back-in-stock');
+    if (!variantUnavailable(product, vid, form)) {
+      if (bis) bis.remove();
+    } else if (!bis) {
+      wrap.insertAdjacentHTML('beforeend', notifyMarkup(vid, pid));
+    } else {
+      bis.dataset.variantId = vid;
+      bis.dataset.productId = pid;
+    }
+  }
+
+  let pdpDone = false;
+  async function injectProductPage() {
+    if (pdpDone || !SETTINGS().productButton) return;
+    const handle = pdpHandle();
+    if (!handle) return;
+    if (document.querySelector('.back-in-stock')) { pdpDone = true; return; }
+    const form = mainProductForm();
+    if (!form) return;
+    pdpDone = true;
+
+    let product = null;
+    try {
+      const resp = await fetch(`/products/${handle}.js`);
+      if (resp.ok) product = await resp.json();
+    } catch { /* non-fatal */ }
+
+    const vid =
+      currentVariantId(form) ||
+      (product && product.variants && product.variants[0] ? String(product.variants[0].id) : '');
+    const pid = product ? String(product.id) : '';
+
+    if (!variantUnavailable(product, vid, form)) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'ws-pdp';
+    wrap.id = 'ws-bis-pdp';
+    wrap.insertAdjacentHTML('beforeend', notifyMarkup(vid, pid));
+
+    const anchor = (form.closest('product-form') || form);
+    anchor.insertAdjacentElement('afterend', wrap);
+
+    if (!form.__wsBisBound) {
+      form.__wsBisBound = true;
+      form.addEventListener('change', () => {
+        setTimeout(() => updatePdpVariant(product, form, wrap), 60);
+      });
+    }
+  }
+
+  /* ---------- Initialize (gated on the per-store config) ---------- */
+  function init() {
+    if (document.querySelector('.back-in-stock') || SETTINGS().productButton) {
+      document.addEventListener('click', (e) => {
+        const button = e.target.closest && e.target.closest('.notify-me');
+        if (!button) return;
+        const container = button.closest('.back-in-stock');
+        if (!container) return;
+        e.preventDefault();
+        openModal(container);
+      });
+    }
+
     const closeBtn = document.getElementById('ws-bis-close');
     const cancelBtn = document.getElementById('ws-bis-cancel');
     const modal = document.getElementById('ws-bis-modal');
-
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
     if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
     if (modal) {
@@ -218,20 +345,16 @@
       });
     }
 
-    // Submit
     const submitBtn = document.getElementById('ws-bis-submit');
     if (submitBtn) submitBtn.addEventListener('click', submitForm);
 
-    // Unsubscribe (shown only in the "already on the list" / success state)
     const unsubBtn = document.getElementById('ws-bis-unsub');
     if (unsubBtn) unsubBtn.addEventListener('click', unsubscribe);
 
-    // Escape key
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeModal();
     });
 
-    // Enter key on email field
     const emailInput = document.getElementById('ws-bis-email');
     if (emailInput) {
       emailInput.addEventListener('keydown', (e) => {
@@ -241,8 +364,46 @@
         }
       });
     }
+
+    // Cooperative hook: the separate Wishlist extension fires this for out-of-stock
+    // saved items so the same modal opens here.
+    document.addEventListener('ws:open-bis', (e) => {
+      const detail = (e.detail || {});
+      if (!detail.variantId) return;
+      const container =
+        document.querySelector(`.back-in-stock[data-variant-id="${detail.variantId}"]`) ||
+        wrapVariantContainer(detail.variantId, detail.productId);
+      if (container) openModal(container);
+    });
+
+    function wrapVariantContainer(variantId, productId) {
+      const host = document.body;
+      const tmp = document.createElement('div');
+      tmp.className = 'back-in-stock';
+      tmp.dataset.variantId = variantId;
+      tmp.dataset.productId = productId || '';
+      tmp.style.display = 'none';
+      host.appendChild(tmp);
+      return tmp;
+    }
+
+    // Product-page auto-injection of the notify button on out-of-stock variants.
+    document.addEventListener('DOMContentLoaded', injectProductPage);
+    if (document.readyState !== 'loading') injectProductPage();
+    document.addEventListener('shopify:section:load', injectProductPage);
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  function boot() {
+    const start = () => {
+      if (active !== false) init();
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => initGate().then(start));
+    } else {
+      initGate().then(start);
+    }
+  }
+
+  boot();
 })();

@@ -5,6 +5,9 @@
 
   Or include directly in any page template:
     {% render 'wishlist-page' %}
+
+  Products are rendered in a horizontal (row) layout: image on the left, product
+  details (title, variant, price, SKU, actions) stacked to the right.
 {% endcomment %}
 
 <div class="ws-page" id="ws-wishlist-page">
@@ -19,5 +22,5 @@
     <a href="/collections/all" class="ws-btn ws-btn--primary">Browse Products</a>
   </div>
 
-  <div class="ws-page__grid" id="ws-page-grid"></div>
+  <div class="ws-page__grid ws-page__grid--rows" id="ws-page-grid"></div>
 </div>

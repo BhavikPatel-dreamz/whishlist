@@ -4,9 +4,4 @@ uid = "d71b01d3-dccb-3d16-1c2a-cc7818e5e0932046a4f7"
 
 [theme]
 name = "Wishlist & Back-in-Stock"
-description = "Wishlist heart button, off-canvas drawer, and back-in-stock notification form for your storefront."
-
-[[theme.blocks]]
-name = "App Embed"
-type = "app_embed"
-target = "body"
+description = "Wishlist heart button, off-canvas drawer, wishlist page, and back-in-stock notify form. Ships as two independent app-embed blocks — Wishlist and Back-in-Stock — that merchants can enable or disable separately in the theme editor."

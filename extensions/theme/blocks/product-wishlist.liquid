@@ -1,11 +1,7 @@
 {% comment %}
-  Product Wishlist app block (target: section).
-
+  Wishlist Button app block (target: section). Wishlist only — no back-in-stock.
   Placed by the merchant on the product template (e.g. under Buy Buttons) via the
-  theme editor. Renders the wishlist heart and — when the current variant is
-  unavailable — the "Notify me" trigger. The back-in-stock MODAL is NOT rendered
-  here: it lives once, globally, in the App Embed (app-embed.liquid), so there is
-  no duplicate-id. The runtime JS/CSS is likewise loaded by the App Embed.
+  theme editor. Runtime JS/CSS is loaded by the Wishlist App Embed block.
 
   App blocks can't read the theme `product` object directly, so we take it through
   a `product` setting with "autofill": true (fills with the current product on a
@@ -39,18 +35,6 @@
       </svg>
       <span class="ws-sr-only">Add to wishlist</span>
     </button>
-
-    {%- unless ws_variant.available -%}
-      <div class="back-in-stock" data-variant-id="{{ ws_variant.id }}" data-product-id="{{ ws_product.id }}">
-        <button class="notify-me" type="button">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-          </svg>
-          {{ block.settings.notify_button_text | default: 'Notify me when available' }}
-        </button>
-      </div>
-    {%- endunless -%}
   </div>
 {%- endif -%}
 
@@ -64,12 +48,6 @@
       "id": "product",
       "label": "Product",
       "autofill": true
-    },
-    {
-      "type": "text",
-      "id": "notify_button_text",
-      "label": "Notify button text",
-      "default": "Notify me when available"
     }
   ]
 }

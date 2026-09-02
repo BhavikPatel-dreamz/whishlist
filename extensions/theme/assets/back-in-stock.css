@@ -1,0 +1,310 @@
+/* ============================================================
+   Back-in-Stock – Theme Extension Stylesheet
+   (Back-in-stock only: notify button + subscription modal.)
+   ============================================================ */
+
+/* ---------- CSS Custom Properties ---------- */
+:root {
+  --ws-bis-primary: #e74c3c;
+  --ws-bg: #ffffff;
+  --ws-text: #1a1a1a;
+  --ws-text-muted: #6b7280;
+  --ws-border: #e5e7eb;
+  --ws-radius: 8px;
+  --ws-transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ---------- Notify (Back-in-Stock) Button ---------- */
+.back-in-stock {
+  margin-top: 12px;
+}
+
+.back-in-stock .notify-me {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: transparent;
+  border: 2px solid var(--ws-bis-primary);
+  color: var(--ws-bis-primary);
+  border-radius: var(--ws-radius);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--ws-transition), color var(--ws-transition);
+  width: 100%;
+  justify-content: center;
+}
+
+.back-in-stock .notify-me:hover {
+  background: var(--ws-bis-primary);
+  color: #fff;
+}
+
+.back-in-stock .notify-me svg {
+  flex-shrink: 0;
+}
+
+/* PDP injection wrapper (when the block isn't manually placed) */
+.ws-pdp {
+  margin-top: 14px;
+}
+
+/* ---------- Modal ---------- */
+.ws-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--ws-transition), visibility var(--ws-transition);
+  padding: 20px;
+}
+
+.ws-modal-overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.ws-modal {
+  background: var(--ws-bg);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  transform: scale(0.92) translateY(12px);
+  transition: transform var(--ws-transition);
+}
+
+.ws-modal-overlay.is-open .ws-modal {
+  transform: scale(1) translateY(0);
+}
+
+.ws-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 0;
+}
+
+.ws-modal__title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.ws-modal__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--ws-text-muted);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ws-modal__close:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.ws-modal__body {
+  padding: 20px 24px;
+}
+
+.ws-modal__body p {
+  font-size: 14px;
+  color: var(--ws-text-muted);
+  margin: 0 0 16px;
+}
+
+.ws-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ws-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ws-modal__field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ws-text);
+}
+
+.ws-modal__field input {
+  padding: 10px 12px;
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius);
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color var(--ws-transition);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ws-modal__field input:focus {
+  outline: none;
+  border-color: var(--ws-bis-primary);
+  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+}
+
+.ws-modal__actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 24px 20px;
+}
+
+.ws-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--ws-radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--ws-border);
+  background: var(--ws-bg);
+  color: var(--ws-text);
+  transition: background var(--ws-transition), border-color var(--ws-transition);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ws-btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.ws-btn--primary {
+  background: var(--ws-bis-primary);
+  color: #fff;
+  border-color: var(--ws-bis-primary);
+}
+
+.ws-btn--primary:hover {
+  opacity: 0.9;
+  border-color: var(--ws-bis-primary);
+}
+
+.ws-btn--danger {
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.ws-btn--danger:hover {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
+.ws-btn--small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.ws-modal__actions .ws-btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ws-modal__success {
+  text-align: center;
+  padding: 32px 24px;
+}
+
+.ws-modal__success svg {
+  margin-bottom: 12px;
+  color: #16a34a;
+}
+
+.ws-modal__success h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.ws-modal__success p {
+  font-size: 14px;
+  color: var(--ws-text-muted);
+  margin: 0;
+}
+
+/* Honeypot – hidden from humans */
+.ws-hp { position: absolute; left: -9999px; opacity: 0; height: 0; }
+
+/* Inline modal message (replaces blocking alert() popups in the notify form) */
+.ws-modal__msg {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ws-bis-primary);
+  background: rgba(231, 76, 60, 0.08);
+  border: 1px solid rgba(231, 76, 60, 0.25);
+  border-radius: var(--ws-radius);
+  padding: 8px 12px;
+  margin: 0 0 12px;
+}
+
+/* Spacing for the Unsubscribe button inside the success view */
+.ws-modal__success .ws-btn {
+  margin-top: 14px;
+}
+
+/* ---------- Loading Spinner ---------- */
+.ws-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ws-spin 0.6s linear infinite;
+}
+
+@keyframes ws-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Visually Hidden (a11y) ---------- */
+.ws-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Empty-block placeholder in the theme editor */
+.ws-product-block--empty {
+  padding: 14px;
+  border: 1px dashed var(--ws-border);
+  border-radius: var(--ws-radius);
+  color: var(--ws-text-muted);
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-modal-overlay .ws-modal {
+    transform: scale(1) translateY(0);
+  }
+
+  .ws-spinner {
+    animation: none;
+  }
+}

@@ -1,0 +1,54 @@
+{% comment %}
+  Back-in-Stock Button app block (target: section). Back-in-stock only — no wishlist.
+  Shows the "Notify me" trigger when the current variant is unavailable. The
+  back-in-stock MODAL lives once, globally, in the Back-in-Stock App Embed block.
+
+  App blocks can't read the theme `product` object directly, so we take it through
+  a `product` setting with "autofill": true.
+{% endcomment %}
+
+{%- liquid
+  assign bis_product = block.settings.product
+  assign bis_variant = bis_product.selected_or_first_available_variant
+-%}
+
+{%- if bis_product == blank -%}
+  {%- if request.design_mode -%}
+    <div class="ws-product-block ws-product-block--empty" {{ block.shopify_attributes }}>
+      <p>Select a product in this block's settings to preview the notify button.</p>
+    </div>
+  {%- endif -%}
+{%- else -%}
+  {%- unless bis_variant.available -%}
+    <div class="back-in-stock" data-variant-id="{{ bis_variant.id }}" data-product-id="{{ bis_product.id }}">
+      <button class="notify-me" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        {{ block.settings.notify_button_text | default: 'Notify me when available' }}
+      </button>
+    </div>
+  {%- endunless -%}
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Back-in-Stock Button",
+  "target": "section",
+  "settings": [
+    {
+      "type": "product",
+      "id": "product",
+      "label": "Product",
+      "autofill": true
+    },
+    {
+      "type": "text",
+      "id": "notify_button_text",
+      "label": "Notify button text",
+      "default": "Notify me when available"
+    }
+  ]
+}
+{% endschema %}
