@@ -13,7 +13,11 @@ export function requireIdentity(identity: Identity): Identity {
   const customerId = identity.customerId?.trim() || null;
   const guestToken = identity.guestToken?.trim() || null;
   if (!customerId && !guestToken) {
-    throw new ProxyError(400, "Missing customerId or guestToken", "missing_identity");
+    throw new ProxyError(
+      400,
+      "Missing customerId or guestToken",
+      "missing_identity",
+    );
   }
   if (guestToken && (guestToken.length < 8 || guestToken.length > 64)) {
     throw new ProxyError(400, "Invalid guest token", "invalid_guest_token");
@@ -27,7 +31,10 @@ function identityWhere(shopId: string, identity: Identity) {
     : { shopId, guestToken: identity.guestToken, customerId: null };
 }
 
-export async function listWishlist(shopId: string, identity: Identity): Promise<WishlistItem[]> {
+export async function listWishlist(
+  shopId: string,
+  identity: Identity,
+): Promise<WishlistItem[]> {
   return db.wishlistItem.findMany({
     where: identityWhere(shopId, identity),
     orderBy: { createdAt: "desc" },
@@ -41,7 +48,11 @@ export async function addToWishlist(
   item: { productId: string; variantId: string | null; handle?: string | null },
 ): Promise<WishlistItem> {
   const existing = await db.wishlistItem.findFirst({
-    where: { ...identityWhere(shopId, identity), productId: item.productId, variantId: item.variantId },
+    where: {
+      ...identityWhere(shopId, identity),
+      productId: item.productId,
+      variantId: item.variantId,
+    },
   });
   if (existing) return existing;
 
@@ -59,7 +70,11 @@ export async function addToWishlist(
   } catch (error) {
     // Two concurrent taps on the heart button: fall back to the winning row.
     const raced = await db.wishlistItem.findFirst({
-      where: { ...identityWhere(shopId, identity), productId: item.productId, variantId: item.variantId },
+      where: {
+        ...identityWhere(shopId, identity),
+        productId: item.productId,
+        variantId: item.variantId,
+      },
     });
     if (raced) return raced;
     throw error;
@@ -100,7 +115,9 @@ export async function mergeGuestWishlist(
     where: { shopId, customerId },
     select: { productId: true, variantId: true },
   });
-  const ownedKeys = new Set(owned.map((row) => `${row.productId}:${row.variantId ?? ""}`));
+  const ownedKeys = new Set(
+    owned.map((row) => `${row.productId}:${row.variantId ?? ""}`),
+  );
 
   let merged = 0;
   await db.$transaction(async (tx) => {
@@ -132,7 +149,9 @@ export async function topWishlistedProducts(
   shopId: string,
   limit = 10,
 ): Promise<TopWishlistedRow[]> {
-  const rows = await db.$queryRaw<Array<{ productId: string; saves: bigint; shoppers: bigint }>>`
+  const rows = await db.$queryRaw<
+    Array<{ productId: string; saves: bigint; shoppers: bigint }>
+  >`
     SELECT "productId",
            COUNT(*)::bigint AS saves,
            COUNT(DISTINCT COALESCE("customerId", "guestToken"))::bigint AS shoppers
@@ -153,7 +172,10 @@ export async function wishlistStats(shopId: string) {
   const [total, last30, shoppers] = await Promise.all([
     db.wishlistItem.count({ where: { shopId } }),
     db.wishlistItem.count({
-      where: { shopId, createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+      where: {
+        shopId,
+        createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      },
     }),
     db.$queryRaw<Array<{ count: bigint }>>`
       SELECT COUNT(DISTINCT COALESCE("customerId", "guestToken"))::bigint AS count
@@ -161,4 +183,60 @@ export async function wishlistStats(shopId: string) {
     `,
   ]);
   return { total, last30, shoppers: Number(shoppers[0]?.count ?? 0) };
+}
+
+/** Increment add-to-cart counter for a product (upsert-style). */
+export async function incrementAddToCart(
+  shopId: string,
+  productId: string,
+  amount = 1,
+) {
+  const res = await db.wishlistMetric.updateMany({
+    where: { shopId, productId },
+    data: { addsToCart: { increment: amount } },
+  });
+  if (res.count === 0) {
+    await db.wishlistMetric.create({
+      data: { shopId, productId, addsToCart: amount },
+    });
+  }
+}
+
+/** Increment purchase counter for a product (upsert-style). */
+export async function incrementPurchases(
+  shopId: string,
+  productId: string,
+  amount = 1,
+) {
+  const res = await db.wishlistMetric.updateMany({
+    where: { shopId, productId },
+    data: { purchases: { increment: amount } },
+  });
+  if (res.count === 0) {
+    await db.wishlistMetric.create({
+      data: { shopId, productId, purchases: amount },
+    });
+  }
+}
+
+export type WishlistMetricRow = {
+  productId: string;
+  addsToCart: number;
+  purchases: number;
+};
+
+export async function metricsForProducts(
+  shopId: string,
+  productIds: string[],
+): Promise<WishlistMetricRow[]> {
+  if (!productIds.length) return [];
+  const rows = await db.wishlistMetric.findMany({
+    where: { shopId, productId: { in: productIds } },
+    select: { productId: true, addsToCart: true, purchases: true },
+  });
+  return rows.map((r) => ({
+    productId: r.productId,
+    addsToCart: r.addsToCart,
+    purchases: r.purchases,
+  }));
 }

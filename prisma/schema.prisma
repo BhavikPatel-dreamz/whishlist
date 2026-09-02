@@ -63,11 +63,12 @@ model Shop {
   doubleOptIn           Boolean @default(false)
   alertsPerVariantCap   Int     @default(0) // 0 = unlimited
 
-  wishlists     WishlistItem[]
-  stockAlerts   StockAlert[]
-  webhookEvents WebhookEvent[]
-  rateLimits    RateLimitBucket[]
-  uiConfig      UIConfig?
+  wishlists       WishlistItem[]
+  wishlistMetrics WishlistMetric[]
+  stockAlerts     StockAlert[]
+  webhookEvents   WebhookEvent[]
+  rateLimits      RateLimitBucket[]
+  uiConfig        UIConfig?
 }
 
 /// A saved product. Keyed by Shopify customer id when logged in, else by a browser guest token.
@@ -144,11 +145,11 @@ model RateLimitBucket {
 
 /// Per-store UI configuration: product card options and active extension toggle
 model UIConfig {
-  id                String   @id @default(uuid())
-  shopId            String   @unique
-  shop              Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  id                String @id @default(uuid())
+  shopId            String @unique
+  shop              Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
   // Which extension is active for this store (none | wishlist | back_in_stock | both)
-  extensionActive   String   @default("none")
+  extensionActive   String @default("none")
   // Product card configuration stored as JSON for flexibility and future fields
   productCardConfig Json?
 
@@ -156,4 +157,18 @@ model UIConfig {
   updatedAt DateTime @updatedAt
 
   @@index([extensionActive])
+}
+
+/// Aggregated metrics for wishlisted products (adds-to-cart and purchases)
+model WishlistMetric {
+  id         String   @id @default(uuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  productId  String
+  addsToCart Int      @default(0)
+  purchases  Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([shopId, productId])
+  @@index([shopId])
 }

@@ -19,7 +19,7 @@ import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { requireShop } from "../lib/shop.server";
 import { stockAlertStats, topRequestedVariants, customerEmailsByCustomerIds } from "../models/stock-alert.server";
-import { wishlistStats, topWishlistedProducts } from "../models/wishlist.server";
+import { wishlistStats, topWishlistedProducts, metricsForProducts } from "../models/wishlist.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -47,7 +47,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     })(),
   ]);
 
-  return { wStats, sStats, topProducts, topVariants, wishlistCustomers, shop: session.shop };
+  // Fetch metrics (addsToCart/purchases) for the top products
+  const productIds = topProducts.map((p) => p.productId);
+  const metrics = await metricsForProducts(shop.id, productIds);
+
+  return { wStats, sStats, topProducts, topVariants, wishlistCustomers, metrics, shop: session.shop };
 };
 
 function SetupGuide({ shop, hasActivity }: { shop: string; hasActivity: boolean }) {
@@ -184,11 +188,10 @@ export default function Dashboard() {
 
   const hasActivity = wStats.total > 0 || sStats.total > 0;
 
-  const productRows = topProducts.map((p) => [
-    p.productId,
-    String(p.saves),
-    String(p.distinctShoppers),
-  ]);
+  const productRows = topProducts.map((p) => {
+    const m = metrics.find((mm) => mm.productId === p.productId);
+    return [p.productId, String(p.saves), String(p.distinctShoppers), String(m?.addsToCart ?? 0), String(m?.purchases ?? 0)];
+  });
 
   const variantRows = topVariants.map((v) => [
     v.productTitle || v.productId,
@@ -242,8 +245,8 @@ export default function Dashboard() {
                 </InlineStack>
                 {productRows.length > 0 ? (
                   <DataTable
-                    columnContentTypes={["text", "numeric", "numeric"]}
-                    headings={["Product ID", "Saves", "Shoppers"]}
+                    columnContentTypes={["text", "numeric", "numeric", "numeric", "numeric"]}
+                    headings={["Product ID", "Saves", "Shoppers", "Adds", "Purchases"]}
                     rows={productRows}
                   />
                 ) : (

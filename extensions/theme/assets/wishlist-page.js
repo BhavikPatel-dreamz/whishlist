@@ -295,6 +295,18 @@
         if (ok) {
           btn.textContent = 'Added!';
           setTimeout(() => renderDrawer(), 800);
+          // notify app of move-to-cart for metrics
+          try {
+            const card = btn.closest('.ws-item');
+            const cfg = CFG();
+            if (card && cfg && typeof fetch === 'function') {
+              fetch(`${cfg.proxyBase}/wishlist-event`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event: 'move_to_cart', productId: card.dataset.productId }),
+              }).catch(() => { });
+            }
+          } catch (e) { }
           if (typeof fetch === 'function') {
             fetch('/cart.js').then((r) => r.json()).then((cart) => {
               document.dispatchEvent(new CustomEvent('cart:change', { detail: { cart } }));
@@ -382,6 +394,18 @@
         const ok = await moveToCart(btn.dataset.variantId);
         if (ok) {
           btn.textContent = 'Added!';
+          // notify app of move-to-cart for metrics
+          try {
+            const card = btn.closest('.ws-page-card');
+            const cfg = CFG();
+            if (card && cfg && typeof fetch === 'function') {
+              fetch(`${cfg.proxyBase}/wishlist-event`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event: 'move_to_cart', productId: card.dataset.productId }),
+              }).catch(() => { });
+            }
+          } catch (e) { }
           if (typeof fetch === 'function') {
             fetch('/cart.js').then((r) => r.json()).then((cart) => {
               document.dispatchEvent(new CustomEvent('cart:change', { detail: { cart } }));
