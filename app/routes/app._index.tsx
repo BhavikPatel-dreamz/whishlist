@@ -183,7 +183,7 @@ function StatCard({
 }
 
 export default function Dashboard() {
-  const { wStats, sStats, topProducts, topVariants, wishlistCustomers, shop } =
+  const { wStats, sStats, topProducts, topVariants, wishlistCustomers, metrics, shop } =
     useLoaderData<typeof loader>();
 
   const hasActivity = wStats.total > 0 || sStats.total > 0;
