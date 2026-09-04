@@ -7,11 +7,44 @@ on:
 env:
   VPS_APP_PATH: "/var/www/html/whishlist"
   PM2_PROCESS_NAME: "whishlist"
-  
+
 jobs:
+  # 1. Validate on GitHub's runner first — no malware scan (keep CI fast).
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+  # 2. Deploy only after validate. Scan after sync, before install.
   deploy:
+    needs: [validate]
+    if: ${{ needs.validate.result == 'success' }}
     runs-on: [self-hosted]
     steps:
+      - name: Capture Current Release
+        run: |
+          set -euo pipefail
+          if [ -d "${{ env.VPS_APP_PATH }}/.git" ]; then
+            cd "${{ env.VPS_APP_PATH }}"
+            PREV_SHA="$(git rev-parse HEAD 2>/dev/null || echo '')"
+          else
+            PREV_SHA=""
+          fi
+          echo "PREV_SHA=${PREV_SHA}" >> "$GITHUB_ENV"
+          echo "Previous release: ${PREV_SHA:-<none, fresh clone>}"
+
       - name: Sync Code
         run: |
           if [ -d "${{ env.VPS_APP_PATH }}/.git" ]; then
@@ -22,6 +55,20 @@ jobs:
           else
               git clone -b main git@github.com:BhavikPatel-dreamz/whishlist.git "${{ env.VPS_APP_PATH }}"
           fi
+
+      - name: Virus / malware scan (block server deploy if infected)
+        id: malware_scan
+        run: |
+          set -euo pipefail
+          cd "${{ env.VPS_APP_PATH }}"
+          bash .githooks/pre-commit --ci
+
+      - name: Restore previous release after failed scan
+        if: ${{ failure() && steps.malware_scan.outcome == 'failure' && env.PREV_SHA != '' }}
+        run: |
+          set -euo pipefail
+          cd "${{ env.VPS_APP_PATH }}"
+          git reset --hard "${{ env.PREV_SHA }}"
 
       - name: Build
         run: |
