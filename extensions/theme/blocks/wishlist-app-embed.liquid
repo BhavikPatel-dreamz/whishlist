@@ -12,14 +12,32 @@
   window.__wishlist_stock.customerEmail = {{ customer.email | default: nil | json }};
   window.__wishlist_stock.customerLoggedIn = {% if customer %}true{% else %}false{% endif %};
   window.__wishlist_stock.settings = {
-    buttonColor: '{{ block.settings.wishlist_button_color | default: "#e74c3c" }}',
+    buttonColor: {{ block.settings.wishlist_button_color | default: "#e74c3c" | json }},
     buttonSize: {{ block.settings.wishlist_button_size | default: 20 }},
-    drawerPosition: '{{ block.settings.drawer_position | default: "right" }}',
+    iconType: {{ block.settings.header_icon_type | default: "heart" | json }},
+    iconImage: {% if block.settings.header_icon_image %}{{ block.settings.header_icon_image | image_url: width: 200 | json }}{% else %}null{% endif %},
+    drawerPosition: {{ block.settings.drawer_position | default: "right" | json }},
     headerLink: {% if block.settings.header_link == false %}false{% else %}true{% endif %},
     wishlistPageUrl: {{ block.settings.wishlist_page_url | default: '/pages/wishlist' | json }},
     cardHearts: {% if block.settings.card_hearts == false %}false{% else %}true{% endif %},
     productButton: {% if block.settings.product_button == false %}false{% else %}true{% endif %},
+    drawerBg: {{ block.settings.drawer_bg_color | default: "#ffffff" | json }},
+    drawerText: {{ block.settings.drawer_text_color | default: "#1a1a1a" | json }},
+    borderColor: {{ block.settings.border_color | default: "#e5e7eb" | json }},
+    borderRadius: {{ block.settings.border_radius | default: 8 }},
   };
+
+  /* Inject Wishlist theme CSS custom properties */
+  (function() {
+    var s = window.__wishlist_stock.settings;
+    var root = document.documentElement;
+    root.style.setProperty('--ws-primary', s.buttonColor || '#e74c3c');
+    root.style.setProperty('--ws-icon-size', (s.buttonSize || 20) + 'px');
+    root.style.setProperty('--ws-bg', s.drawerBg || '#ffffff');
+    root.style.setProperty('--ws-text', s.drawerText || '#1a1a1a');
+    root.style.setProperty('--ws-border', s.borderColor || '#e5e7eb');
+    root.style.setProperty('--ws-radius', (s.borderRadius || 8) + 'px');
+  })();
 </script>
 
 {%- comment -%} Wishlist Drawer – off-canvas panel {%- endcomment -%}
@@ -86,6 +104,24 @@
     },
     {
       "type": "select",
+      "id": "header_icon_type",
+      "label": "Wishlist icon style",
+      "options": [
+        { "label": "Heart", "value": "heart" },
+        { "label": "Star", "value": "star" },
+        { "label": "Bookmark", "value": "bookmark" },
+        { "label": "Custom image", "value": "image" }
+      ],
+      "default": "heart"
+    },
+    {
+      "type": "image_picker",
+      "id": "header_icon_image",
+      "label": "Custom header icon image",
+      "info": "Use this to replace the wishlist icon in the header, product cards, and product pages."
+    },
+    {
+      "type": "select",
       "id": "drawer_position",
       "label": "Wishlist Drawer Position",
       "options": [
@@ -119,6 +155,38 @@
       "label": "Show wishlist heart on product pages",
       "info": "Automatically adds the heart to product pages, without placing the Wishlist Button block by hand.",
       "default": true
+    },
+    {
+      "type": "header",
+      "content": "Theme Colors"
+    },
+    {
+      "type": "color",
+      "id": "drawer_bg_color",
+      "label": "Drawer / Card Background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "drawer_text_color",
+      "label": "Text Color",
+      "default": "#1a1a1a"
+    },
+    {
+      "type": "color",
+      "id": "border_color",
+      "label": "Border Color",
+      "default": "#e5e7eb"
+    },
+    {
+      "type": "range",
+      "id": "border_radius",
+      "label": "Border Radius",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "unit": "px",
+      "default": 8
     }
   ]
 }

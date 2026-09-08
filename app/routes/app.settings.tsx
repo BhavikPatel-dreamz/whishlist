@@ -34,6 +34,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       emailHeading: shop.emailHeading,
       emailBody: shop.emailBody,
       buttonLabel: shop.buttonLabel,
+      stockAlertDeliveryMode: shop.stockAlertDeliveryMode,
+      stockAlertDeliveryTime: shop.stockAlertDeliveryTime,
       smsEnabled: shop.smsEnabled,
       hasTwilioToken: Boolean(shop.twilioAuthToken),
       twilioAccountSid: shop.twilioAccountSid || "",
@@ -58,6 +60,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const emailHeading = String(formData.get("emailHeading") || "").trim();
   const emailBody = String(formData.get("emailBody") || "").trim();
   const buttonLabel = String(formData.get("buttonLabel") || "").trim();
+  const stockAlertDeliveryMode = String(formData.get("stockAlertDeliveryMode") || "immediate");
+  const stockAlertDeliveryTime = String(formData.get("stockAlertDeliveryTime") || "09:00").trim();
   const smsEnabled = formData.get("smsEnabled") === "on";
   const twilioAccountSid = String(formData.get("twilioAccountSid") || "").trim();
   const twilioAuthTokenRaw = String(formData.get("twilioAuthToken") || "").trim();
@@ -74,6 +78,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     emailHeading: emailHeading || shop.emailHeading,
     emailBody: emailBody || shop.emailBody,
     buttonLabel: buttonLabel || shop.buttonLabel,
+    stockAlertDeliveryMode: stockAlertDeliveryMode === "scheduled" ? "scheduled" : "immediate",
+    stockAlertDeliveryTime: /^\d{2}:\d{2}$/.test(stockAlertDeliveryTime)
+      ? stockAlertDeliveryTime
+      : shop.stockAlertDeliveryTime,
     smsEnabled,
     twilioAccountSid: twilioAccountSid || null,
     twilioFromNumber: twilioFromNumber || null,
@@ -116,6 +124,10 @@ export default function Settings() {
   const [emailHeading, setEmailHeading] = useState(shop.emailHeading);
   const [emailBody, setEmailBody] = useState(shop.emailBody);
   const [buttonLabel, setButtonLabel] = useState(shop.buttonLabel);
+  const [stockAlertDeliveryMode, setStockAlertDeliveryMode] = useState(shop.stockAlertDeliveryMode);
+  const [stockAlertDeliveryTime, setStockAlertDeliveryTime] = useState(
+    shop.stockAlertDeliveryTime,
+  );
   const [smsEnabled, setSmsEnabled] = useState(shop.smsEnabled);
   const [twilioAccountSid, setTwilioAccountSid] = useState(shop.twilioAccountSid);
   const [twilioAuthToken, setTwilioAuthToken] = useState("");
@@ -222,6 +234,27 @@ export default function Settings() {
                     onChange={setButtonLabel}
                     autoComplete="off"
                   />
+                  <Select
+                    label="Back-in-stock email schedule"
+                    name="stockAlertDeliveryMode"
+                    options={[
+                      { label: "Immediately when back in stock", value: "immediate" },
+                      { label: "At a fixed time each day", value: "scheduled" },
+                    ]}
+                    value={stockAlertDeliveryMode}
+                    onChange={setStockAlertDeliveryMode}
+                  />
+                  {stockAlertDeliveryMode === "scheduled" && (
+                    <TextField
+                      label="Daily send time"
+                      name="stockAlertDeliveryTime"
+                      type="time"
+                      value={stockAlertDeliveryTime}
+                      onChange={setStockAlertDeliveryTime}
+                      helpText="Use your store timezone for the daily send window."
+                      autoComplete="off"
+                    />
+                  )}
                 </BlockStack>
               </Card>
             </Layout.Section>

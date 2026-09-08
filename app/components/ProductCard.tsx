@@ -11,6 +11,16 @@ export type Product = {
   available?: boolean;
 };
 
+export type ThemeSettingsType = {
+  primaryColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  mutedTextColor?: string;
+  borderColor?: string;
+  borderRadius?: number;
+  buttonStyle?: "filled" | "outlined";
+};
+
 export type ProductCardConfigState = {
   displayTitle?: boolean;
   displayPrice?: boolean;
@@ -28,6 +38,7 @@ export type ProductCardConfigState = {
 type Props = {
   product: Product;
   config?: ProductCardConfigState | Record<string, any> | null;
+  theme?: ThemeSettingsType | Record<string, any> | null;
 };
 
 const IMAGE_SIZES: Record<string, { width: number; height: number }> = {
@@ -36,7 +47,18 @@ const IMAGE_SIZES: Record<string, { width: number; height: number }> = {
   large: { width: 140, height: 140 },
 };
 
-export default function ProductCard({ product, config }: Props) {
+const DEFAULT_THEME: ThemeSettingsType = {
+  primaryColor: "#e74c3c",
+  backgroundColor: "#ffffff",
+  textColor: "#1a1a1a",
+  mutedTextColor: "#6b7280",
+  borderColor: "#e5e7eb",
+  borderRadius: 8,
+  buttonStyle: "filled",
+};
+
+export default function ProductCard({ product, config, theme: themeProp }: Props) {
+  const t: ThemeSettingsType = { ...DEFAULT_THEME, ...(themeProp || {}) };
   const c: ProductCardConfigState = {
     displayTitle: true,
     displayPrice: true,
@@ -55,6 +77,8 @@ export default function ProductCard({ product, config }: Props) {
   const isHorizontal = layout === "horizontal" || layout === "list";
   const isCompact = layout === "compact";
   const imgSize = IMAGE_SIZES[c.imageSize || "medium"];
+  const br = t.borderRadius ?? 8;
+  const isOutlined = t.buttonStyle === "outlined";
 
   const imageBox = c.displayImage ? (
     <div
@@ -84,18 +108,18 @@ export default function ProductCard({ product, config }: Props) {
   const body = (
     <>
       {c.displayTitle && (
-        <div style={{ fontSize: isCompact ? 12 : 14, fontWeight: 600, lineHeight: 1.3 }}>
+        <div style={{ fontSize: isCompact ? 12 : 14, fontWeight: 600, lineHeight: 1.3, color: t.textColor }}>
           {product.title || "Product"}
         </div>
       )}
       {c.displayVariant && product.variantTitle && (
-        <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>{product.variantTitle}</div>
+        <div style={{ fontSize: 12, color: t.mutedTextColor, marginTop: 2 }}>{product.variantTitle}</div>
       )}
       {c.displaySKU && product.sku && (
-        <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>SKU: {product.sku}</div>
+        <div style={{ fontSize: 12, color: t.mutedTextColor, marginTop: 2 }}>SKU: {product.sku}</div>
       )}
       {c.displayPrice && product.price && (
-        <div style={{ marginTop: 6, fontWeight: 700, fontSize: isCompact ? 13 : 15 }}>
+        <div style={{ marginTop: 6, fontWeight: 700, fontSize: isCompact ? 13 : 15, color: t.textColor }}>
           {product.price}
         </div>
       )}
@@ -115,14 +139,15 @@ export default function ProductCard({ product, config }: Props) {
             <button
               style={{
                 flex: 1,
-                background: "#e55344",
-                color: "white",
-                border: "none",
+                background: isOutlined ? "transparent" : t.primaryColor,
+                color: isOutlined ? t.primaryColor : "white",
+                border: isOutlined ? `2px solid ${t.primaryColor}` : "none",
                 padding: isCompact ? "6px 8px" : "8px 12px",
-                borderRadius: 6,
+                borderRadius: br,
                 fontSize: 12,
                 cursor: "pointer",
                 minWidth: 64,
+                fontWeight: 600,
               }}
             >
               {product.available === false ? "Sold out" : "Add to Cart"}
@@ -132,10 +157,11 @@ export default function ProductCard({ product, config }: Props) {
             <button
               style={{
                 background: "transparent",
-                border: "1px solid #ddd",
+                border: `1px solid ${t.borderColor}`,
                 padding: isCompact ? "6px 8px" : "8px 10px",
-                borderRadius: 6,
+                borderRadius: br,
                 cursor: "pointer",
+                color: t.primaryColor,
               }}
               aria-label="Add to wishlist"
             >
@@ -146,14 +172,15 @@ export default function ProductCard({ product, config }: Props) {
             <button
               style={{
                 flex: 1,
-                background: "#fff",
-                border: "1px solid #e55344",
-                color: "#e55344",
+                background: isOutlined ? "transparent" : t.primaryColor,
+                border: isOutlined ? `2px solid ${t.primaryColor}` : "none",
+                color: isOutlined ? t.primaryColor : "white",
                 padding: isCompact ? "6px 8px" : "8px 12px",
-                borderRadius: 6,
+                borderRadius: br,
                 fontSize: 12,
                 cursor: "pointer",
                 minWidth: 64,
+                fontWeight: 600,
               }}
             >
               Notify me
@@ -167,10 +194,10 @@ export default function ProductCard({ product, config }: Props) {
   return (
     <div
       style={{
-        border: "1px solid #e5e7eb",
-        borderRadius: 10,
+        border: `1px solid ${t.borderColor}`,
+        borderRadius: br,
         overflow: "hidden",
-        background: "#fff",
+        background: t.backgroundColor,
         width: isHorizontal ? 420 : isCompact ? 180 : 260,
         display: "flex",
         flexDirection: isHorizontal ? "row" : "column",
@@ -183,7 +210,7 @@ export default function ProductCard({ product, config }: Props) {
       <div
         style={{
           padding: isHorizontal ? 4 : 12,
-          background: "#fff",
+          background: t.backgroundColor,
           display: "flex",
           flexDirection: "column",
           width: isHorizontal ? undefined : "100%",

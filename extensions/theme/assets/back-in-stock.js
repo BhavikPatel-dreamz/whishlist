@@ -20,8 +20,22 @@
       notifyButtonText: s.notifyButtonText || 'Notify me when available',
       notifyModalTitle: s.notifyModalTitle || 'Get notified when this is back',
       productButton: s.productButton !== false,
+      iconType: s.iconType || 'bell',
+      iconImage: s.iconImage || '',
     };
   };
+
+  function notifyIconMarkup() {
+    const s = SETTINGS();
+    if (s.iconType === 'none') return '';
+    if (s.iconType === 'image' && s.iconImage) {
+      return `<img src="${s.iconImage}" alt="" width="16" height="16" />`;
+    }
+    const icon = s.iconType === 'clock'
+      ? '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/>'
+      : '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>';
+    return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
+  }
 
   /* ---------- Per-store active-extension gate ---------- */
   let active = null; // null = not yet known, true = render, false = skip
@@ -262,8 +276,7 @@
     return (
       `<div class="back-in-stock" data-variant-id="${vid}" data-product-id="${pid}">` +
       '<button class="notify-me" type="button">' +
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-      '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>' +
+      notifyIconMarkup() +
       `${label}</button></div>`
     );
   }

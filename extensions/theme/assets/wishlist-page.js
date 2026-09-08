@@ -19,6 +19,7 @@
         if (data && data.ok && data.config) {
           uiConfig = data.config;
           window.__wishlist_stock.uiConfig = uiConfig;
+          applyThemeFromConfig();
         }
       })
       .catch(() => null);
@@ -33,6 +34,19 @@
       displaySKU: !!c.displaySKU,
       displayImage: c.displayImage !== false,
     };
+  }
+
+  /* Theme settings from the API, applied as CSS custom properties. */
+  function applyThemeFromConfig() {
+    const t = (uiConfig && uiConfig.themeSettings) || (uiConfig && uiConfig.productCardConfig && uiConfig.productCardConfig.theme) || {};
+    if (!t || typeof t !== 'object') return;
+    var root = document.documentElement;
+    if (t.primaryColor) root.style.setProperty('--ws-primary', t.primaryColor);
+    if (t.backgroundColor) root.style.setProperty('--ws-bg', t.backgroundColor);
+    if (t.textColor) root.style.setProperty('--ws-text', t.textColor);
+    if (t.mutedTextColor) root.style.setProperty('--ws-text-muted', t.mutedTextColor);
+    if (t.borderColor) root.style.setProperty('--ws-border', t.borderColor);
+    if (t.borderRadius != null) root.style.setProperty('--ws-radius', t.borderRadius + 'px');
   }
 
   /* ---------- Guest token ---------- */
@@ -204,7 +218,7 @@
     return `
       <div class="ws-item" data-product-id="${item.productId}" data-variant-id="${item.variantId || ''}">
         <button class="ws-item__remove" data-action="remove" aria-label="Remove from wishlist">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6m-8 0v13.5A1.5 1.5 0 0 0 9.5 21h5a1.5 1.5 0 0 0 1.5-1.5V6m-8 0h8"/></svg>
         </button>
         ${imageBox}
         <div class="ws-item__info">
@@ -493,6 +507,21 @@
     host.appendChild(mount);
   }
 
+  function autoMountDrawerFooter() {
+    if (document.getElementById('ws-drawer-footer')) return;
+    const drawer = document.getElementById('ws-drawer');
+    if (!drawer) return;
+
+    const footer = document.createElement('div');
+    footer.id = 'ws-drawer-footer';
+    footer.className = 'ws-drawer__footer';
+    footer.innerHTML =
+      '<h3 class="ws-drawer__footer-title">Your collections are to stay here forever!</h3>' +
+      '<p class="ws-drawer__footer-text">Login to save your stuff for good and access them whenever, wherever.</p>' +
+      '<a class="ws-drawer__footer-link" href="/account/login">Login</a>';
+    drawer.appendChild(footer);
+  }
+
   /* ---------- Event wiring ---------- */
   function init() {
     document.addEventListener('click', (e) => {
@@ -513,6 +542,7 @@
     });
 
     autoMountPage();
+    autoMountDrawerFooter();
     if (document.getElementById('ws-wishlist-page')) {
       renderPage();
     }

@@ -9,15 +9,16 @@ import {
   isExtensionActive,
   type ExtensionActive,
   type ProductCardConfig,
+  type ThemeSettings,
 } from "../lib/ui-config.shared";
 
 /**
  * Public storefront endpoint: GET /apps/wishlist-stock/api/ui-config
- * Returns the per-store UI configuration (active extension + product card fields)
- * so the theme extensions can gate and customise their rendering.
+ * Returns the per-store UI configuration (active extension, product card fields,
+ * and theme settings) so the theme extensions can gate and customise their rendering.
  *
- * POST accepts `{ extensionActive, productCardConfig }` — used by the admin though
- * normal admin auth; this proxy path mainly exists so the storefront can read it.
+ * POST accepts `{ extensionActive, productCardConfig, themeSettings }` — used by the
+ * admin though normal admin auth; this proxy path mainly exists so the storefront can read it.
  */
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const ctx = await authenticateProxyRequest(request);
@@ -42,9 +43,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ? payload.productCardConfig
       : undefined;
 
+  const themeSettings: Partial<ThemeSettings> | undefined =
+    payload.themeSettings && typeof payload.themeSettings === "object"
+      ? payload.themeSettings
+      : undefined;
+
   const config = await upsertUIConfigForShopDomain(ctx.shop.shop, {
     extensionActive,
     productCardConfig,
+    themeSettings,
   });
   return json({ ok: true, config });
 };

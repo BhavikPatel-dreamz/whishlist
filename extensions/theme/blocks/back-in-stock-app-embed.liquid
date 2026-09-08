@@ -15,7 +15,21 @@
     notifyButtonText: {{ block.settings.notify_button_text | default: "Notify me when available" | json }},
     notifyModalTitle: {{ block.settings.notify_modal_title | default: "Get notified when this is back" | json }},
     productButton: {% if block.settings.product_button == false %}false{% else %}true{% endif %},
+    buttonColor: {{ block.settings.bis_button_color | default: "#e74c3c" | json }},
+    buttonSize: {{ block.settings.bis_button_size | default: 14 }},
+    buttonStyle: {{ block.settings.bis_button_style | default: "outlined" | json }},
+    iconType: {{ block.settings.bis_icon_type | default: "bell" | json }},
+    iconImage: {% if block.settings.bis_icon_image %}{{ block.settings.bis_icon_image | image_url: width: 100 | json }}{% else %}null{% endif %},
+    borderRadius: {{ block.settings.bis_border_radius | default: 8 }},
   };
+
+  /* Inject Back-in-Stock theme CSS custom properties */
+  (function() {
+    var s = window.__wishlist_stock.bisSettings;
+    var root = document.documentElement;
+    root.style.setProperty('--ws-bis-primary', s.buttonColor || '#e74c3c');
+    root.style.setProperty('--ws-radius', (s.borderRadius || 8) + 'px');
+  })();
 </script>
 
 {%- comment -%} Back-in-Stock modal {%- endcomment -%}
@@ -73,6 +87,60 @@
   "name": "Back-in-Stock",
   "target": "body",
   "settings": [
+    {
+      "type": "color",
+      "id": "bis_button_color",
+      "label": "Button Color",
+      "default": "#e74c3c"
+    },
+    {
+      "type": "range",
+      "id": "bis_button_size",
+      "label": "Button Font Size",
+      "min": 12,
+      "max": 20,
+      "step": 1,
+      "unit": "px",
+      "default": 14
+    },
+    {
+      "type": "select",
+      "id": "bis_button_style",
+      "label": "Button Style",
+      "options": [
+        { "label": "Outlined (border only)", "value": "outlined" },
+        { "label": "Filled (solid background)", "value": "filled" }
+      ],
+      "default": "outlined"
+    },
+    {
+      "type": "select",
+      "id": "bis_icon_type",
+      "label": "Notify button icon",
+      "options": [
+        { "label": "Bell", "value": "bell" },
+        { "label": "Clock", "value": "clock" },
+        { "label": "Custom image", "value": "image" },
+        { "label": "No icon", "value": "none" }
+      ],
+      "default": "bell"
+    },
+    {
+      "type": "image_picker",
+      "id": "bis_icon_image",
+      "label": "Custom notify icon image",
+      "info": "Used when Notify button icon is set to Custom image."
+    },
+    {
+      "type": "range",
+      "id": "bis_border_radius",
+      "label": "Border Radius",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "unit": "px",
+      "default": 8
+    },
     {
       "type": "text",
       "id": "notify_button_text",

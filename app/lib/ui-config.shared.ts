@@ -27,6 +27,16 @@ export type ProductCardLayout = (typeof PRODUCT_CARD_LAYOUTS)[number];
 export const PRODUCT_CARD_IMAGE_SIZES = ["small", "medium", "large"] as const;
 export type ProductCardImageSize = (typeof PRODUCT_CARD_IMAGE_SIZES)[number];
 
+export type ThemeSettings = {
+  primaryColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  mutedTextColor?: string;
+  borderColor?: string;
+  borderRadius?: number;
+  buttonStyle?: "filled" | "outlined";
+};
+
 export type ProductCardConfig = {
   displayTitle?: boolean;
   displayPrice?: boolean;
@@ -39,7 +49,20 @@ export type ProductCardConfig = {
   showWishlistButton?: boolean;
   showBackInStockButton?: boolean;
   customStyles?: Record<string, string> | null;
+  theme?: ThemeSettings;
 };
+
+export function defaultThemeSettings(): ThemeSettings {
+  return {
+    primaryColor: "#e74c3c",
+    backgroundColor: "#ffffff",
+    textColor: "#1a1a1a",
+    mutedTextColor: "#6b7280",
+    borderColor: "#e5e7eb",
+    borderRadius: 8,
+    buttonStyle: "filled",
+  };
+}
 
 export function defaultProductCardConfig(): ProductCardConfig {
   return {
@@ -54,6 +77,7 @@ export function defaultProductCardConfig(): ProductCardConfig {
     showWishlistButton: true,
     showBackInStockButton: false,
     customStyles: null,
+    theme: defaultThemeSettings(),
   };
 }
 
@@ -69,5 +93,10 @@ export function effectiveProductCardConfig(
 ): ProductCardConfig {
   const base = defaultProductCardConfig();
   if (!stored || typeof stored !== "object" || Array.isArray(stored)) return base;
-  return { ...base, ...(stored as Record<string, unknown>) } as ProductCardConfig;
+  const raw = stored as Record<string, unknown>;
+  const merged = { ...base, ...raw } as ProductCardConfig;
+  if (raw.theme && typeof raw.theme === "object" && !Array.isArray(raw.theme)) {
+    merged.theme = { ...defaultThemeSettings(), ...(raw.theme as Record<string, unknown>) } as ThemeSettings;
+  }
+  return merged;
 }

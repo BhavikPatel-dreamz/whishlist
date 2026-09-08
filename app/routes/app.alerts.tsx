@@ -153,7 +153,7 @@ export default function Alerts() {
   ));
 
   return (
-    <Page>
+    <Page fullWidth>
       <TitleBar title="Stock Alerts">
         <button
           variant="primary"

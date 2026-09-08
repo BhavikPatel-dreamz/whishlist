@@ -203,6 +203,9 @@ export default function Dashboard() {
   return (
     <Page>
       <TitleBar title="Dashboard" />
+      <Box paddingBlockStart="200">
+      
+      </Box>
       <BlockStack gap="500">
         <SetupGuide shop={shop} hasActivity={hasActivity} />
 

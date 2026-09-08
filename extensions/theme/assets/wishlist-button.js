@@ -322,6 +322,30 @@
   }
 
   /* ---------- Injection: header link + counter ---------- */
+  function wishlistIconMarkup(size) {
+    const s = CFG().settings || {};
+    const iconType = s.iconType || 'heart';
+    const imageUrl = s.iconImage || '';
+    const dimension = size || 22;
+
+    if (iconType === 'image' && imageUrl) {
+      return `<img src="${imageUrl}" alt="Wishlist" width="${dimension}" height="${dimension}" style="width:${dimension}px;height:${dimension}px;" />`;
+    }
+
+    const paths = {
+      heart: '<path d="M12 21s-6.716-4.434-9.333-7.14C-1.333 10.9 1.333 6 6 6c2.76 0 4 2 6 2s3.24-2 6-2c4.667 0 7.333 4.9 3.333 7.86C18.716 16.566 12 21 12 21z"/>',
+      star: '<path d="m12 3 2.8 5.67 6.26.91-4.53 4.41 1.07 6.23L12 17.28l-5.6 2.94 1.07-6.23-4.53-4.41 6.26-.91L12 3z"/>',
+      bookmark: '<path d="M6 3h12v18l-6-3.5L6 21V3z"/>',
+    };
+    return `<svg width="${dimension}" height="${dimension}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[iconType] || paths.heart}</svg>`;
+  }
+
+  function renderHeaderIconMarkup() {
+    const s = CFG().settings || {};
+    const size = Math.max(14, Number(s.buttonSize) || 20);
+    return wishlistIconMarkup(size);
+  }
+
   function injectHeaderLink() {
     if (document.getElementById('ws-header-link')) return;
     const host =
@@ -334,10 +358,7 @@
     link.id = 'ws-header-link';
     link.className = 'ws-header-link header__icon header__icon--summary link focus-inset';
     link.setAttribute('aria-label', 'My Wishlist');
-    link.innerHTML =
-      '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">' +
-      '<path d="M12 21s-6.716-4.434-9.333-7.14C-1.333 10.9 1.333 6 6 6c2.76 0 4 2 6 2s3.24-2 6-2c4.667 0 7.333 4.9 3.333 7.86C18.716 16.566 12 21 12 21z"/>' +
-      '</svg>';
+    link.innerHTML = renderHeaderIconMarkup();
 
     let counter = document.getElementById('ws-header-count');
     if (!counter) {
@@ -504,10 +525,7 @@
       btn.className = 'wishlist-heart';
       btn.dataset.productHandle = handle;
       btn.setAttribute('aria-pressed', 'false');
-      btn.innerHTML =
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-        '<path d="M12 21s-6.716-4.434-9.333-7.14C-1.333 10.9 1.333 6 6 6c2.76 0 4 2 6 2s3.24-2 6-2c4.667 0 7.333 4.9 3.333 7.86C18.716 16.566 12 21 12 21z" stroke="currentColor" stroke-width="1.6"/>' +
-        '</svg><span class="ws-sr-only">Add to wishlist</span>';
+      btn.innerHTML = wishlistIconMarkup(20) + '<span class="ws-sr-only">Add to wishlist</span>';
       wrap.appendChild(btn);
       host.appendChild(wrap);
     });
@@ -536,6 +554,15 @@
     return input && input.value ? input.value : '';
   }
 
+  function productPageScope(form) {
+    return (
+      form.closest('.shopify-section') ||
+      form.closest('section') ||
+      form.closest('main') ||
+      document.body
+    );
+  }
+
   let pdpBoundForm = null;
   async function injectProductPage() {
     if (!on('productButton')) return;
@@ -546,10 +573,12 @@
     if (!form) return;
     if (pdpBoundForm) return;
 
-    // If the theme or a merchant has already placed a wishlist button inside the
-    // product form (a `.wishlist-heart`), avoid injecting another one to prevent
-    // duplicate hearts on the PDP.
-    if (form.querySelector && form.querySelector('.wishlist-heart')) {
+    const scope = productPageScope(form);
+
+    // If the theme or a merchant has already placed a wishlist button on the
+    // product page, avoid injecting another one to prevent duplicate hearts on
+    // the PDP.
+    if (scope.querySelector('.ws-pdp .wishlist-heart, .ws-product-block .wishlist-heart, form[action*="/cart/add"] .wishlist-heart')) {
       pdpBoundForm = form;
       return;
     }
@@ -574,9 +603,7 @@
       (pid ? ` data-product-id="${pid}"` : '') +
       (vid ? ` data-variant-id="${vid}"` : '') +
       ` data-product-handle="${handle}" aria-pressed="false">` +
-      '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-      '<path d="M12 21s-6.716-4.434-9.333-7.14C-1.333 10.9 1.333 6 6 6c2.76 0 4 2 6 2s3.24-2 6-2c4.667 0 7.333 4.9 3.333 7.86C18.716 16.566 12 21 12 21z" stroke="currentColor" stroke-width="1.4"/>' +
-      '</svg><span class="ws-sr-only">Add to wishlist</span></button>';
+      wishlistIconMarkup(24) + '<span class="ws-sr-only">Add to wishlist</span></button>';
 
     const anchor = form.closest('product-form') || form;
     anchor.insertAdjacentElement('afterend', wrap);
