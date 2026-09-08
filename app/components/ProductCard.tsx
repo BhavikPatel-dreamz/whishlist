@@ -11,6 +11,7 @@ export type Product = {
   available?: boolean;
 };
 
+
 export type ThemeSettingsType = {
   primaryColor?: string;
   backgroundColor?: string;
