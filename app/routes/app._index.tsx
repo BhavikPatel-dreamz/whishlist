@@ -125,12 +125,13 @@ function MetricCard({
         }
       }}
       style={{
-        borderRadius: 18,
+        borderRadius: 12,
         padding: 20,
-        minHeight: 140,
-        background: tone,
-        color: "#fff",
-        boxShadow: "0 1px 2px rgba(16,24,40,.08), 0 10px 24px rgba(16,24,40,.08)",
+        minHeight: 120,
+        background: "#ffffff",
+        color: "#111827",
+        border: "1px solid #e5e7eb",
+        boxShadow: "0 1px 2px rgba(16,24,40,0.06)",
         cursor: onClick ? "pointer" : undefined,
         outline: selected ? "3px solid #111827" : "none",
         outlineOffset: 3,
@@ -426,7 +427,6 @@ export default function Dashboard() {
                 <Text as="h1" variant="heading2xl">
                   Wishlist by Square
                 </Text>
-                <Badge tone="success">Live</Badge>
               </InlineStack>
               <Text as="p" variant="bodyMd" tone="subdued">
                 Results for the last 30 days
