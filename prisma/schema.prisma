@@ -67,6 +67,7 @@ model Shop {
 
   wishlists       WishlistItem[]
   wishlistMetrics WishlistMetric[]
+  wishlistOrders  WishlistOrder[]
   stockAlerts     StockAlert[]
   webhookEvents   WebhookEvent[]
   rateLimits      RateLimitBucket[]
@@ -175,4 +176,19 @@ model WishlistMetric {
 
   @@unique([shopId, productId])
   @@index([shopId])
+}
+
+/// A paid order line that can be attributed to a product that was saved in a wishlist.
+/// The unique key makes processing safe when Shopify sends both orders/paid and
+/// orders/updated (or retries either webhook).
+model WishlistOrder {
+  id        String   @id @default(uuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orderId   String
+  productId String
+  createdAt DateTime @default(now())
+
+  @@unique([shopId, orderId, productId])
+  @@index([shopId, createdAt])
 }

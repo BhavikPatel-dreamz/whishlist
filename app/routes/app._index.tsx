@@ -17,7 +17,12 @@ import type { ColumnContentType } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { requireShop } from "../lib/shop.server";
-import { wishlistStats, topWishlistedProducts, metricsForProducts } from "../models/wishlist.server";
+import {
+  wishlistStats,
+  topWishlistedProducts,
+  metricsForProducts,
+  wishlistDrivenOrderCount,
+} from "../models/wishlist.server";
 import { topRequestedVariants } from "../models/stock-alert.server";
 import { getProductsByIds } from "../lib/shopify-data.server";
 import db from "../db.server";
@@ -26,10 +31,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const shop = await requireShop(session.shop);
 
-  const [wStats, topProducts, topVariants] = await Promise.all([
+  const [wStats, topProducts, topVariants, wishlistOrderCount] = await Promise.all([
     wishlistStats(shop.id),
     topWishlistedProducts(shop.id, 1000),
     topRequestedVariants(shop.id, 10),
+    wishlistDrivenOrderCount(shop.id),
   ]);
 
   const wishlistProductIds = topProducts.map((p) => p.productId);
@@ -38,6 +44,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     metricsForProducts(shop.id, wishlistProductIds),
     getProductsByIds(admin, Array.from(new Set([...wishlistProductIds, ...requestProductIds]))),
   ]);
+
+  const orderSummary = {
+    totalOrders: wishlistOrderCount,
+    averageOrdersPerSave: wStats.total > 0 ? wishlistOrderCount / wStats.total : 0,
+  };
 
   return {
     shop: {
@@ -54,6 +65,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     topVariants,
     wishlistMetrics,
     productMap: Array.from(productMap.entries()),
+    orderSummary,
   };
 };
 
@@ -216,6 +228,7 @@ export default function Dashboard() {
   const productMap = new Map(data.productMap);
   const totalAdds = data.wishlistMetrics.reduce((sum, row) => sum + (row.addsToCart ?? 0), 0);
   const totalPurchases = data.wishlistMetrics.reduce((sum, row) => sum + (row.purchases ?? 0), 0);
+  const orderSummary = data.orderSummary;
 
   const selectedMetricTitle = {
     wishlists: "All Wishlist Products",
@@ -349,7 +362,7 @@ export default function Dashboard() {
                     drawer, and the “Notify me” button.
                   </Text>
                   <InlineStack>
-                    <Button variant="primary" url={themeEditorUrl} target="_blank" external>
+                    <Button variant="primary" url={themeEditorUrl} target="_blank">
                       Open theme editor
                     </Button>
                   </InlineStack>
@@ -375,7 +388,7 @@ export default function Dashboard() {
                     .
                   </Text>
                   <InlineStack>
-                    <Button url={newPageUrl} target="_blank" external>
+                    <Button url={newPageUrl} target="_blank">
                       Create wishlist page
                     </Button>
                   </InlineStack>
@@ -457,8 +470,8 @@ export default function Dashboard() {
                 </div>
                 <div style={{ flex: "1 1 0" }}>
                   <MetricCard
-                    title="Total Value"
-                    value={`₹${totalPurchases.toFixed(2)}`}
+                    title="Wishlist orders"
+                    value={orderSummary.totalOrders}
                     tone="#3f6212"
                     subtitle="Wishlist-driven orders"
                     selected={selectedMetric === "value"}
@@ -468,7 +481,7 @@ export default function Dashboard() {
                 <div style={{ flex: "1 1 0" }}>
                   <MetricCard
                     title="Average Wishlist"
-                    value={`₹${data.wStats.total ? (totalPurchases / data.wStats.total).toFixed(2) : "0.00"}`}
+                    value={Number(orderSummary.averageOrdersPerSave ?? 0).toFixed(2)}
                     tone="#374151"
                     subtitle="Average per wishlist save"
                     selected={selectedMetric === "average"}

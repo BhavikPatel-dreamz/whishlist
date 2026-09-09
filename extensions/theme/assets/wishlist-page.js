@@ -67,10 +67,12 @@
     if (el) { el.textContent = String(v); el.dataset.count = String(v); }
   }
 
-  /* ---------- Fetch wishlist (fast DB-only path) ---------- */
-  async function fetchWishlist() {
+  /* ---------- Fetch wishlist ---------- */
+  async function fetchWishlist({ enriched = true } = {}) {
     const cfg = CFG();
-    const params = new URLSearchParams({ guest_token: getGuestToken(), enrich: '0' });
+    const params = new URLSearchParams({ guest_token: getGuestToken() });
+    if (enriched) params.set('enrich', '1');
+    else params.set('enrich', '0');
     try {
       const resp = await fetch(`${cfg.proxyBase}/wishlist?${params}`);
       const data = await resp.json();
@@ -165,15 +167,31 @@
 
   /* ---------- Move to cart ---------- */
   async function moveToCart(variantId) {
-    if (!variantId) return false;
+    const normalizedId = Number.parseInt(String(variantId || '').trim(), 10);
+    if (!Number.isFinite(normalizedId) || normalizedId <= 0) return false;
+
     try {
       const resp = await fetch('/cart/add.js', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: [{ id: Number(variantId), quantity: 1 }] }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ items: [{ id: normalizedId, quantity: 1 }] }),
       });
-      return resp.ok;
-    } catch {
+
+      const data = await resp.clone().json().catch(() => null);
+      if (!resp.ok) {
+        console.warn('Wishlist add-to-cart failed', data || resp.statusText);
+        return false;
+      }
+
+      if (window.location.pathname !== '/cart') {
+        window.location.href = '/cart';
+      }
+      return true;
+    } catch (error) {
+      console.warn('Wishlist add-to-cart request failed', error);
       return false;
     }
   }
@@ -267,7 +285,7 @@
 
   /* ---------- Render Drawer ---------- */
   async function renderDrawer() {
-    const items = await fetchWishlist();
+    const items = await fetchWishlist({ enriched: true });
     const body = document.getElementById('ws-drawer-items');
     const empty = document.getElementById('ws-drawer-empty');
     const count = document.getElementById('ws-drawer-count');
@@ -281,14 +299,29 @@
       return;
     }
 
-    const enriched = await enrichItems(items);
-
     if (empty) empty.style.display = 'none';
-    body.innerHTML = enriched.map(drawerItemHTML).join('');
-    if (count) count.textContent = `(${enriched.length})`;
-    setHeaderCount(enriched.length);
+    body.innerHTML = items.map(drawerItemHTML).join('');
+    if (count) count.textContent = `(${items.length})`;
+    setHeaderCount(items.length);
 
-    bindDrawerActions(body, enriched);
+    bindDrawerActions(body, items);
+
+    const enriched = await enrichItems(items);
+    if (enriched.length !== items.length) {
+      body.innerHTML = enriched.map(drawerItemHTML).join('');
+      bindDrawerActions(body, enriched);
+    } else {
+      for (let i = 0; i < enriched.length; i += 1) {
+        const card = body.querySelectorAll('.ws-item')[i];
+        if (!card || !enriched[i]) continue;
+
+        const nextHtml = drawerItemHTML(enriched[i]);
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = nextHtml;
+        const replacement = wrapper.firstElementChild;
+        if (replacement) card.replaceWith(replacement);
+      }
+    }
   }
 
   function bindDrawerActions(container, items) {
@@ -367,7 +400,7 @@
       '<span class="ws-page__loading-text">Loading your wishlist…</span>' +
       '</div>';
 
-    const items = await fetchWishlist();
+    const items = await fetchWishlist({ enriched: true });
 
     if (items.length === 0) {
       grid.innerHTML = '';
@@ -377,14 +410,29 @@
       return;
     }
 
-    const enriched = await enrichItems(items);
-
     if (empty) empty.style.display = 'none';
-    grid.innerHTML = enriched.map(pageCardHTML).join('');
-    if (count) count.textContent = `${enriched.length} item${enriched.length === 1 ? '' : 's'}`;
-    setHeaderCount(enriched.length);
+    grid.innerHTML = items.map(pageCardHTML).join('');
+    if (count) count.textContent = `${items.length} item${items.length === 1 ? '' : 's'}`;
+    setHeaderCount(items.length);
 
-    bindPageActions(grid, enriched);
+    bindPageActions(grid, items);
+
+    const enriched = await enrichItems(items);
+    if (enriched.length !== items.length) {
+      grid.innerHTML = enriched.map(pageCardHTML).join('');
+      bindPageActions(grid, enriched);
+    } else {
+      for (let i = 0; i < enriched.length; i += 1) {
+        const card = grid.querySelectorAll('.ws-page-card')[i];
+        if (!card || !enriched[i]) continue;
+
+        const nextHtml = pageCardHTML(enriched[i], i);
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = nextHtml;
+        const replacement = wrapper.firstElementChild;
+        if (replacement) card.replaceWith(replacement);
+      }
+    }
   }
 
   function bindPageActions(container, items) {
@@ -455,8 +503,13 @@
   function openDrawer() {
     const overlay = document.getElementById('ws-drawer-overlay');
     const drawer = document.getElementById('ws-drawer');
+    const toggle = document.getElementById('ws-drawer-toggle');
     if (overlay) overlay.classList.add('is-open');
     if (drawer) { drawer.classList.add('is-open'); drawer.setAttribute('aria-hidden', 'false'); }
+    if (toggle) {
+      toggle.classList.add('is-open');
+      toggle.setAttribute('aria-label', 'Close wishlist');
+    }
     renderDrawer();
     document.body.style.overflow = 'hidden';
   }
@@ -464,8 +517,13 @@
   function closeDrawer() {
     const overlay = document.getElementById('ws-drawer-overlay');
     const drawer = document.getElementById('ws-drawer');
+    const toggle = document.getElementById('ws-drawer-toggle');
     if (overlay) overlay.classList.remove('is-open');
     if (drawer) { drawer.classList.remove('is-open'); drawer.setAttribute('aria-hidden', 'true'); }
+    if (toggle) {
+      toggle.classList.remove('is-open');
+      toggle.setAttribute('aria-label', 'Open wishlist');
+    }
     document.body.style.overflow = '';
   }
 
@@ -528,7 +586,13 @@
       const trigger = e.target.closest('[data-open-drawer]');
       if (trigger) {
         e.preventDefault();
-        openDrawer();
+        const drawer = document.getElementById('ws-drawer');
+        const shouldClose = drawer && drawer.classList.contains('is-open');
+        if (shouldClose) {
+          closeDrawer();
+        } else {
+          openDrawer();
+        }
       }
     });
 

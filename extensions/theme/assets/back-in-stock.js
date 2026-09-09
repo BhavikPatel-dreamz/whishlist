@@ -8,8 +8,9 @@
  *   3. Listen for `ws:open-bis` custom events so the separate Wishlist extension
  *      can open the same modal for an out-of-stock saved item.
  *
- * Gating: the app's per-store UIConfig (extensionActive) decides whether this
- * extension should render. If the store hasn't chosen back-in-stock, it's a no-op.
+ * The Shopify app-embed toggle is the activation gate. UIConfig must not be a
+ * second gate because Shopify does not send theme-editor toggle changes through
+ * the app proxy.
  */
 (function () {
   const CFG = () => window.__wishlist_stock || { proxyBase: '/apps/wishlist-stock/api', bisSettings: {}, customerEmail: '' };
@@ -35,28 +36,6 @@
       ? '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/>'
       : '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>';
     return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
-  }
-
-  /* ---------- Per-store active-extension gate ---------- */
-  let active = null; // null = not yet known, true = render, false = skip
-  function fetchConfig() {
-    const cfg = CFG();
-    return fetch(`${cfg.proxyBase}/ui-config`)
-      .then((r) => r.json())
-      .catch(() => null);
-  }
-  async function initGate() {
-    try {
-      const data = await fetchConfig();
-      if (data && data.ok && data.config) {
-        const value = data.config.extensionActive || 'none';
-        active = value === 'back_in_stock' || value === 'both';
-      } else {
-        active = true; // no config recorded yet — default ON
-      }
-    } catch {
-      active = true;
-    }
   }
 
   /* ---------- Guest token (shared with wishlist) ---------- */
@@ -408,14 +387,11 @@
 
   function boot() {
     const start = () => {
-      if (active !== false) init();
+      init();
     };
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => initGate().then(start));
-    } else {
-      initGate().then(start);
-    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+    else start();
   }
 
   boot();

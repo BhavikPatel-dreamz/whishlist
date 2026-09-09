@@ -185,6 +185,19 @@ export async function wishlistStats(shopId: string) {
   return { total, last30, shoppers: Number(shoppers[0]?.count ?? 0) };
 }
 
+export function getWishlistOrderSummary(
+  totalWishlistSaves: number,
+  totalOrders: number,
+) {
+  const averageOrdersPerSave =
+    totalWishlistSaves > 0 ? totalOrders / totalWishlistSaves : 0;
+
+  return {
+    totalOrders,
+    averageOrdersPerSave,
+  };
+}
+
 /** Increment add-to-cart counter for a product (upsert-style). */
 export async function incrementAddToCart(
   shopId: string,
@@ -217,6 +230,45 @@ export async function incrementPurchases(
       data: { shopId, productId, purchases: amount },
     });
   }
+}
+
+/**
+ * Records one paid order for a product only when that product exists in this shop's
+ * wishlist data. Returns true only for a newly recorded order-product pair.
+ */
+export async function recordWishlistDrivenOrder(
+  shopId: string,
+  orderId: string,
+  productId: string,
+): Promise<boolean> {
+  const isWishlisted = await db.wishlistItem.findFirst({
+    where: { shopId, productId },
+    select: { id: true },
+  });
+  if (!isWishlisted) return false;
+
+  try {
+    await db.wishlistOrder.create({
+      data: { shopId, orderId, productId },
+    });
+  } catch (error: unknown) {
+    // The compound unique key rejects webhook retries and the matching paid/update event.
+    if ((error as { code?: string }).code === "P2002") return false;
+    throw error;
+  }
+
+  await incrementPurchases(shopId, productId, 1);
+  return true;
+}
+
+/** Count distinct paid Shopify orders that included at least one wishlisted product. */
+export async function wishlistDrivenOrderCount(shopId: string): Promise<number> {
+  const rows = await db.$queryRaw<Array<{ count: bigint }>>`
+    SELECT COUNT(DISTINCT "orderId")::bigint AS count
+    FROM "WishlistOrder"
+    WHERE "shopId" = ${shopId}
+  `;
+  return Number(rows[0]?.count ?? 0);
 }
 
 export type WishlistMetricRow = {

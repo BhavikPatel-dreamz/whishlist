@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { requireIdentity } from "../wishlist.server";
+import { requireIdentity, getWishlistOrderSummary } from "../wishlist.server";
 import { ProxyError } from "../../lib/proxy.server";
 
 describe("requireIdentity", () => {
@@ -15,16 +15,22 @@ describe("requireIdentity", () => {
   });
 
   it("throws when both are null", () => {
-    expect(() => requireIdentity({ customerId: null, guestToken: null })).toThrow(ProxyError);
+    expect(() =>
+      requireIdentity({ customerId: null, guestToken: null }),
+    ).toThrow(ProxyError);
   });
 
   it("throws for short guest token", () => {
-    expect(() => requireIdentity({ customerId: null, guestToken: "short" })).toThrow(ProxyError);
+    expect(() =>
+      requireIdentity({ customerId: null, guestToken: "short" }),
+    ).toThrow(ProxyError);
   });
 
   it("throws for long guest token", () => {
     const long = "a".repeat(65);
-    expect(() => requireIdentity({ customerId: null, guestToken: long })).toThrow(ProxyError);
+    expect(() =>
+      requireIdentity({ customerId: null, guestToken: long }),
+    ).toThrow(ProxyError);
   });
 
   it("trims whitespace from inputs", () => {
@@ -33,6 +39,26 @@ describe("requireIdentity", () => {
   });
 
   it("treats whitespace-only as null", () => {
-    expect(() => requireIdentity({ customerId: "   ", guestToken: null })).toThrow(ProxyError);
+    expect(() =>
+      requireIdentity({ customerId: "   ", guestToken: null }),
+    ).toThrow(ProxyError);
+  });
+
+  it("calculates wishlist order totals and averages from real counts", () => {
+    const summary = getWishlistOrderSummary(12, 3);
+
+    expect(summary).toEqual({
+      totalOrders: 3,
+      averageOrdersPerSave: 0.25,
+    });
+  });
+
+  it("returns zero average when there are no wishlist saves", () => {
+    const summary = getWishlistOrderSummary(0, 0);
+
+    expect(summary).toEqual({
+      totalOrders: 0,
+      averageOrdersPerSave: 0,
+    });
   });
 });

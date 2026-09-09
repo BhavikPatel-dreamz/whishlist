@@ -186,6 +186,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 22px 20px 18px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   flex-shrink: 0;
@@ -193,6 +194,10 @@
 }
 
 .ws-drawer__title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
   font-size: 20px;
   font-weight: 500;
   margin: 0;
@@ -206,21 +211,17 @@
 }
 
 .ws-drawer__close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px;
-  color: #202124;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  line-height: 1;
+  display: none;
 }
 
 .ws-drawer__close:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(17, 24, 39, 0.14);
+}
+
+.ws-drawer__close:focus-visible {
+  outline: 2px solid rgba(17, 24, 39, 0.3);
+  outline-offset: 2px;
 }
 
 .ws-drawer__body {
@@ -770,4 +771,36 @@ a.ws-page-card__image {
   .ws-page-card--row:hover .ws-page-card__image img {
     transform: none;
   }
+}
+
+/* Floating drawer toggle (fallback when header injection fails) */
+.ws-drawer-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10002;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--ws-bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ws-border);
+  box-shadow: 0 8px 22px rgba(17,24,39,0.12);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+}
+.ws-drawer-toggle:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(17,24,39,0.16); }
+.ws-drawer-toggle svg { width: 22px; height: 22px; color: var(--ws-primary); }
+.ws-drawer-toggle.is-open {
+  background: var(--ws-primary);
+  border-color: var(--ws-primary);
+}
+.ws-drawer-toggle.is-open svg {
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .ws-drawer-toggle { right: 12px; top: 12px; }
 }

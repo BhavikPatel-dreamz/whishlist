@@ -10,8 +10,9 @@
  *   4. Inject a heart onto product pages when the block isn't manually placed.
  *
  * Back-in-stock notify buttons/modal are handled by the separate
- * "Back-in-Stock" extension. Gating: the app's per-store UIConfig
- * (extensionActive) decides whether this extension should render.
+ * "Back-in-Stock" extension. The Shopify app-embed toggle is the activation
+ * gate; UIConfig must not be a second gate because Shopify does not send
+ * theme-editor toggle changes through the app proxy.
  */
 (function () {
   const CFG = () => window.__wishlist_stock || { proxyBase: '/apps/wishlist-stock/api', settings: {} };
@@ -19,28 +20,6 @@
 
   const handleToIds = new Map(); // productHandle -> { productId, variantId }
   let scanScheduled = false;
-
-  /* ---------- Per-store active-extension gate ---------- */
-  let active = null; // null = not yet known
-  function fetchConfig() {
-    const cfg = CFG();
-    return fetch(`${cfg.proxyBase}/ui-config`)
-      .then((r) => r.json())
-      .catch(() => null);
-  }
-  async function initGate() {
-    try {
-      const data = await fetchConfig();
-      if (data && data.ok && data.config) {
-        const value = data.config.extensionActive || 'none';
-        active = value === 'wishlist' || value === 'both';
-      } else {
-        active = true; // no config recorded yet — default ON
-      }
-    } catch {
-      active = true;
-    }
-  }
 
   /* ---------- Guest-login policy ---------- */
   let wsLoggedIn = !!(CFG().settings && CFG().settings.customerLoggedIn) || !!CFG().customerEmail;
@@ -575,6 +554,19 @@
 
     const scope = productPageScope(form);
 
+    // Theme section events can fire while the product JSON request is pending.
+    // Reuse the first existing PDP heart instead of creating another one.
+    const existingPdpHearts = Array.from(scope.querySelectorAll('.ws-pdp .wishlist-heart'));
+    if (existingPdpHearts.length) {
+      existingPdpHearts.slice(1).forEach((heart) => {
+        const wrapper = heart.closest('.ws-pdp');
+        if (wrapper) wrapper.remove();
+      });
+      bindHeart(existingPdpHearts[0]);
+      pdpBoundForm = form;
+      return;
+    }
+
     // If the theme or a merchant has already placed a wishlist button on the
     // product page, avoid injecting another one to prevent duplicate hearts on
     // the PDP.
@@ -582,6 +574,10 @@
       pdpBoundForm = form;
       return;
     }
+
+    // Reserve this form before awaiting the product lookup. This prevents
+    // concurrent MutationObserver callbacks from inserting duplicate hearts.
+    pdpBoundForm = form;
 
     let product = null;
     try {
@@ -612,7 +608,6 @@
     if (heart) bindHeart(heart);
     refreshHeartStates();
 
-    pdpBoundForm = form;
     if (!form.__wsWishlistBound) {
       form.__wsWishlistBound = true;
       form.addEventListener('change', () => {
@@ -656,15 +651,8 @@
       }
     };
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => initGate().then((ok) => {
-        if (active !== false) start();
-      }));
-    } else {
-      initGate().then(() => {
-        if (active !== false) start();
-      });
-    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+    else start();
   }
 
   boot();
