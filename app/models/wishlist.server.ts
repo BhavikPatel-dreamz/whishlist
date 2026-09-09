@@ -233,20 +233,16 @@ export async function incrementPurchases(
 }
 
 /**
- * Records one paid order for a product only when that product exists in this shop's
- * wishlist data. Returns true only for a newly recorded order-product pair.
+ * Records one paid order for a line explicitly marked by the wishlist cart flow.
+ * The marker is set before checkout, so removing an item from a wishlist later
+ * does not erase its valid purchase attribution. Returns true only for a newly
+ * recorded order-product pair.
  */
 export async function recordWishlistDrivenOrder(
   shopId: string,
   orderId: string,
   productId: string,
 ): Promise<boolean> {
-  const isWishlisted = await db.wishlistItem.findFirst({
-    where: { shopId, productId },
-    select: { id: true },
-  });
-  if (!isWishlisted) return false;
-
   try {
     await db.wishlistOrder.create({
       data: { shopId, orderId, productId },
@@ -262,7 +258,9 @@ export async function recordWishlistDrivenOrder(
 }
 
 /** Count distinct paid Shopify orders that included at least one wishlisted product. */
-export async function wishlistDrivenOrderCount(shopId: string): Promise<number> {
+export async function wishlistDrivenOrderCount(
+  shopId: string,
+): Promise<number> {
   const rows = await db.$queryRaw<Array<{ count: bigint }>>`
     SELECT COUNT(DISTINCT "orderId")::bigint AS count
     FROM "WishlistOrder"
@@ -296,4 +294,23 @@ export async function metricsForProducts(
       addsToCart: r.addsToCart ?? 0,
       purchases: r.purchases ?? 0,
     }));
+}
+
+/**
+ * Return true if a given customer previously saved the product to their wishlist.
+ * Used as a fallback attribution when line item properties weren't set by the
+ * storefront (e.g. the customer added the item to cart via the theme/product
+ * page rather than the wishlist UI).
+ */
+export async function customerHasSavedProduct(
+  shopId: string,
+  customerId: string | null,
+  productId: string,
+): Promise<boolean> {
+  if (!customerId) return false;
+  const found = await db.wishlistItem.findFirst({
+    where: { shopId, customerId, productId },
+    select: { id: true },
+  });
+  return !!found;
 }

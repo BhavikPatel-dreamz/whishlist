@@ -246,15 +246,22 @@ export default function Dashboard() {
 
   const detailTable = {
     wishlists: {
-      headings: ["Product", "Wishlist saves", "Customers"],
-      types: ["text", "numeric", "numeric"] as ColumnContentType[],
+      headings: ["Product", "Wishlist saves", "Added to cart", "Wishlist-driven orders", "Customers"],
+      types: ["text", "numeric", "numeric", "numeric", "numeric"] as ColumnContentType[],
       rows: data.topProducts.map((row) => {
         const product = productMap.get(row.productId);
-        return [product?.title || row.productId, String(row.saves), String(row.distinctShoppers)];
+        const metric = data.wishlistMetrics.find((item) => item.productId === row.productId);
+        return [
+          product?.title || row.productId,
+          String(row.saves),
+          String(metric?.addsToCart ?? 0),
+          String(metric?.purchases ?? 0),
+          String(row.distinctShoppers),
+        ];
       }),
     },
     products: {
-      headings: ["Product", "Wishlist saves", "Added to cart", "Orders"],
+      headings: ["Product", "Wishlist saves", "Added to cart", "Wishlist-driven orders"],
       types: ["text", "numeric", "numeric", "numeric"] as ColumnContentType[],
       rows: data.topProducts.map((row) => {
         const product = productMap.get(row.productId);
@@ -268,7 +275,7 @@ export default function Dashboard() {
       }),
     },
     value: {
-      headings: ["Product", "Orders", "Added to cart", "Wishlist saves"],
+      headings: ["Product", "Wishlist-driven orders", "Added to cart", "Wishlist saves"],
       types: ["text", "numeric", "numeric", "numeric"] as ColumnContentType[],
       rows: data.topProducts.map((row) => {
         const product = productMap.get(row.productId);
@@ -282,8 +289,8 @@ export default function Dashboard() {
       }),
     },
     average: {
-      headings: ["Product", "Wishlist saves", "Orders", "Orders per save"],
-      types: ["text", "numeric", "numeric", "numeric"] as ColumnContentType[],
+      headings: ["Product", "Wishlist saves", "Added to cart", "Wishlist-driven orders", "Orders per save"],
+      types: ["text", "numeric", "numeric", "numeric", "numeric"] as ColumnContentType[],
       rows: data.topProducts.map((row) => {
         const product = productMap.get(row.productId);
         const metric = data.wishlistMetrics.find((item) => item.productId === row.productId);
@@ -291,6 +298,7 @@ export default function Dashboard() {
         return [
           product?.title || row.productId,
           String(row.saves),
+          String(metric?.addsToCart ?? 0),
           String(purchases),
           (purchases / Math.max(1, row.saves)).toFixed(2),
         ];

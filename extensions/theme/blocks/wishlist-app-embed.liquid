@@ -19,6 +19,7 @@
     drawerPosition: {{ block.settings.drawer_position | default: "right" | json }},
     headerLink: {% if block.settings.header_link == false %}false{% else %}true{% endif %},
     wishlistPageUrl: {{ block.settings.wishlist_page_url | default: '/pages/wishlist' | json }},
+    allProductsCollectionUrl: {{ routes.all_products_collection_url | json }},
     cardHearts: {% if block.settings.card_hearts == false %}false{% else %}true{% endif %},
     productButton: {% if block.settings.product_button == false %}false{% else %}true{% endif %},
     drawerBg: {{ block.settings.drawer_bg_color | default: "#ffffff" | json }},

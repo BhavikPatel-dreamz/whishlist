@@ -165,10 +165,42 @@
     }
   }
 
-  /* ---------- Move to cart ---------- */
-  async function moveToCart(variantId) {
-    const normalizedId = Number.parseInt(String(variantId || '').trim(), 10);
-    if (!Number.isFinite(normalizedId) || normalizedId <= 0) return false;
+  function normalizeVariantId(value) {
+    if (value == null) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+
+    const fromGid = raw.includes('gid://shopify/ProductVariant/')
+      ? raw.split('/').filter(Boolean).pop()
+      : null;
+    const digits = (fromGid || raw).match(/\d+/g);
+    const candidate = digits ? digits[digits.length - 1] : null;
+    if (!candidate) return null;
+
+    const numeric = Number.parseInt(candidate, 10);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+  }
+
+  async function resolveVariantId(variantId, productHandle) {
+    const normalized = normalizeVariantId(variantId);
+    if (normalized) return normalized;
+    if (!productHandle) return null;
+
+    try {
+      const resp = await fetch(`/products/${encodeURIComponent(productHandle)}.js`);
+      if (!resp.ok) return null;
+      const product = await resp.json();
+      const firstVariant = product && product.variants && product.variants[0];
+      if (!firstVariant) return null;
+      return normalizeVariantId(firstVariant.id);
+    } catch {
+      return null;
+    }
+  }
+
+  async function moveToCart(variantId, productHandle) {
+    const resolvedVariantId = await resolveVariantId(variantId, productHandle);
+    if (!resolvedVariantId) return false;
 
     try {
       const resp = await fetch('/cart/add.js', {
@@ -177,7 +209,15 @@
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ items: [{ id: normalizedId, quantity: 1 }] }),
+        // Shopify carries line-item properties through checkout into the order
+        // webhook, letting the admin report attribute this purchase to Wishlist.
+        body: JSON.stringify({
+          items: [{
+            id: resolvedVariantId,
+            quantity: 1,
+            properties: { _wishlist_stock: 'true' },
+          }],
+        }),
       });
 
       const data = await resp.clone().json().catch(() => null);
@@ -186,9 +226,6 @@
         return false;
       }
 
-      if (window.location.pathname !== '/cart') {
-        window.location.href = '/cart';
-      }
       return true;
     } catch (error) {
       console.warn('Wishlist add-to-cart request failed', error);
@@ -225,8 +262,8 @@
     const sku = item.sku && cfg.displaySKU ? `<p class="ws-item__sku">SKU: ${item.sku}</p>` : '';
     const price = item.price && cfg.displayPrice ? `<p class="ws-item__price">${item.price}</p>` : '';
     const cartBtn = item.available
-      ? `<button class="ws-btn ws-btn--primary ws-btn--small" data-action="add-to-cart" data-variant-id="${item.variantId}">Add to Cart</button>`
-      : `<button class="ws-btn ws-btn--small" data-action="notify" data-variant-id="${item.variantId}" data-product-id="${item.productId}">Out of Stock</button>`;
+      ? `<button class="ws-btn ws-btn--primary ws-btn--small" data-action="add-to-cart" data-variant-id="${item.variantId || ''}" data-product-handle="${item.handle || ''}">Add to Cart</button>`
+      : `<button class="ws-btn ws-btn--small" data-action="notify" data-variant-id="${item.variantId || ''}" data-product-id="${item.productId}">Out of Stock</button>`;
     const link = buildProductUrl(item);
     const hasLink = link !== '#';
     const imageBox = hasLink
@@ -258,8 +295,8 @@
     const sku = item.sku && cfg.displaySKU ? `<p class="ws-page-card__sku">SKU: ${item.sku}</p>` : '';
     const price = item.price && cfg.displayPrice ? `<p class="ws-page-card__price">${item.price}</p>` : '';
     const cartBtn = item.available
-      ? `<button class="ws-btn ws-btn--primary ws-btn--small" data-action="add-to-cart" data-variant-id="${item.variantId}">Add to Cart</button>`
-      : `<button class="ws-btn ws-btn--small" data-action="notify" data-variant-id="${item.variantId}" data-product-id="${item.productId}">Out of Stock</button>`;
+      ? `<button class="ws-btn ws-btn--primary ws-btn--small" data-action="add-to-cart" data-variant-id="${item.variantId || ''}" data-product-handle="${item.handle || ''}">Add to Cart</button>`
+      : `<button class="ws-btn ws-btn--small" data-action="notify" data-variant-id="${item.variantId || ''}" data-product-id="${item.productId}">Out of Stock</button>`;
     const link = buildProductUrl(item);
     const hasLink = link !== '#';
     const imageBox = hasLink
@@ -321,6 +358,8 @@
         const replacement = wrapper.firstElementChild;
         if (replacement) card.replaceWith(replacement);
       }
+      // Replacing cards removes the listeners bound to their old elements.
+      bindDrawerActions(body, enriched);
     }
   }
 
@@ -338,9 +377,12 @@
         e.stopPropagation();
         btn.disabled = true;
         btn.innerHTML = '<span class="ws-spinner"></span>';
-        const ok = await moveToCart(btn.dataset.variantId);
+        const ok = await moveToCart(btn.dataset.variantId, btn.dataset.productHandle);
         if (ok) {
           btn.textContent = 'Added!';
+          if (window.location.pathname !== '/cart') {
+            window.location.assign('/cart');
+          }
           setTimeout(() => renderDrawer(), 800);
           // notify app of move-to-cart for metrics
           try {
@@ -432,6 +474,8 @@
         const replacement = wrapper.firstElementChild;
         if (replacement) card.replaceWith(replacement);
       }
+      // Replacing cards removes the listeners bound to their old elements.
+      bindPageActions(grid, enriched);
     }
   }
 
@@ -453,9 +497,12 @@
         e.stopPropagation();
         btn.disabled = true;
         btn.innerHTML = '<span class="ws-spinner"></span>';
-        const ok = await moveToCart(btn.dataset.variantId);
+        const ok = await moveToCart(btn.dataset.variantId, btn.dataset.productHandle);
         if (ok) {
           btn.textContent = 'Added!';
+          if (window.location.pathname !== '/cart') {
+            window.location.assign('/cart');
+          }
           // notify app of move-to-cart for metrics
           try {
             const card = btn.closest('.ws-page-card');
@@ -558,7 +605,7 @@
       '<svg class="ws-page__empty-icon" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>' +
       '<h2>Your wishlist is empty</h2>' +
       '<p>Browse our products and save items you love.</p>' +
-      '<a href="/collections/all" class="ws-btn ws-btn--primary">Browse Products</a>' +
+      `<a href="${CFG().settings.allProductsCollectionUrl || '/collections/all'}" class="ws-btn ws-btn--primary">Browse Products</a>` +
       '</div>' +
       '<div class="ws-page__grid ws-page__grid--rows" id="ws-page-grid"></div>' +
       '</div>';
