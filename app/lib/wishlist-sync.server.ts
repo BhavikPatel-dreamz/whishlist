@@ -1,4 +1,4 @@
-import type { GraphqlClient } from "./shopify-data.server";
+import { toCustomerGid, type GraphqlClient } from "./shopify-data.server";
 
 /**
  * Syncs wishlist items to Shopify customer metafields so data persists
@@ -54,7 +54,7 @@ export async function syncWishlistToMetafield(
     const response = await client.graphql(mutation, {
       variables: {
         input: {
-          id: customerId,
+          id: toCustomerGid(customerId),
           metafields: [
             {
               namespace: WISHLIST_METAFIELD_NAMESPACE,
@@ -70,6 +70,7 @@ export async function syncWishlistToMetafield(
     const payload = (await response.json()) as {
       data?: {
         customerUpdate?: {
+          customer?: { id: string } | null;
           userErrors?: Array<{ field?: string[]; message: string }>;
         };
       };
@@ -88,7 +89,7 @@ export async function syncWishlistToMetafield(
       return false;
     }
 
-    return true;
+    return Boolean(payload.data?.customerUpdate?.customer?.id);
   } catch (error) {
     console.error(
       `Failed to sync wishlist to metafield for ${customerId}:`,
@@ -118,7 +119,7 @@ export async function getWishlistFromMetafield(
     `;
 
     const response = await client.graphql(query, {
-      variables: { id: customerId },
+      variables: { id: toCustomerGid(customerId) },
     });
 
     const payload = (await response.json()) as {
