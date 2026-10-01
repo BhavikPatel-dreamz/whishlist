@@ -377,11 +377,6 @@ export default function Dashboard() {
     <Page fullWidth>
       <TitleBar title="Dashboard" />
       <BlockStack gap="500">
-        {data.orderSyncFailed && (
-          <Banner tone="warning" title="Order counts may be delayed">
-            Recent wishlist orders could not be synced from Shopify. Refresh this page to retry.
-          </Banner>
-        )}
         <Card>
           <BlockStack gap="400">
             <InlineStack align="space-between" blockAlign="center">
