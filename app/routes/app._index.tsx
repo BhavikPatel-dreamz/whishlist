@@ -13,6 +13,7 @@ import {
   Box,
   Collapsible,
   TextField,
+  Banner,
 } from "@shopify/polaris";
 import type { ColumnContentType } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
@@ -27,12 +28,20 @@ import {
 import { topRequestedVariants } from "../models/stock-alert.server";
 import { getProductsByIds } from "../lib/shopify-data.server";
 import db from "../db.server";
+import { syncWishlistOrders } from "../lib/wishlist-order-sync.server";
 import { getUIConfigByShopDomain, upsertUIConfigForShopDomain } from "../models/ui-config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const shop = await requireShop(session.shop);
   const uiConfig = await getUIConfigByShopDomain(session.shop);
+  let orderSyncFailed = false;
+  try {
+    await syncWishlistOrders(shop.id, admin);
+  } catch (error) {
+    orderSyncFailed = true;
+    console.error("Wishlist order recovery failed", error);
+  }
 
   const [wStats, topProducts, topVariants, wishlistOrderCount] = await Promise.all([
     wishlistStats(shop.id),
@@ -54,6 +63,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 
   return {
+    orderSyncFailed,
     wishlistPageUrl: uiConfig?.themeSettings.wishlistPageUrl || "",
     shop: {
       domain: session.shop,
@@ -367,6 +377,11 @@ export default function Dashboard() {
     <Page fullWidth>
       <TitleBar title="Dashboard" />
       <BlockStack gap="500">
+        {data.orderSyncFailed && (
+          <Banner tone="warning" title="Order counts may be delayed">
+            Recent wishlist orders could not be synced from Shopify. Refresh this page to retry.
+          </Banner>
+        )}
         <Card>
           <BlockStack gap="400">
             <InlineStack align="space-between" blockAlign="center">
