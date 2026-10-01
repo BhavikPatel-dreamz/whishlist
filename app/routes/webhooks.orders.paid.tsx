@@ -42,11 +42,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             }
           } catch (err) {
             console.warn('Failed to check customer wishlist for attribution', err);
+            throw err;
           }
         }
       }
     } catch (err) {
       console.warn("Failed processing order items for metrics", err);
+      throw err;
     }
     return new Response();
   } catch (err) {

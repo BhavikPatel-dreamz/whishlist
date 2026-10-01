@@ -244,8 +244,15 @@ export async function recordWishlistDrivenOrder(
   productId: string,
 ): Promise<boolean> {
   try {
-    await db.wishlistOrder.create({
-      data: { shopId, orderId, productId },
+    await db.$transaction(async (tx) => {
+      await tx.wishlistOrder.create({
+        data: { shopId, orderId, productId },
+      });
+      await tx.wishlistMetric.upsert({
+        where: { shopId_productId: { shopId, productId } },
+        create: { shopId, productId, purchases: 1 },
+        update: { purchases: { increment: 1 } },
+      });
     });
   } catch (error: unknown) {
     // The compound unique key rejects webhook retries and the matching paid/update event.
@@ -253,7 +260,6 @@ export async function recordWishlistDrivenOrder(
     throw error;
   }
 
-  await incrementPurchases(shopId, productId, 1);
   return true;
 }
 

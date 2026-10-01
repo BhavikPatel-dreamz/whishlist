@@ -45,13 +45,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               await recordWishlistDrivenOrder(shopRecord.id, orderId, String(productId));
             }
           } catch (err) {
-            // Non-fatal: attribution should not block webhook handling.
+            // Retry the webhook if attribution could not be checked.
             console.warn('Failed to check customer wishlist for attribution', err);
+            throw err;
           }
         }
       }
     } catch (err) {
       console.warn("Failed processing created order items for metrics", err);
+      throw err;
     }
 
     return new Response();
