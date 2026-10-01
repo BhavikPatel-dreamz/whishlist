@@ -310,7 +310,7 @@ export default function Settings() {
             </Layout.Section>
           </Layout>
 
-          <Layout>
+          {/* <Layout>
             <Layout.Section>
               <Card>
                 <BlockStack gap="400">
@@ -341,7 +341,7 @@ export default function Settings() {
                 </BlockStack>
               </Card>
             </Layout.Section>
-          </Layout>
+          </Layout> */}
 
           <Layout>
             <Layout.Section>

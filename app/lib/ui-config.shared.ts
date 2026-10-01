@@ -28,6 +28,7 @@ export const PRODUCT_CARD_IMAGE_SIZES = ["small", "medium", "large"] as const;
 export type ProductCardImageSize = (typeof PRODUCT_CARD_IMAGE_SIZES)[number];
 
 export type ThemeSettings = {
+  wishlistPageUrl?: string;
   primaryColor?: string;
   backgroundColor?: string;
   textColor?: string;

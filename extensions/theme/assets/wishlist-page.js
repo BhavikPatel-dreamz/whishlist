@@ -19,6 +19,13 @@
         if (data && data.ok && data.config) {
           uiConfig = data.config;
           window.__wishlist_stock.uiConfig = uiConfig;
+          const pageUrl = uiConfig.themeSettings && uiConfig.themeSettings.wishlistPageUrl;
+          if (typeof pageUrl === 'string' && /^\/pages\/[a-zA-Z0-9][a-zA-Z0-9_-]*\/?$/.test(pageUrl)) {
+            window.__wishlist_stock.settings = window.__wishlist_stock.settings || {};
+            window.__wishlist_stock.settings.wishlistPageUrl = pageUrl;
+            const headerLink = document.getElementById('ws-header-link');
+            if (headerLink) headerLink.setAttribute('href', pageUrl);
+          }
           applyThemeFromConfig();
         }
       })

@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData, Link, useActionData, useNavigation } from "@remix-run/react";
+import { useLoaderData, Link, useActionData, useFetcher } from "@remix-run/react";
 import { useEffect, useMemo, useState } from "react";
 import {
   Page,
@@ -12,6 +12,7 @@ import {
   Button,
   Box,
   Collapsible,
+  TextField,
 } from "@shopify/polaris";
 import type { ColumnContentType } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
@@ -26,10 +27,12 @@ import {
 import { topRequestedVariants } from "../models/stock-alert.server";
 import { getProductsByIds } from "../lib/shopify-data.server";
 import db from "../db.server";
+import { getUIConfigByShopDomain, upsertUIConfigForShopDomain } from "../models/ui-config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const shop = await requireShop(session.shop);
+  const uiConfig = await getUIConfigByShopDomain(session.shop);
 
   const [wStats, topProducts, topVariants, wishlistOrderCount] = await Promise.all([
     wishlistStats(shop.id),
@@ -51,6 +54,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 
   return {
+    wishlistPageUrl: uiConfig?.themeSettings.wishlistPageUrl || "",
     shop: {
       domain: session.shop,
       emailSubject: shop.emailSubject,
@@ -73,6 +77,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = await requireShop(session.shop);
   const formData = await request.formData();
+
+  if (formData.get("intent") === "save-wishlist-page-url") {
+    const wishlistPageUrl = String(formData.get("wishlistPageUrl") || "").trim();
+    if (!/^\/pages\/[a-zA-Z0-9][a-zA-Z0-9_-]*\/?$/.test(wishlistPageUrl)) {
+      return { saved: false, error: "Enter a page path such as /pages/wishlist or /pages/my-favorites." };
+    }
+    await upsertUIConfigForShopDomain(session.shop, {
+      themeSettings: { wishlistPageUrl: wishlistPageUrl.replace(/\/$/, "") },
+    });
+    return { saved: true, error: null };
+  }
 
   const emailSubject = String(formData.get("emailSubject") || "").trim();
   const emailHeading = String(formData.get("emailHeading") || "").trim();
@@ -211,13 +226,35 @@ function TrendChart({
 export default function Dashboard() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const navigation = useNavigation();
   const shopify = useAppBridge();
+  const wishlistUrlFetcher = useFetcher<typeof action>();
+  const [wishlistPageUrl, setWishlistPageUrl] = useState(data.wishlistPageUrl);
+  useEffect(() => {
+    if (wishlistUrlFetcher.data?.saved) shopify.toast.show("Wishlist page URL saved");
+  }, [wishlistUrlFetcher.data, shopify]);
   const [viewMode, setViewMode] = useState<"summary" | "graph">("summary");
   const [selectedMetric, setSelectedMetric] = useState<
     "wishlists" | "products" | "value" | "average"
   >("wishlists");
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
+  const setupGuideStorageKey = `wishlist-stock:setup-guide-dismissed:${data.shop.domain}`;
+
+  useEffect(() => {
+    try {
+      setOpen(localStorage.getItem(setupGuideStorageKey) !== "true");
+    } catch {
+      setOpen(true);
+    }
+  }, [setupGuideStorageKey]);
+
+  function closeSetupGuide() {
+    setOpen(false);
+    try {
+      localStorage.setItem(setupGuideStorageKey, "true");
+    } catch {
+      // The guide can still be closed when browser storage is unavailable.
+    }
+  }
 
   const themeEditorUrl = `https://${data.shop.domain}/admin/themes/current/editor?context=apps`;
   const newPageUrl = `https://${data.shop.domain}/admin/pages/new`;
@@ -339,7 +376,7 @@ export default function Dashboard() {
               <Button
                 variant="tertiary"
                 disclosure={open ? "up" : "down"}
-                onClick={() => setOpen((v) => !v)}
+                onClick={() => open ? closeSetupGuide() : setOpen(true)}
                 ariaExpanded={open}
                 ariaControls="ws-setup-guide"
               >
@@ -382,25 +419,33 @@ export default function Dashboard() {
                     2. Create the wishlist page
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
-                    Add an Online Store page titled{" "}
-                    <Text as="span" fontWeight="semibold">
-                      Wishlist
-                    </Text>{" "}
-                    (URL handle{" "}
-                    <Text as="span" fontWeight="semibold">
-                      wishlist
-                    </Text>
-                    ) so the header wishlist icon opens it at{" "}
-                    <Text as="span" fontWeight="semibold">
-                      /pages/wishlist
-                    </Text>
-                    .
+                    Create an Online Store page with your preferred title and URL handle.
                   </Text>
-                  <InlineStack>
+                  <InlineStack gap="200">
                     <Button url={newPageUrl} target="_blank">
                       Create wishlist page
                     </Button>
                   </InlineStack>
+                  <wishlistUrlFetcher.Form method="post">
+                    <input type="hidden" name="intent" value="save-wishlist-page-url" />
+                    <BlockStack gap="200">
+                      <TextField
+                        label="Wishlist page URL"
+                        name="wishlistPageUrl"
+                        value={wishlistPageUrl}
+                        onChange={setWishlistPageUrl}
+                        autoComplete="off"
+                        placeholder="/pages/wishlist"
+                        helpText="Create the page first, then save its path, for example /pages/my-favorites. This overrides the theme embed URL for the header link and wishlist page."
+                        error={wishlistUrlFetcher.data && "error" in wishlistUrlFetcher.data ? wishlistUrlFetcher.data.error || undefined : undefined}
+                      />
+                      <InlineStack>
+                        <Button submit variant="primary" loading={wishlistUrlFetcher.state !== "idle"}>
+                          Save page URL
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  </wishlistUrlFetcher.Form>
                 </BlockStack>
 
                 <BlockStack gap="200">
@@ -415,6 +460,11 @@ export default function Dashboard() {
                     <Link to="/app/settings">Open settings</Link>
                   </InlineStack>
                 </BlockStack>
+                <InlineStack>
+                  <Button variant="primary" onClick={closeSetupGuide}>
+                    Mark setup complete
+                  </Button>
+                </InlineStack>
               </BlockStack>
             </Collapsible>
           </BlockStack>
