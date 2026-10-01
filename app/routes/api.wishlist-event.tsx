@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticateProxyRequest } from "../lib/proxy-auth.server";
 import { errorResponse, json, numericId, readBody } from "../lib/proxy.server";
 import { incrementAddToCart } from "../models/wishlist.server";
+import { recordWishlistPageView } from "../models/wishlist-analytics.server";
 
 /** Proxy endpoint to record wishlist-related events from the storefront. */
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -10,6 +11,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const body = await readBody(request);
     const event = body.event;
     if (!event) return errorResponse({ status: 400, message: "missing event" });
+
+    if (event === "page_view") {
+      await recordWishlistPageView(ctx.shop.id);
+      return json({ ok: true });
+    }
 
     if (event === "move_to_cart") {
       const productId = numericId(body.productId);

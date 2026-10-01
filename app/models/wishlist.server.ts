@@ -204,15 +204,20 @@ export async function incrementAddToCart(
   productId: string,
   amount = 1,
 ) {
-  const res = await db.wishlistMetric.updateMany({
-    where: { shopId, productId },
-    data: { addsToCart: { increment: amount } },
-  });
-  if (res.count === 0) {
-    await db.wishlistMetric.create({
-      data: { shopId, productId, addsToCart: amount },
+  const now = new Date();
+  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  await db.$transaction(async (tx) => {
+    await tx.wishlistMetric.upsert({
+      where: { shopId_productId: { shopId, productId } },
+      create: { shopId, productId, addsToCart: amount },
+      update: { addsToCart: { increment: amount } },
     });
-  }
+    await tx.wishlistCartDay.upsert({
+      where: { shopId_date: { shopId, date } },
+      create: { shopId, date, count: amount },
+      update: { count: { increment: amount } },
+    });
+  });
 }
 
 /** Increment purchase counter for a product (upsert-style). */

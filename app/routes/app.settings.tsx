@@ -140,7 +140,7 @@ export default function Settings() {
 
   return (
     <Page>
-      <TitleBar title="Settings" />
+      <TitleBar title="" />
       <Form method="post">
         <BlockStack gap="500">
           <Layout>

@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData, Link, useActionData, useFetcher } from "@remix-run/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Page,
   Text,
@@ -13,7 +13,6 @@ import {
   Box,
   Collapsible,
   TextField,
-  Banner,
 } from "@shopify/polaris";
 import type { ColumnContentType } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
@@ -28,6 +27,8 @@ import {
 import { topRequestedVariants } from "../models/stock-alert.server";
 import { getProductsByIds } from "../lib/shopify-data.server";
 import db from "../db.server";
+import { wishlistDailyAnalytics } from "../models/wishlist-analytics.server";
+import type { WishlistDay } from "../lib/wishlist-chart.shared";
 import { syncWishlistOrders } from "../lib/wishlist-order-sync.server";
 import { getUIConfigByShopDomain, upsertUIConfigForShopDomain } from "../models/ui-config.server";
 
@@ -43,11 +44,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("Wishlist order recovery failed", error);
   }
 
-  const [wStats, topProducts, topVariants, wishlistOrderCount] = await Promise.all([
+  const [wStats, topProducts, topVariants, wishlistOrderCount, dailyAnalytics] = await Promise.all([
     wishlistStats(shop.id),
     topWishlistedProducts(shop.id, 1000),
     topRequestedVariants(shop.id, 10),
     wishlistDrivenOrderCount(shop.id),
+    wishlistDailyAnalytics(shop.id),
   ]);
 
   const wishlistProductIds = topProducts.map((p) => p.productId);
@@ -64,6 +66,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     orderSyncFailed,
+    dailyAnalytics,
     wishlistPageUrl: uiConfig?.themeSettings.wishlistPageUrl || "",
     shop: {
       domain: session.shop,
@@ -179,54 +182,40 @@ function MetricCard({
   );
 }
 
-function TrendChart({
-  values,
-}: {
-  values: { label: string; wishlist: number; cart: number; orders: number }[];
-}) {
+function TrendChart({ values, metric }: { values: WishlistDay[]; metric: "orders" | "wishlist" | "cart" }) {
   const width = 1000;
-  const height = 360;
-  const padX = 48;
-  const padY = 24;
-  const chartHeight = height - padY * 2;
-  const chartWidth = width - padX * 2;
-  const maxValue = Math.max(1, ...values.flatMap((v) => [v.wishlist, v.cart, v.orders]));
-
-  const pointsFor = (key: "wishlist" | "cart" | "orders") =>
-    values
-      .map((point, index) => {
-        const x = padX + (index * chartWidth) / Math.max(1, values.length - 1);
-        const y = padY + chartHeight - (point[key] / maxValue) * chartHeight;
-        return `${x},${y}`;
-      })
-      .join(" ");
-
+  const height = 340;
+  const left = 48;
+  const top = 24;
+  const chartWidth = width - 72;
+  const chartHeight = height - 72;
+  const max = Math.max(4, Math.ceil(Math.max(0, ...values.map(v => v[metric])) / 4) * 4);
+  const color = metric === "orders" ? "#8b1c7a" : metric === "wishlist" ? "#1d5b99" : "#3f6212";
+  const label = metric === "orders" ? "Wishlist orders" : metric === "wishlist" ? "Added to wishlist" : "Added to cart";
+  const point = (row: WishlistDay, i: number) => ({
+    x: left + i * chartWidth / Math.max(1, values.length - 1),
+    y: top + chartHeight * (1 - row[metric] / max),
+  });
   return (
     <div style={{ width: "100%", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Wishlist analytics chart">
-        {[0, 1, 2, 3, 4].map((tick) => {
-          const y = padY + (chartHeight * tick) / 4;
-          return (
-            <g key={tick}>
-              <line x1={padX} x2={width - padX} y1={y} y2={y} stroke="#e5e7eb" strokeWidth="1" />
-              <text x="12" y={y + 4} fontSize="12" fill="#9ca3af">
-                {Math.round(maxValue - (maxValue * tick) / 4)}
-              </text>
-            </g>
-          );
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ minWidth: 600 }} role="img" aria-label={`${label} by date, last 30 days (UTC)`}>
+        {[0, 1, 2, 3, 4].map(tick => {
+          const y = top + chartHeight * tick / 4;
+          return <g key={tick}>
+            <line x1={left} x2={left + chartWidth} y1={y} y2={y} stroke="#e5e7eb" />
+            <text x="12" y={y + 4} fontSize="12" fill="#6b7280">{max - max * tick / 4}</text>
+          </g>;
         })}
-
-        <polyline points={pointsFor("wishlist")} fill="none" stroke="#8b1c7a" strokeWidth="3" />
-        <polyline points={pointsFor("cart")} fill="none" stroke="#1d5b99" strokeWidth="3" />
-        <polyline points={pointsFor("orders")} fill="none" stroke="#3f6212" strokeWidth="3" />
-
-        {values.map((point, index) => {
-          const x = padX + (index * chartWidth) / Math.max(1, values.length - 1);
-          return (
-            <text key={point.label} x={x} y={height - 4} textAnchor="middle" fontSize="11" fill="#6b7280">
-              {point.label}
-            </text>
-          );
+        <polyline points={values.map((row, i) => { const p = point(row, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke={color} strokeWidth="3" />
+        {values.map((row, i) => {
+          const p = point(row, i);
+          const date = new Date(`${row.date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+          return <g key={row.date}>
+            <circle cx={p.x} cy={p.y} r="4" fill={color} tabIndex={0} aria-label={`${row.date}: ${row[metric]} ${label}`}>
+              <title>{`${row.date}: ${row[metric]} ${label}`}</title>
+            </circle>
+            {(i % 5 === 0 || i === values.length - 1) && <text x={p.x} y={height - 12} textAnchor="middle" fontSize="12" fill="#6b7280">{date}</text>}
+          </g>;
         })}
       </svg>
     </div>
@@ -242,6 +231,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (wishlistUrlFetcher.data?.saved) shopify.toast.show("Wishlist page URL saved");
   }, [wishlistUrlFetcher.data, shopify]);
+  const [graphMetric, setGraphMetric] = useState<"orders" | "wishlist" | "cart">("orders");
   const [viewMode, setViewMode] = useState<"summary" | "graph">("summary");
   const [selectedMetric, setSelectedMetric] = useState<
     "wishlists" | "products" | "value" | "average"
@@ -274,8 +264,6 @@ export default function Dashboard() {
   }, [actionData, shopify]);
 
   const productMap = new Map(data.productMap);
-  const totalAdds = data.wishlistMetrics.reduce((sum, row) => sum + (row.addsToCart ?? 0), 0);
-  const totalPurchases = data.wishlistMetrics.reduce((sum, row) => sum + (row.purchases ?? 0), 0);
   const orderSummary = data.orderSummary;
 
   const selectedMetricTitle = {
@@ -359,23 +347,22 @@ export default function Dashboard() {
     return [product?.title || row.productId, row.variantTitle || "-", String(row.waiting)];
   });
 
-  const chartValues = useMemo(() => {
-    const days = 10;
-    return Array.from({ length: days }, (_, index) => {
-      const label = `D${index + 1}`;
-      const scale = index === days - 1 ? 1 : 0.15 + (index % 3) * 0.1;
-      return {
-        label,
-        wishlist: Math.round((Number(data.wStats.total) / days) * scale),
-        cart: Math.round((totalAdds / days) * scale * 0.8),
-        orders: Math.round((totalPurchases / days) * scale * 0.6),
-      };
-    });
-  }, [data.wStats.total, totalAdds, totalPurchases]);
+  const graphTotals = data.dailyAnalytics.reduce((total, day) => ({
+    orders: total.orders + day.orders,
+    wishlist: total.wishlist + day.wishlist,
+    cart: total.cart + day.cart,
+  }), { orders: 0, wishlist: 0, cart: 0 });
+  const cartProducts = data.topProducts.map(row => ({
+    id: row.productId,
+    title: productMap.get(row.productId)?.title || row.productId,
+    count: data.wishlistMetrics.find(metric => metric.productId === row.productId)?.addsToCart ?? 0,
+  }));
+  const totalCartAdds = cartProducts.reduce((total, product) => total + product.count, 0);
+  const maxCartAdds = Math.max(1, ...cartProducts.map(product => product.count));
 
   return (
     <Page fullWidth>
-      <TitleBar title="Dashboard" />
+      <TitleBar title="" />
       <BlockStack gap="500">
         <Card>
           <BlockStack gap="400">
@@ -620,91 +607,60 @@ export default function Dashboard() {
                     Wishlist activity graph
                   </Text>
                   <Text as="p" tone="subdued">
-                    Wishlist page views, wishlist adds, and add-to-cart events across the selected range.
+                    Select a card to see its daily counts for the last 30 days (UTC).
                   </Text>
                 </BlockStack>
-                <Badge tone="success">{`${data.wStats.total} saves`}</Badge>
+                <Badge tone="success">{`${graphTotals.wishlist} saves in 30 days`}</Badge>
               </InlineStack>
 
-              <InlineStack gap="0" wrap={false}>
-                <div style={{ flex: 1, background: "#8b1c7a", color: "white", padding: 20, minHeight: 112 }}>
-                  <Text as="p" variant="headingSm" tone="inherit">
-                    Wishlist page views
-                  </Text>
-                  <Text as="p" variant="heading2xl" tone="inherit">
-                    0
-                  </Text>
-                  <Text as="p" tone="inherit">
-                    No change
-                  </Text>
-                </div>
-                <div style={{ flex: 1, background: "#1d5b99", color: "white", padding: 20, minHeight: 112 }}>
-                  <Text as="p" variant="headingSm" tone="inherit">
-                    Added to wishlist
-                  </Text>
-                  <Text as="p" variant="heading2xl" tone="inherit">
-                    {data.wStats.total}
-                  </Text>
-                  <Text as="p" tone="inherit">
-                    +{totalAdds || 0} cart adds
-                  </Text>
-                </div>
-                <div style={{ flex: 1, background: "#3f6212", color: "white", padding: 20, minHeight: 112 }}>
-                  <Text as="p" variant="headingSm" tone="inherit">
-                    Added to cart
-                  </Text>
-                  <Text as="p" variant="heading2xl" tone="inherit">
-                    {totalAdds}
-                  </Text>
-                  <Text as="p" tone="inherit">
-                    {totalPurchases > 0 ? `${totalPurchases} orders` : "No change"}
-                  </Text>
-                </div>
-                <div style={{ flex: 1, background: "#ffffff", minHeight: 112, border: "1px solid #e5e7eb" }} />
+              <InlineStack gap="300">
+                {([
+                  { key: "orders", label: "Wishlist orders", color: "#8b1c7a" },
+                  { key: "wishlist", label: "Added to wishlist", color: "#1d5b99" },
+                  { key: "cart", label: "Added to cart", color: "#3f6212" },
+                ] as const).map(card => (
+                  <button key={card.key} type="button" aria-pressed={graphMetric === card.key}
+                    onClick={() => setGraphMetric(card.key)}
+                    style={{ flex: 1, minWidth: 200, textAlign: "left", cursor: "pointer", background: card.color,
+                      color: "white", padding: 20, borderRadius: 8, border: "none", font: "inherit",
+                      outline: graphMetric === card.key ? "3px solid #111827" : undefined, outlineOffset: 3 }}>
+                    <span style={{ display: "block", fontWeight: 600 }}>{card.label}</span>
+                    <span style={{ display: "block", fontSize: 30, fontWeight: 700 }}>{card.key === "cart" ? totalCartAdds : card.key === "orders" ? orderSummary.totalOrders : graphTotals[card.key]}</span>
+                    <span>{card.key === "cart" ? "Total for products in the summary table" : card.key === "orders" ? "Total wishlist-driven orders" : "Last 30 days"}</span>
+                  </button>
+                ))}
               </InlineStack>
-
-              <Box paddingBlock="300">
-                <TrendChart values={chartValues} />
-              </Box>
-
-              <InlineStack gap="200" wrap={false}>
-                <div
-                  style={{
-                    padding: 16,
-                    background: "#f8fafc",
-                    borderRadius: 12,
-                    border: "1px solid #e5e7eb",
-                  }}
-                >
-                  <Text as="p" variant="bodyMd">
-                    <span style={{ color: "#8b1c7a", fontWeight: 700 }}>■</span> Wishlist page views
-                  </Text>
-                </div>
-                <div
-                  style={{
-                    padding: 16,
-                    background: "#f8fafc",
-                    borderRadius: 12,
-                    border: "1px solid #e5e7eb",
-                  }}
-                >
-                  <Text as="p" variant="bodyMd">
-                    <span style={{ color: "#1d5b99", fontWeight: 700 }}>■</span> Added to wishlist
-                  </Text>
-                </div>
-                <div
-                  style={{
-                    padding: 16,
-                    background: "#f8fafc",
-                    borderRadius: 12,
-                    border: "1px solid #e5e7eb",
-                  }}
-                >
-                  <Text as="p" variant="bodyMd">
-                    <span style={{ color: "#3f6212", fontWeight: 700 }}>■</span> Added to cart
-                  </Text>
-                </div>
-              </InlineStack>
+              {graphMetric === "cart" && (
+                <BlockStack gap="300">
+                  <Text as="h3" variant="headingMd">Added to cart by product — all time</Text>
+                  {cartProducts.map(product => (
+                    <div key={product.id}>
+                      <InlineStack align="space-between" gap="200">
+                        <Text as="p">{product.title}</Text>
+                        <Text as="p" fontWeight="semibold">{product.count}</Text>
+                      </InlineStack>
+                      <div role="img" aria-label={`${product.title}: ${product.count} cart adds`}
+                        style={{ marginTop: 6, height: 14, background: "#f1f5f9", borderRadius: 4 }}>
+                        <div style={{ width: `${product.count / maxCartAdds * 100}%`, height: "100%", background: "#3f6212", borderRadius: 4 }} />
+                      </div>
+                    </div>
+                  ))}
+                  {cartProducts.length === 0 && <Text as="p" tone="subdued">No wishlist products yet.</Text>}
+                  <Text as="p" tone="subdued">{`${totalCartAdds} total cart adds for these products. ${graphTotals.cart} dated cart adds across the store in the last 30 days.`}</Text>
+                </BlockStack>
+              )}
+              <Text as="h3" variant="headingMd">
+                {graphMetric === "orders" ? "Wishlist orders by recorded date" : graphMetric === "wishlist" ? "Added to wishlist by date saved" : "Added to cart by date"}
+              </Text>
+              <TrendChart values={data.dailyAnalytics} metric={graphMetric} />
+              {graphTotals[graphMetric] === 0 && <Text as="p" tone="subdued">No recorded activity for this metric in the last 30 days.</Text>}
+              <Text as="p" tone="subdued">
+                {graphMetric === "orders"
+                  ? "The card shows total wishlist-driven orders. The chart shows distinct orders by their first recorded date in the last 30 days (UTC); recovered orders may be recorded later than checkout."
+                  : graphMetric === "wishlist"
+                  ? "Shows currently saved wishlist items by the date they were added."
+                  : "The product bars include earlier cart totals from the summary table. The daily chart only includes cart adds with recorded dates; earlier totals cannot be assigned to a date."}
+              </Text>
             </BlockStack>
           </Card>
         )}

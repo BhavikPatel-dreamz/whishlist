@@ -436,11 +436,24 @@
   }
 
   /* ---------- Render Page (horizontal rows) ---------- */
+  function trackPageView() {
+    if (window.Shopify && window.Shopify.designMode) return;
+    if (window.__wsWishlistPageViewTracked) return;
+    window.__wsWishlistPageViewTracked = true;
+    fetch(`${CFG().proxyBase}/wishlist-event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'page_view' }),
+      keepalive: true,
+    }).catch(() => { /* Analytics must not interrupt the wishlist. */ });
+  }
+
   async function renderPage() {
     const grid = document.getElementById('ws-page-grid');
     const empty = document.getElementById('ws-page-empty');
     const count = document.getElementById('ws-page-count');
     if (!grid) return;
+    trackPageView();
 
     if (empty) empty.style.display = 'none';
     grid.innerHTML =

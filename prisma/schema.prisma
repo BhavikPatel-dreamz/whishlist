@@ -67,6 +67,7 @@ model Shop {
 
   wishlists       WishlistItem[]
   wishlistMetrics WishlistMetric[]
+  wishlistCartDays WishlistCartDay[]
   wishlistOrders  WishlistOrder[]
   stockAlerts     StockAlert[]
   webhookEvents   WebhookEvent[]
@@ -162,6 +163,17 @@ model UIConfig {
   updatedAt DateTime @updatedAt
 
   @@index([extensionActive])
+}
+
+/// Date-specific cart adds in UTC; historical totals cannot be assigned dates.
+model WishlistCartDay {
+  shopId String
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  date DateTime @db.Date
+  count Int @default(0)
+  pageViews Int @default(0)
+
+  @@id([shopId, date])
 }
 
 /// Aggregated metrics for wishlisted products (adds-to-cart and purchases)

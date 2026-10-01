@@ -154,7 +154,7 @@ export default function Alerts() {
 
   return (
     <Page fullWidth>
-      <TitleBar title="Stock Alerts">
+      <TitleBar title="">
         <button
           variant="primary"
           onClick={() => {
