@@ -15,8 +15,10 @@ function isWishlistLineItem(lineItem: any) {
 
 /** Acknowledge `orders/updated` webhooks. */
 export const action = async ({ request }: ActionFunctionArgs) => {
+  let stage = "authentication";
   try {
     const { shop, topic, payload } = await authenticate.webhook(request);
+    stage = "order-processing";
     console.log(`[webhook:${topic}] received for ${shop}`);
 
     try {
@@ -56,7 +58,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return new Response();
   } catch (err) {
-    console.error("/webhooks/orders/updated handler error", err);
+    if (err instanceof Response) {
+      console.warn("/webhooks/orders/updated rejected", {
+        stage,
+        status: err.status,
+        webhookId: request.headers.get("X-Shopify-Webhook-Id"),
+      });
+      return err;
+    }
+    console.error("/webhooks/orders/updated handler error", {
+      stage,
+      webhookId: request.headers.get("X-Shopify-Webhook-Id"),
+      error: err,
+    });
     return new Response(null, { status: 500 });
   }
 };
