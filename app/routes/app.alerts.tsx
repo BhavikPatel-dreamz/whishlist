@@ -215,7 +215,7 @@ export default function Alerts() {
                   <IndexTable
                     resourceName={resourceName}
                     itemCount={rows.length}
-                    selectedItemsCount={0}
+                    selectable={false}
                     headings={[
                       { title: "Email" },
                       { title: "Product" },
