@@ -20,7 +20,7 @@
           uiConfig = data.config;
           window.__wishlist_stock.uiConfig = uiConfig;
           const pageUrl = uiConfig.themeSettings && uiConfig.themeSettings.wishlistPageUrl;
-          if (typeof pageUrl === 'string' && /^\/pages\/[a-zA-Z0-9][a-zA-Z0-9_-]*\/?$/.test(pageUrl)) {
+          if (!CFG().settings?.pageSelected && typeof pageUrl === 'string' && /^\/pages\/[a-zA-Z0-9][a-zA-Z0-9_-]*\/?$/.test(pageUrl)) {
             window.__wishlist_stock.settings = window.__wishlist_stock.settings || {};
             window.__wishlist_stock.settings.wishlistPageUrl = pageUrl;
             const headerLink = document.getElementById('ws-header-link');
@@ -45,15 +45,31 @@
 
   /* Theme settings from the API, applied as CSS custom properties. */
   function applyThemeFromConfig() {
-    const t = (uiConfig && uiConfig.themeSettings) || (uiConfig && uiConfig.productCardConfig && uiConfig.productCardConfig.theme) || {};
-    if (!t || typeof t !== 'object') return;
-    var root = document.documentElement;
-    if (t.primaryColor) root.style.setProperty('--ws-primary', t.primaryColor);
-    if (t.backgroundColor) root.style.setProperty('--ws-bg', t.backgroundColor);
-    if (t.textColor) root.style.setProperty('--ws-text', t.textColor);
-    if (t.mutedTextColor) root.style.setProperty('--ws-text-muted', t.mutedTextColor);
-    if (t.borderColor) root.style.setProperty('--ws-border', t.borderColor);
-    if (t.borderRadius != null) root.style.setProperty('--ws-radius', t.borderRadius + 'px');
+    const current = (uiConfig && uiConfig.productCardConfig) || {};
+    const legacyTheme = current.theme || {};
+    const merged = {
+      ...(uiConfig && uiConfig.themeSettings ? uiConfig.themeSettings : {}),
+      ...(legacyTheme && typeof legacyTheme === 'object' ? legacyTheme : {}),
+      ...(current.primaryColor ? { primaryColor: current.primaryColor } : {}),
+      ...(current.secondaryColor ? { backgroundColor: current.secondaryColor } : {}),
+      ...(current.textColor ? { textColor: current.textColor } : {}),
+      ...(current.borderColor ? { borderColor: current.borderColor } : {}),
+      ...(current.borderRadius != null ? { borderRadius: current.borderRadius } : {}),
+      ...(current.buttonStyle ? { buttonStyle: current.buttonStyle } : {}),
+    };
+
+    if (!merged || typeof merged !== 'object') return;
+
+    // Theme editor styling takes priority when its advanced controls are enabled.
+    if (typeof CFG().settings?.advancedSettings === 'boolean' && CFG().settings.advancedSettings) return;
+
+    const root = document.documentElement;
+    if (merged.primaryColor) root.style.setProperty('--ws-primary', merged.primaryColor);
+    if (merged.backgroundColor) root.style.setProperty('--ws-bg', merged.backgroundColor);
+    if (merged.textColor) root.style.setProperty('--ws-text', merged.textColor);
+    if (merged.mutedTextColor) root.style.setProperty('--ws-text-muted', merged.mutedTextColor);
+    if (merged.borderColor) root.style.setProperty('--ws-border', merged.borderColor);
+    if (merged.borderRadius != null) root.style.setProperty('--ws-radius', merged.borderRadius + 'px');
   }
 
   /* ---------- Guest token ---------- */
@@ -595,6 +611,37 @@
   }
 
   /* ---------- Auto-mount page markup on the wishlist page ---------- */
+  function showPageTab(tabName) {
+    const page = document.getElementById('ws-wishlist-page');
+    if (!page) return;
+    page.querySelectorAll('.ws-page__tab').forEach((tab) => {
+      const active = tab.dataset.tab === tabName;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', String(active));
+    });
+    page.querySelectorAll('.ws-page__panel').forEach((panel) => {
+      panel.classList.toggle('is-active', panel.dataset.panel === tabName);
+    });
+  }
+
+  function bindPageTabs() {
+    const page = document.getElementById('ws-wishlist-page');
+    if (!page) return;
+    page.querySelectorAll('.ws-page__tab').forEach((tab) => {
+      tab.addEventListener('click', () => showPageTab(tab.dataset.tab));
+    });
+    page.querySelectorAll('[data-go-cart]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        window.location.assign('/cart');
+      });
+    });
+    page.querySelectorAll('[data-login]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        window.location.assign('/account/login');
+      });
+    });
+  }
+
   function autoMountPage() {
     const configured = (CFG().settings && CFG().settings.wishlistPageUrl) || '/pages/wishlist';
     const norm = (p) => {
@@ -616,20 +663,75 @@
 
     const mount = document.createElement('div');
     mount.className = 'ws-page-mount';
-    mount.innerHTML =
-      '<div class="ws-page" id="ws-wishlist-page">' +
-      '<div class="ws-page__header">' +
-      '<span class="ws-page__count" id="ws-page-count"></span>' +
-      '</div>' +
-      '<div class="ws-page__empty" id="ws-page-empty" style="display:none;">' +
-      '<svg class="ws-page__empty-icon" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>' +
-      '<h2>Your wishlist is empty</h2>' +
-      '<p>Browse our products and save items you love.</p>' +
-      `<a href="${CFG().settings.allProductsCollectionUrl || '/collections/all'}" class="ws-btn ws-btn--primary">Browse Products</a>` +
-      '</div>' +
-      '<div class="ws-page__grid ws-page__grid--rows" id="ws-page-grid"></div>' +
-      '</div>';
+    mount.innerHTML = [
+      '<div class="ws-page" id="ws-wishlist-page">',
+      '  <div class="ws-page__tabs" role="tablist" aria-label="Wishlist views">',
+      '    <button class="ws-page__tab is-active" type="button" role="tab" aria-selected="true" data-tab="wishlist">Wishlist</button>',
+      '    <button class="ws-page__tab" type="button" role="tab" aria-selected="false" data-tab="saved-later">Saved for later</button>',
+      '  </div>',
+      '  <div class="ws-page__panel is-active" data-panel="wishlist">',
+      '    <div class="ws-page__notice">',
+      '      <div class="ws-page__notice-copy">',
+      '        <strong>Your collections are to stay here forever!</strong>',
+      '        <span>Login to save your stuff for good and access them whenever, wherever!</span>',
+      '      </div>',
+      '      <button class="ws-btn ws-btn--primary ws-btn--small" type="button" data-login>Login to Save →</button>',
+      '    </div>',
+      '    <div class="ws-page__section">',
+      '      <div class="ws-page__section-head">',
+      '        <h2>My Wishlist</h2>',
+      '        <span id="ws-page-count"></span>',
+      '      </div>',
+      '      <div class="ws-page__empty" id="ws-page-empty" style="display:none;">',
+      '        <svg class="ws-page__empty-icon" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+      '        <h2>Your wishlist is empty</h2>',
+      '        <p>Browse our products and save items you love.</p>',
+      `        <a href="${CFG().settings.allProductsCollectionUrl || '/collections/all'}" class="ws-btn ws-btn--primary">Browse Products</a>`,
+      '      </div>',
+      '      <div class="ws-page__grid ws-page__grid--rows" id="ws-page-grid"></div>',
+      '    </div>',
+      '  </div>',
+      '  <div class="ws-page__panel" data-panel="saved-later">',
+      '    <div class="ws-page__notice">',
+      '      <div class="ws-page__notice-copy">',
+      '        <strong>Your collections are to stay here forever!</strong>',
+      '        <span>Login to save your stuff for good and access them whenever, wherever!</span>',
+      '      </div>',
+      '      <button class="ws-btn ws-btn--primary ws-btn--small" type="button" data-login>Login to Save →</button>',
+      '    </div>',
+      '    <div class="ws-save-later">',
+      '      <div class="ws-save-later__icon">✓</div>',
+      '      <h3>Not ready to buy something? Park it here</h3>',
+      '      <p>Move items from your cart without losing them. Come back when you\'re ready.</p>',
+      '      <div class="ws-save-later__choice">',
+      '        <div class="ws-save-later__choice-icon ws-save-later__choice-icon--green">🛒</div>',
+      '        <div>',
+      '          <strong>From your cart</strong>',
+      '          <span>Tap "Save for later" next to any item to move it here.</span>',
+      '        </div>',
+      '      </div>',
+      '      <div class="ws-save-later__choice">',
+      '        <div class="ws-save-later__choice-icon ws-save-later__choice-icon--red">🗑</div>',
+      '        <div>',
+      '          <strong>When deleting from cart</strong>',
+      '          <span>Choose "Save for later" on the prompt instead of removing permanently.</span>',
+      '        </div>',
+      '      </div>',
+      '      <div class="ws-save-later__note">',
+      '        <span>ℹ</span>',
+      '        <p>Items saved this session disappear when you leave. <strong>Log in to keep them across visits.</strong></p>',
+      '      </div>',
+      '      <div class="ws-save-later__actions">',
+      '        <button type="button" class="ws-save-later__button" data-go-cart>Go to cart →</button>',
+      '        <button type="button" class="ws-save-later__button ws-save-later__button--muted" data-login>Log in to save permanently</button>',
+      '      </div>',
+      '      <p class="ws-save-later__signup">No account? <a href="/account/register">Sign up — it takes a minute</a></p>',
+      '    </div>',
+      '  </div>',
+      '</div>'
+    ].join('');
     host.appendChild(mount);
+    bindPageTabs();
   }
 
   function autoMountDrawerFooter() {

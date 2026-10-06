@@ -1,0 +1,227 @@
+.ws-reports {
+  padding: 12px 18px 28px;
+  color: #303030;
+}
+.ws-reports-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 -10px 26px;
+}
+.ws-reports-tabs a,
+.ws-reports-tabs > span {
+  padding: 6px 11px;
+  color: #303030;
+  text-decoration: none;
+  font-size: 12px;
+  border-radius: 8px;
+}
+.ws-reports-tabs [aria-current="page"] {
+  background: #dedede;
+  font-weight: 550;
+}
+.ws-reports-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.ws-reports-heading h1 {
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 26px;
+  margin: 0;
+}
+.ws-reports-heading p {
+  font-size: 13px;
+  color: #616161;
+  margin: 2px 0 0;
+}
+.ws-reports-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ws-reports-button,
+.ws-reports-dates summary {
+  border: 1px solid #ccc;
+  background: white;
+  color: #303030;
+  font: inherit;
+  font-size: 12px;
+  border-radius: 7px;
+  min-height: 28px;
+  padding: 4px 10px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 1px #00000008;
+}
+.ws-reports-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ws-reports-dates {
+  position: relative;
+}
+.ws-reports-dates form {
+  position: absolute;
+  right: 0;
+  top: 36px;
+  z-index: 2;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px #00000015;
+}
+.ws-reports-dates label {
+  display: grid;
+  gap: 4px;
+}
+.ws-reports input,
+.ws-reports select {
+  font: inherit;
+  font-size: 12px;
+  background: white;
+  color: #303030;
+  padding: 5px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  min-height: 28px;
+}
+.ws-reports-card {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 1px 0 #0000000a;
+}
+.ws-reports-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border-bottom: 1px solid #ddd;
+}
+.ws-reports-toolbar > span {
+  padding: 5px 12px;
+  border-radius: 7px;
+  background: #eee;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ws-reports-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ws-reports-table-scroll {
+  overflow-x: auto;
+}
+.ws-reports table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: center;
+  font-size: 12px;
+}
+.ws-reports th {
+  padding: 10px 16px;
+  background: #f7f7f7;
+  font-weight: 400;
+  color: #616161;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ws-reports td {
+  padding: 8px 16px;
+  height: 52px;
+  border-top: 1px solid #e5e5e5;
+  min-width: 100px;
+}
+.ws-reports tbody tr:hover {
+  background: #fafafa;
+}
+.ws-reports td img {
+  object-fit: contain;
+  border: 1px solid #eee;
+  border-radius: 7px;
+  display: block;
+  margin: auto;
+}
+.ws-reports-empty {
+  min-height: 385px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 30px;
+}
+.ws-reports-empty svg {
+  margin: 0 0 22px;
+}
+.ws-reports-empty h2 {
+  font-size: 13px;
+  font-weight: 650;
+  margin: 0 0 8px;
+}
+.ws-reports-empty p {
+  font-size: 12px;
+  margin: 0 0 16px;
+}
+.ws-reports-primary {
+  background: #333;
+  color: white;
+  border-color: #222;
+}
+.ws-reports-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 12px;
+  margin: 16px 0;
+}
+.ws-reports-pagination a,
+.ws-reports-pagination [aria-disabled] {
+  padding: 3px 9px;
+  background: #e6e6e6;
+  border-radius: 4px;
+  font-size: 18px;
+  text-decoration: none;
+  color: #333;
+}
+.ws-reports-pagination [aria-disabled] {
+  opacity: 0.35;
+}
+.ws-reports-note {
+  color: #717171;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 14px;
+}
+.ws-reports :focus-visible {
+  outline: 2px solid #005bd3;
+  outline-offset: 3px;
+}
+@media (max-width: 800px) {
+  .ws-reports-heading,
+  .ws-reports-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .ws-reports-search input {
+    width: 150px;
+  }
+  .ws-reports-actions {
+    flex-wrap: wrap;
+  }
+  .ws-reports {
+    padding: 12px;
+  }
+}

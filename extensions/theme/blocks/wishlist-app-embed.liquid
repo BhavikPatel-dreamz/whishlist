@@ -4,6 +4,12 @@
   disabled independently from the Back-in-Stock App Embed in the theme editor.
 {% endcomment %}
 
+{% if block.settings.show_wishlist_ui == false %}
+  <style>
+    .wishlist-heart, .ws-product-block, .ws-page-block, .ws-page, #ws-wishlist-page,
+    #ws-header-link, #ws-drawer-toggle, #ws-drawer, #ws-drawer-overlay { display: none !important; }
+  </style>
+{% else %}
 {{ 'wishlist.css' | asset_url | stylesheet_tag }}
 
 <script>
@@ -12,13 +18,18 @@
   window.__wishlist_stock.customerEmail = {{ customer.email | default: nil | json }};
   window.__wishlist_stock.customerLoggedIn = {% if customer %}true{% else %}false{% endif %};
   window.__wishlist_stock.settings = {
+    advancedSettings: {% if block.settings.advanced_settings == false %}false{% else %}true{% endif %},
+    pageSelected: {% if block.settings.wishlist_page != blank %}true{% else %}false{% endif %},
+    buttonBackground: {{ block.settings.button_background | default: "#000000" | json }},
+    buttonText: {{ block.settings.button_text | default: "#FFFFFF" | json }},
+    notificationAlignment: {{ block.settings.notification_alignment | default: "center" | json }},
     buttonColor: {{ block.settings.wishlist_button_color | default: "#e74c3c" | json }},
     buttonSize: {{ block.settings.wishlist_button_size | default: 20 }},
     iconType: {{ block.settings.header_icon_type | default: "heart" | json }},
     iconImage: {% if block.settings.header_icon_image %}{{ block.settings.header_icon_image | image_url: width: 200 | json }}{% else %}null{% endif %},
     drawerPosition: {{ block.settings.drawer_position | default: "right" | json }},
     headerLink: {% if block.settings.header_link == false %}false{% else %}true{% endif %},
-    wishlistPageUrl: {{ block.settings.wishlist_page_url | default: '/pages/wishlist' | json }},
+    wishlistPageUrl: {{ block.settings.wishlist_page.url | default: block.settings.wishlist_page_url | default: '/pages/wishlist' | json }},
     allProductsCollectionUrl: {{ routes.all_products_collection_url | json }},
     cardHearts: {% if block.settings.card_hearts == false %}false{% else %}true{% endif %},
     productButton: {% if block.settings.product_button == false %}false{% else %}true{% endif %},
@@ -32,12 +43,18 @@
   (function() {
     var s = window.__wishlist_stock.settings;
     var root = document.documentElement;
+    root.style.setProperty('--ws-icon-size', s.buttonSize + 'px');
+    if (!s.advancedSettings) return;
+    root.style.setProperty('--ws-button-bg', s.buttonBackground);
+    root.style.setProperty('--ws-button-text', s.buttonText);
+    root.style.setProperty('--ws-toast-left', s.notificationAlignment === 'right' ? 'auto' : s.notificationAlignment === 'left' ? '24px' : '50%');
+    root.style.setProperty('--ws-toast-right', s.notificationAlignment === 'right' ? '24px' : 'auto');
+    root.style.setProperty('--ws-toast-x', s.notificationAlignment === 'center' ? '-50%' : '0%');
     root.style.setProperty('--ws-primary', s.buttonColor || '#e74c3c');
-    root.style.setProperty('--ws-icon-size', (s.buttonSize || 20) + 'px');
     root.style.setProperty('--ws-bg', s.drawerBg || '#ffffff');
     root.style.setProperty('--ws-text', s.drawerText || '#1a1a1a');
     root.style.setProperty('--ws-border', s.borderColor || '#e5e7eb');
-    root.style.setProperty('--ws-radius', (s.borderRadius || 8) + 'px');
+    root.style.setProperty('--ws-radius', (s.borderRadius == null ? 8 : s.borderRadius) + 'px');
   })();
 </script>
 
@@ -83,11 +100,65 @@
 <script src="{{ 'wishlist-page.js' | asset_url }}" defer></script>
 <script src="{{ 'wishlist-toggle.js' | asset_url }}" defer></script>
 
+{% endif %}
+
 {% schema %}
 {
-  "name": "Wishlist",
+  "name": "App Control Centre",
   "target": "body",
   "settings": [
+    {
+      "type": "checkbox",
+      "id": "show_wishlist_ui",
+      "label": "Show wishlist UI",
+      "default": true,
+      "info": "Show wishlist buttons, the header icon, wishlist page, and drawer on your storefront."
+    },
+    {
+      "type": "checkbox",
+      "id": "advanced_settings",
+      "label": "Advanced Wishlist Settings",
+      "default": true,
+      "info": "Apply the colors, corner radius, and notification alignment below. Turn off to use the default styling."
+    },
+    {
+      "type": "color",
+      "id": "button_background",
+      "label": "Button background color (in wishlist)",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "button_text",
+      "label": "Button text color (in wishlist)",
+      "default": "#FFFFFF"
+    },
+    {
+      "type": "select",
+      "id": "notification_alignment",
+      "label": "Wishlist notification alignment",
+      "options": [
+        {
+          "label": "Left",
+          "value": "left"
+        },
+        {
+          "label": "Center",
+          "value": "center"
+        },
+        {
+          "label": "Right",
+          "value": "right"
+        }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "page",
+      "id": "wishlist_page",
+      "label": "Wishlist Page",
+      "info": "Select the page shoppers visit from the wishlist header icon. This selection takes priority over the wishlist page URL."
+    },
     {
       "type": "color",
       "id": "wishlist_button_color",
@@ -109,10 +180,22 @@
       "id": "header_icon_type",
       "label": "Wishlist icon style",
       "options": [
-        { "label": "Heart", "value": "heart" },
-        { "label": "Star", "value": "star" },
-        { "label": "Bookmark", "value": "bookmark" },
-        { "label": "Custom image", "value": "image" }
+        {
+          "label": "Heart",
+          "value": "heart"
+        },
+        {
+          "label": "Star",
+          "value": "star"
+        },
+        {
+          "label": "Bookmark",
+          "value": "bookmark"
+        },
+        {
+          "label": "Custom image",
+          "value": "image"
+        }
       ],
       "default": "heart"
     },
@@ -125,10 +208,16 @@
     {
       "type": "select",
       "id": "drawer_position",
-      "label": "Wishlist Drawer Position",
+      "label": "Drawer slide-in direction",
       "options": [
-        { "label": "Right", "value": "right" },
-        { "label": "Left", "value": "left" }
+        {
+          "label": "Right",
+          "value": "right"
+        },
+        {
+          "label": "Left",
+          "value": "left"
+        }
       ],
       "default": "right"
     },
@@ -141,8 +230,8 @@
     {
       "type": "text",
       "id": "wishlist_page_url",
-      "label": "Wishlist page URL",
-      "info": "Where the header wishlist icon links. Create a page with this handle (default: /pages/wishlist).",
+      "label": "Fallback wishlist page URL",
+      "info": "Used when no Wishlist Page is selected above. Default: /pages/wishlist.",
       "default": "/pages/wishlist"
     },
     {

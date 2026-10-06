@@ -16,7 +16,11 @@
  */
 (function () {
   const CFG = () => window.__wishlist_stock || { proxyBase: '/apps/wishlist-stock/api', settings: {} };
-  const on = (key) => CFG().settings && CFG().settings[key] !== false; // default ON unless explicitly false
+  const on = (key, fallback = true) => {
+    const s = CFG().settings || {};
+    if (key in s) return !!s[key];
+    return fallback;
+  };
 
   const handleToIds = new Map(); // productHandle -> { productId, variantId }
   let scanScheduled = false;
@@ -115,6 +119,26 @@
     el.textContent = String(v);
     el.dataset.count = String(v);
   }
+
+  function applyThemeFromConfig() {
+    const panel = (CFG().uiConfig && (CFG().uiConfig.themeSettings || CFG().uiConfig.productCardConfig)) || {};
+    const source = panel && typeof panel === 'object' ? panel : {};
+    const theme = {
+      primaryColor: source.primaryColor || source.theme?.primaryColor || CFG().settings?.buttonColor || '#e74c3c',
+      backgroundColor: source.backgroundColor || source.secondaryColor || source.theme?.backgroundColor || '#ffffff',
+      textColor: source.textColor || source.theme?.textColor || '#1a1a1a',
+      borderColor: source.borderColor || source.theme?.borderColor || '#e5e7eb',
+      borderRadius: source.borderRadius ?? source.theme?.borderRadius ?? 8,
+    };
+
+    const root = document.documentElement;
+    root.style.setProperty('--ws-primary', theme.primaryColor);
+    root.style.setProperty('--ws-bg', theme.backgroundColor);
+    root.style.setProperty('--ws-text', theme.textColor);
+    root.style.setProperty('--ws-border', theme.borderColor);
+    root.style.setProperty('--ws-radius', Number(theme.borderRadius || 8) + 'px');
+  }
+
   function setCount(n) {
     const v = Math.max(0, n | 0);
     try { localStorage.setItem(COUNT_CACHE_KEY, String(v)); } catch { /* ignore */ }
@@ -233,11 +257,34 @@
     }
   }
 
-  function onHeartClick(btn) {
+  async function onHeartClick(btn) {
+    if (btn.__wsSelecting) return;
     const next = !btn.classList.contains('is-in-wishlist');
     if (next && wsRequiresLogin && !wsLoggedIn) {
       promptLogin();
       return;
+    }
+    if (next && document.getElementById('ws-variant-selector')?.dataset.enabled === 'true' && !window.__wishlistVariantSelector) {
+      showToast('Product options are still loading. Please try again.');
+      return;
+    }
+    if (next && window.__wishlistVariantSelector) {
+      btn.__wsSelecting = true;
+      btn.setAttribute('aria-busy', 'true');
+      try {
+        const selected = await window.__wishlistVariantSelector.select(btn);
+        if (selected === null) return;
+        if (selected) {
+          btn.dataset.productId = selected.productId;
+          btn.dataset.variantId = selected.variantId;
+        }
+      } catch {
+        showToast('Could not load product options. Please try again.');
+        return;
+      } finally {
+        btn.__wsSelecting = false;
+        btn.removeAttribute('aria-busy');
+      }
     }
     setHeartState(btn, next);
     setCount(getCount() + (next ? 1 : -1));
@@ -326,6 +373,11 @@
   }
 
   function injectHeaderLink() {
+    if (!on('headerLink', false)) {
+      const existing = document.getElementById('ws-header-link');
+      if (existing) existing.remove();
+      return;
+    }
     if (document.getElementById('ws-header-link')) return;
     const host =
       document.querySelector('.header__icons') ||
@@ -622,8 +674,9 @@
 
   /* ---------- Enhance: inject + bind + refresh ---------- */
   function enhance() {
-    if (on('headerLink')) injectHeaderLink();
-    if (on('cardHearts')) injectCardHearts();
+    applyThemeFromConfig();
+    if (on('headerLink', false)) injectHeaderLink();
+    if (on('cardHearts', true)) injectCardHearts();
     injectProductPage();
     document.querySelectorAll('.wishlist-heart').forEach(bindHeart);
     refreshHeartStates();

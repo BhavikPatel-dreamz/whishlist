@@ -1,0 +1,218 @@
+.ws-analytics-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ws-metrics {
+  padding: 18px 22px 12px;
+  background: #f3f3f3;
+  border: 1px solid #e5e5e5;
+  border-radius: 14px;
+  color: #303030;
+}
+
+.ws-metrics-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.ws-metrics-heading h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #2f2f2f;
+}
+
+.ws-metrics-heading p,
+.ws-metrics-column > p {
+  margin: 0;
+  color: #6b6b6b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ws-metrics-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.ws-metrics-filter label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #4a4a4a;
+}
+
+.ws-metrics-filter input {
+  border: none;
+  background: transparent;
+  color: #2f2f2f;
+  font: inherit;
+  min-height: 24px;
+  padding: 0;
+  width: 118px;
+  cursor: pointer;
+}
+
+.ws-metrics-filter input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.ws-metrics-filter button {
+  display: none;
+}
+
+.ws-metrics-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: #fff;
+  border: 1px solid #e1e1e1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ws-metrics-column {
+  padding: 18px 16px 12px;
+  min-width: 0;
+  background: #fff;
+}
+
+.ws-metrics-column + .ws-metrics-column {
+  border-left: 1px solid #ececec;
+}
+
+.ws-metrics-column h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #2c2c2c;
+}
+
+.ws-metrics-list {
+  list-style: none;
+  height: 292px;
+  overflow-y: auto;
+  padding: 0 8px 0 0;
+  margin: 16px 0 10px;
+}
+
+.ws-metrics-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px dashed #e6e6e6;
+  font-size: 12px;
+}
+
+.ws-metrics-list li > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.ws-metrics-list strong {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  color: #2d2d2d;
+}
+
+.ws-metrics-list li > div > span {
+  display: block;
+  color: #777;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.ws-metrics-list em {
+  color: #b83c25;
+  font-style: normal;
+}
+
+.ws-metrics-list img {
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 4px;
+  width: 34px;
+  height: 34px;
+  background: #f5f5f5;
+}
+
+.ws-metrics-avatar,
+.ws-metrics-placeholder {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #f4ebba;
+  color: #6a5b19;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ws-metrics-placeholder {
+  border-radius: 4px;
+  width: 34px;
+  height: 34px;
+  background: #f5f5f5;
+  color: #8d8d8d;
+}
+
+.ws-metrics-column > a {
+  display: inline-flex;
+  gap: 8px;
+  color: #444;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 12px;
+  padding: 7px 0 3px;
+}
+
+.ws-metrics-column > a:hover {
+  text-decoration: underline;
+}
+
+.ws-metrics-note {
+  font-size: 12px;
+  color: #737373;
+  line-height: 1.5;
+  margin: 14px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid #dde1e3;
+}
+
+@media (max-width: 900px) {
+  .ws-metrics-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .ws-metrics-column + .ws-metrics-column {
+    border-left: none;
+    border-top: 1px solid #eee;
+  }
+
+  .ws-metrics-list {
+    height: auto;
+    max-height: 280px;
+  }
+}
