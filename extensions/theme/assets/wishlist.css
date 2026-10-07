@@ -52,6 +52,12 @@
   stroke: var(--ws-primary);
 }
 
+.wishlist-heart.ws-configured-basic[aria-pressed="true"] svg,
+.wishlist-heart.wl-icon-text[aria-pressed="true"] svg {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
 .wishlist-heart .ws-badge {
   position: absolute;
   top: -2px;
@@ -81,11 +87,38 @@
   gap: 10px;
 }
 
-.ws-pdp .wishlist-heart {
-  --ws-icon-size: 24px;
-  align-self: flex-start;
-  margin-left: -6px; /* optically align the icon with the content's left edge */
-  color: var(--ws-text);
+:where(.ws-pdp, .ws-product-block) .wishlist-heart {
+  --ws-icon-size: 18px;
+  box-sizing: border-box;
+  align-self: stretch;
+  width: 100%;
+  min-height: 46px;
+  margin: 0;
+  padding: 12px 20px;
+  gap: 8px;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.ws-pdp .wishlist-heart:hover,
+.ws-product-block .wishlist-heart:hover {
+  transform: none;
+  background: var(--wl-primary, #000);
+  color: var(--wl-secondary, #fff);
+  filter: brightness(0.9);
+}
+
+.ws-pdp .wishlist-heart[aria-pressed="true"] svg,
+.ws-product-block .wishlist-heart[aria-pressed="true"] svg {
+  fill: currentColor;
+  stroke: currentColor;
 }
 
 /* Header wishlist link with counter */
@@ -138,6 +171,13 @@
 }
 
 /* ---------- Wishlist Drawer (off-canvas) ---------- */
+#ws-header-link:not([data-ws-ready]),
+#ws-drawer-toggle:not([data-ws-ready]),
+#ws-drawer[aria-hidden="true"],
+#ws-drawer-overlay:not(.is-open) {
+  display: none !important;
+}
+
 .ws-drawer-overlay {
   position: fixed;
   inset: 0;
@@ -180,6 +220,22 @@
 .ws-drawer.is-open[data-position="right"],
 .ws-drawer.is-open[data-position="left"] {
   transform: translateX(0);
+}
+
+.ws-drawer.ws-drawer--modal {
+  inset: 50% auto auto 50%;
+  width: min(720px, 90vw);
+  max-height: 85vh;
+  border-radius: var(--ws-radius);
+  transform: translate(-50%, -50%);
+  visibility: hidden;
+  opacity: 0;
+}
+
+.ws-drawer.ws-drawer--modal.is-open {
+  transform: translate(-50%, -50%);
+  visibility: visible;
+  opacity: 1;
 }
 
 .ws-drawer__header {
@@ -1036,3 +1092,35 @@ a.ws-page-card__image {
 @media (max-width: 640px) {
   .ws-drawer-toggle { right: 12px; top: 12px; }
 }
+
+/* Cart save-for-later popup and saved-items shelf. */
+.ws-save-dialog { box-sizing: border-box; width: min(620px, calc(100vw - 32px)); max-height: 90vh; overflow: auto; padding: 28px; border: 1px solid #dedede; border-radius: 10px; background: #fff; color: #222; box-shadow: 0 12px 50px #0003; }
+.ws-save-dialog::backdrop { background: #0006; }
+.ws-save-dialog-content { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: center; }
+.ws-save-dialog-image { width: 110px; height: 140px; object-fit: contain; }
+.ws-save-dialog-image[hidden], .ws-save-permission[hidden], #ws-saved-later-empty[hidden] { display: none; }
+.ws-save-dialog-content:has(.ws-save-dialog-image[hidden]) { grid-template-columns: 1fr; }
+.ws-save-close { position: absolute; top: 6px; right: 10px; border: 0; padding: 6px; background: transparent; color: #333; font-size: 24px; cursor: pointer; }
+.ws-save-dialog h2 { font-size: 18px; font-weight: 600; line-height: 1.4; margin: 8px 0 16px; }
+.ws-save-dialog-product { font-size: 13px; margin: 0; }
+.ws-save-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.ws-save-primary, .ws-save-secondary, .ws-saved-move { font: inherit; font-size: 13px; padding: 12px 18px; border: 1px solid #222; border-radius: 0; cursor: pointer; }
+.ws-save-primary, .ws-saved-move { background: var(--wl-primary, #000); color: var(--wl-secondary, #fff); }
+.ws-save-secondary { background: #fff; color: #222; border-color: #ccc; }
+.ws-save-permission { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-size: 13px; }
+.ws-save-permission input { width: auto; }
+.ws-save-dialog-status, .ws-saved-status { font-size: 13px; line-height: 1.5; }
+.ws-save-dialog-status:empty, .ws-saved-status:empty { display: none; }
+.ws-save-dialog button:disabled, .ws-saved-move:disabled { opacity: .6; cursor: wait; }
+.ws-save-inline, .ws-saved-remove { padding: 8px; font: inherit; font-size: 13px; background: none; color: inherit; border: 0; text-decoration: underline; cursor: pointer; }
+.ws-saved-heading { display: flex; flex-direction: column; gap: 4px; margin: 24px 0 8px; }
+.ws-saved-heading h2 { margin: 0; font-size: 22px; }
+.ws-saved-heading > span, .ws-saved-browser-note { color: #666; font-size: 13px; }
+.ws-saved-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 28px; margin: 24px 0; }
+.ws-saved-card { min-width: 0; display: flex; flex-direction: column; align-items: stretch; }
+.ws-saved-image { width: 100%; aspect-ratio: 1.3; object-fit: contain; background: #f6f6f6; border-radius: 6px; margin-bottom: 18px; }
+.ws-saved-title { color: inherit; text-decoration: none; font-weight: 600; font-size: 16px; }
+.ws-saved-details { color: #666; font-size: 13px; margin: 12px 0; }
+.ws-saved-move { width: 100%; min-height: 46px; margin-top: auto; font-weight: 600; }
+.ws-save-dialog :focus-visible, .ws-saved-card :focus-visible, .ws-save-inline:focus-visible { outline: 2px solid #005bd3; outline-offset: 3px; }
+@media (max-width: 500px) { .ws-save-dialog { padding: 28px 16px 16px; } .ws-save-dialog-content { grid-template-columns: 1fr; gap: 12px; } .ws-save-dialog-image { width: 80px; height: 80px; } .ws-save-dialog-actions > button { flex: 1; } }

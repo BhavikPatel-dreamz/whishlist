@@ -9,6 +9,7 @@ import dashboardHelpStyles from "../components/DashboardHelp.css?url";
 import analyticsMetricsStyles from "../components/AnalyticsMetrics.css?url";
 import configurationFeaturesStyles from "../components/ConfigurationFeatures.css?url";
 import reportsStyles from "../components/Reports.css?url";
+import adminPageStyles from "../components/AdminPage.css?url";
 
 import { authenticate } from "../shopify.server";
 
@@ -19,6 +20,7 @@ export const links = () => [
   { rel: "stylesheet", href: analyticsMetricsStyles },
   { rel: "stylesheet", href: configurationFeaturesStyles },
   { rel: "stylesheet", href: reportsStyles },
+  { rel: "stylesheet", href: adminPageStyles },
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -41,7 +43,9 @@ export default function App() {
         <Link to="/app/settings">Configurations</Link>
         <Link to="/app/reports">Reports</Link>
       </NavMenu>
-      <Outlet />
+      <div className="ws-admin-pages">
+        <Outlet />
+      </div>
     </AppProvider>
   );
 }

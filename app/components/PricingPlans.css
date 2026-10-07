@@ -1,0 +1,338 @@
+.ws-pricing {
+  padding: 12px 0 32px;
+  color: #303030;
+  font-size: 13px;
+}
+.ws-pricing-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.ws-pricing-preview-note {
+  color: #616161;
+  font-size: 12px;
+}
+.ws-pricing-cycle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #dedede;
+  border-radius: 9px;
+  background: white;
+}
+.ws-pricing-cycle button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 9px 18px;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.ws-pricing-cycle button[aria-pressed="true"] {
+  color: white;
+  background: linear-gradient(#3e3e3e, #202020);
+  box-shadow: inset 0 1px 0 #777;
+}
+.ws-pricing-cycle span {
+  margin-left: 5px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  color: #004578;
+  background: #d5eaff;
+  font-size: 11px;
+}
+.ws-pricing-plans {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.ws-pricing-card,
+.ws-pricing-panel,
+.ws-pricing-contact,
+.ws-pricing-comparison {
+  background: white;
+  border: 1px solid #dedede;
+  border-radius: 12px;
+  box-shadow: 0 1px 0 #00000008;
+}
+.ws-pricing-card {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+}
+.ws-pricing h2 {
+  margin: 0 0 8px;
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.ws-pricing-description {
+  min-height: 38px;
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.ws-pricing-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px;
+  margin: 0 0 12px;
+}
+.ws-pricing-price strong {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.7px;
+}
+.ws-pricing-price > span {
+  font-size: 12px;
+}
+.ws-pricing-limits {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px;
+  border-radius: 6px;
+  background: #f1f1f1;
+  color: #616161;
+  font-size: 12px;
+}
+.ws-pricing-highlights-label {
+  margin: 16px 0 8px;
+}
+.ws-pricing-card ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.ws-pricing-card li {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+.ws-pricing-card li > span {
+  color: #616161;
+}
+.ws-pricing-plan-note {
+  color: #616161;
+  font-size: 12px;
+  margin: 8px 0 20px;
+}
+.ws-pricing-card-action {
+  margin-top: auto;
+  padding-top: 20px;
+}
+.ws-pricing-card-action button {
+  width: 100%;
+}
+.ws-pricing-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  border-bottom-color: #aaa;
+  border-radius: 7px;
+  background: white;
+  color: #303030;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ws-pricing-button:hover {
+  background: #f7f7f7;
+}
+.ws-pricing-button-primary {
+  background: linear-gradient(#3c3c3c, #191919);
+  color: white;
+  border-color: #222;
+  box-shadow: inset 0 1px 0 #737373;
+}
+.ws-pricing-button-primary:hover {
+  background: #303030;
+}
+.ws-pricing-panel {
+  padding: 16px;
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.ws-pricing-panel p {
+  margin: 8px 0 12px;
+}
+.ws-pricing-discount {
+  justify-content: space-between;
+}
+.ws-pricing-discount > div {
+  flex: 1;
+}
+.ws-pricing-discount form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ws-pricing-discount input {
+  width: min(100%, 360px);
+  min-width: 0;
+  border: 1px solid #999;
+  border-radius: 7px;
+  padding: 8px 10px;
+  font: inherit;
+}
+#pricing-discount-status:empty {
+  display: none;
+}
+.ws-pricing-art {
+  flex: 0 0 104px;
+  width: 104px;
+  height: 104px;
+}
+.ws-pricing-help h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+.ws-pricing-help ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 12px;
+  list-style: none;
+  padding: 0;
+}
+.ws-pricing-help li {
+  background: #f1f1f1;
+  border-radius: 6px;
+  padding: 12px;
+}
+.ws-pricing-contact {
+  margin: 22px 0 18px;
+  padding: 16px;
+  text-align: center;
+  background: #f7f7f7;
+  color: #616161;
+}
+.ws-pricing-contact button {
+  font: inherit;
+  color: #005bd3;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.ws-pricing-contact button:hover {
+  text-decoration: underline;
+}
+.ws-pricing-comparison {
+  overflow-x: auto;
+}
+.ws-pricing-comparison table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 620px;
+}
+.ws-pricing-comparison th,
+.ws-pricing-comparison td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #ebebeb;
+  text-align: center;
+  width: 33.333%;
+}
+.ws-pricing-comparison th:first-child {
+  text-align: left;
+}
+.ws-pricing-comparison th small {
+  display: block;
+  font-weight: 400;
+  margin-top: 4px;
+  font-size: 12px;
+}
+.ws-pricing-comparison tbody th[scope="row"] {
+  font-weight: 400;
+}
+.ws-pricing-group {
+  background: #f7f7f7;
+}
+.ws-pricing-comparison tbody:last-child tr:last-child > * {
+  border-bottom: 0;
+}
+.ws-pricing-dialog {
+  width: min(460px, calc(100% - 32px));
+  padding: 24px;
+  border: 1px solid #dedede;
+  border-radius: 14px;
+  color: #303030;
+  box-shadow: 0 16px 64px #0003;
+}
+.ws-pricing-dialog::backdrop {
+  background: #0006;
+}
+.ws-pricing-dialog p {
+  line-height: 1.6;
+  margin: 16px 0;
+}
+.ws-pricing-dialog form {
+  text-align: right;
+}
+.ws-pricing :focus-visible {
+  outline: 2px solid #005bd3;
+  outline-offset: 3px;
+}
+.ws-pricing-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 900px) {
+  .ws-pricing-plans {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ws-pricing-card:last-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 600px) {
+  .ws-pricing-top {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .ws-pricing-plans {
+    grid-template-columns: 1fr;
+  }
+  .ws-pricing-description {
+    min-height: 0;
+  }
+  .ws-pricing-panel {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .ws-pricing-art {
+    flex-basis: 64px;
+    width: 64px;
+    height: 64px;
+  }
+  .ws-pricing-discount .ws-pricing-art {
+    display: none;
+  }
+  .ws-pricing-help ul {
+    flex-direction: column;
+  }
+  .ws-pricing-price strong {
+    font-size: 28px;
+  }
+}

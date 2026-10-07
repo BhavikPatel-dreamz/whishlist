@@ -1,0 +1,24 @@
+/* Use the dashboard's content width and gutters for every admin route. */
+.ws-admin-pages {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: 32px;
+}
+
+.ws-admin-pages > .ws-home-page,
+.ws-admin-pages > .ws-reports,
+.ws-admin-pages > .Polaris-Page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+  padding-inline: 0;
+}
+
+@media (max-width: 800px) {
+  .ws-admin-pages {
+    padding-inline: 16px;
+  }
+}

@@ -5,8 +5,7 @@
 
     function createToggle() {
         if (document.getElementById('ws-drawer-toggle')) return;
-        // If header link exists, do not create duplicate toggle
-       
+        // The drawer launcher is independent of the optional header link.
 
         var btn = document.createElement('button');
         btn.id = 'ws-drawer-toggle';
@@ -15,6 +14,7 @@
         btn.setAttribute('data-open-drawer', '');
         btn.innerHTML = heartSvg();
         document.body.appendChild(btn);
+        document.dispatchEvent(new CustomEvent('wishlist:launcher-ready'));
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', createToggle);

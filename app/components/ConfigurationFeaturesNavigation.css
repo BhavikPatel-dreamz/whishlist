@@ -1,0 +1,123 @@
+.wl-configuration-features {
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #dedede;
+  border-radius: 12px;
+  box-shadow: 0 1px 0 #0000000d;
+}
+.wl-configuration-features h2 {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.wl-configuration-rows {
+  border: 1px solid #dedede;
+  border-radius: 11px;
+  overflow: hidden;
+}
+.wl-configuration-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px;
+  background: white;
+  border: 0;
+  color: #303030;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+.wl-configuration-row + .wl-configuration-row {
+  border-top: 1px solid #ebebeb;
+}
+a.wl-configuration-row,
+button.wl-configuration-row {
+  cursor: pointer;
+}
+a.wl-configuration-row:hover,
+button.wl-configuration-row:hover {
+  background: #f7f7f7;
+}
+.wl-configuration-row:focus-visible {
+  outline: 2px solid #005bd3;
+  outline-offset: -3px;
+}
+.wl-configuration-row > svg {
+  flex-shrink: 0;
+  color: #616161;
+}
+.wl-configuration-row > span:nth-child(2) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.wl-configuration-row strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.wl-configuration-row > span:nth-child(2) > span {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.wl-configuration-chevron {
+  color: #8a8a8a;
+  font-size: 24px;
+}
+.wl-configuration-coming-soon {
+  background: #f1f1f1;
+  padding: 3px 7px;
+  border-radius: 5px;
+  color: #616161;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.wl-save-features .wl-feature-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+}
+.wl-save-features .wl-feature-grid > * {
+  min-width: 0;
+}
+.wl-save-features .wl-feature-grid > * > .Polaris-Box {
+  height: 100%;
+}
+.wl-save-features .wl-feature-grid > * > .Polaris-Box > .Polaris-BlockStack {
+  height: 100%;
+}
+.wl-save-features
+  .wl-feature-grid
+  > *
+  > .Polaris-Box
+  > .Polaris-BlockStack
+  > .Polaris-InlineStack:last-child {
+  margin-top: auto;
+}
+@media (max-width: 1100px) {
+  .wl-save-features .wl-feature-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .wl-save-features .wl-feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .wl-save-features .wl-feature-grid {
+    grid-template-columns: 1fr;
+  }
+  .wl-configuration-row {
+    gap: 10px;
+    padding: 12px;
+  }
+  .wl-configuration-coming-soon {
+    white-space: normal;
+    max-width: 65px;
+  }
+}

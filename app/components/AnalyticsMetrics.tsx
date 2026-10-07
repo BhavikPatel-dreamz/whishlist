@@ -91,7 +91,7 @@ export function AnalyticsMetrics({ data }: { data: MetricsData }) {
             {
               key: "running-low",
               title: "Running out soon",
-              subtitle: "Low in stock, high in demand",
+              subtitle: "Currently out-of-stock products",
               rows: data.runningLow,
             },
           ] as const
@@ -118,10 +118,9 @@ export function AnalyticsMetrics({ data }: { data: MetricsData }) {
                   <div>
                     <strong title={row.title}>{row.title}</strong>
                     <span>
-                      {row.shoppers} shoppers{" "}
-                      {column.key === "running-low" && (
-                        <em>· {row.stock} in stock</em>
-                      )}
+                      {column.key === "running-low"
+                        ? `Out of stock · ${row.stock} units`
+                        : `${row.shoppers} shoppers`}
                     </span>
                   </div>
                 </li>
@@ -130,7 +129,7 @@ export function AnalyticsMetrics({ data }: { data: MetricsData }) {
                 <li>
                   {column.key === "popular"
                     ? "No wishlist products in this date range."
-                    : "No products meet the low-stock and demand criteria."}
+                    : "No out-of-stock products in your store."}
                 </li>
               )}
             </ul>
@@ -143,9 +142,10 @@ export function AnalyticsMetrics({ data }: { data: MetricsData }) {
       <p className="ws-metrics-note">
         Currently saved items added between {data.from} and {data.to} (UTC).
         Showing up to 20 entries per column; reports include all results.
-        Running out soon: at least 2 shoppers and 10 or fewer units across all
-        locations. Values estimate one unit per product at its current minimum
-        price; inventory is current.
+        Running out soon shows active, inventory-tracked products with zero or
+        fewer units across all locations, regardless of wishlist saves or
+        selected dates. Values estimate one unit per product at its current
+        minimum price; inventory is current.
       </p>
     </section>
   );

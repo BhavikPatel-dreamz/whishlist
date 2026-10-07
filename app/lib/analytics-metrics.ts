@@ -36,6 +36,7 @@ export function summarizeMetrics(
   items: MetricSave[],
   products: Map<string, MetricProduct>,
   names = new Map<string, string>(),
+  inventoryProducts = products,
 ) {
   const demand = new Map<string, { saves: number; shoppers: Set<string> }>();
   const shoppers = new Map<
@@ -83,10 +84,21 @@ export function summarizeMetrics(
         b.saves - a.saves ||
         a.productId.localeCompare(b.productId),
     );
-  const runningLow = popular.filter(
-    (product) =>
-      product.shoppers >= 2 && product.stock !== null && product.stock <= 10,
-  );
+  const runningLow = [...inventoryProducts]
+    .filter(([, product]) => product.totalInventory <= 0)
+    .map(([productId, product]) => ({
+      productId,
+      title: product.title,
+      imageUrl: product.imageUrl,
+      stock: product.totalInventory,
+      shoppers: demand.get(productId)?.shoppers.size || 0,
+      saves: demand.get(productId)?.saves || 0,
+    }))
+    .sort(
+      (a, b) =>
+        a.title.localeCompare(b.title) ||
+        a.productId.localeCompare(b.productId),
+    );
   const shopperRows = [...shoppers]
     .map(([, shopper], index) => {
       const value = new Map<string, number>();

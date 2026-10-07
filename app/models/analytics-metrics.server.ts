@@ -1,4 +1,5 @@
 import db from "../db.server";
+import { loadOutOfStockProducts } from "./out-of-stock.server";
 import { metricsDateRange, summarizeMetrics } from "../lib/analytics-metrics";
 import {
   getCustomerNamesByIds,
@@ -28,7 +29,7 @@ export async function loadAnalyticsMetrics(
       items.flatMap((item) => (item.customerId ? [item.customerId] : [])),
     ),
   ];
-  const [products, nameMaps] = await Promise.all([
+  const [products, nameMaps, outOfStockProducts] = await Promise.all([
     getProductsByIds(
       admin,
       [...new Set(items.map((item) => item.productId))],
@@ -39,6 +40,7 @@ export async function loadAnalyticsMetrics(
         getCustomerNamesByIds(admin, customerIds.slice(i * 250, (i + 1) * 250)),
       ),
     ),
+    loadOutOfStockProducts(admin),
   ]);
   return {
     ...range,
@@ -46,6 +48,7 @@ export async function loadAnalyticsMetrics(
       items,
       products,
       new Map(nameMaps.flatMap((map) => [...map])),
+      outOfStockProducts,
     ),
   };
 }

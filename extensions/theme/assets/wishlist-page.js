@@ -10,29 +10,53 @@
   const CFG = () => window.__wishlist_stock || { proxyBase: '/apps/wishlist-stock/api', settings: {} };
 
   let uiConfig = null; // { extensionActive, productCardConfig } from /ui-config
+  let configRequest = null;
 
   function fetchConfig() {
+    if (configRequest) return configRequest;
     const cfg = CFG();
-    return fetch(`${cfg.proxyBase}/ui-config`)
+    configRequest = fetch(`${cfg.proxyBase}/ui-config`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => {
         if (data && data.ok && data.config) {
+          const changed = JSON.stringify(uiConfig) !== JSON.stringify(data.config);
           uiConfig = data.config;
           window.__wishlist_stock.uiConfig = uiConfig;
           const pageUrl = uiConfig.themeSettings && uiConfig.themeSettings.wishlistPageUrl;
           if (!CFG().settings?.pageSelected && typeof pageUrl === 'string' && /^\/pages\/[a-zA-Z0-9][a-zA-Z0-9_-]*\/?$/.test(pageUrl)) {
             window.__wishlist_stock.settings = window.__wishlist_stock.settings || {};
-            window.__wishlist_stock.settings.wishlistPageUrl = pageUrl;
+            window.__wishlist_stock.settings.wishlistPageUrl = pageUrl === '/pages/wishlist'
+              ? cfg.proxyBase.replace(/\/api\/?$/, '') + '/wishlist' : pageUrl;
             const headerLink = document.getElementById('ws-header-link');
-            if (headerLink) headerLink.setAttribute('href', pageUrl);
+            if (headerLink) headerLink.setAttribute('href', window.__wishlist_stock.settings.wishlistPageUrl);
           }
           applyThemeFromConfig();
+          applyPageSettings();
+          if (changed) document.dispatchEvent(new CustomEvent('wishlist:config-updated'));
         }
       })
-      .catch(() => null);
+      .catch(() => null)
+      .finally(() => { configRequest = null; });
+    return configRequest;
   }
 
   /* Card display options, merged over defaults. Applied to the wishlist page. */
+  function applyPageSettings() {
+    const c = uiConfig?.productCardConfig || {};
+    if (c.pageTitle) {
+      document.querySelectorAll('.ws-drawer__title, .ws-page__section-head h2').forEach((heading) => {
+        const text = Array.from(heading.childNodes).find((node) => node.nodeType === 3);
+        if (text) text.textContent = c.pageTitle + ' ';
+        else heading.prepend(document.createTextNode(c.pageTitle + ' '));
+      });
+    }
+    const drawer = document.getElementById('ws-drawer');
+    if (drawer) {
+      drawer.classList.toggle('ws-drawer--modal', c.pageType === 'modal');
+      if (c.pageTitle) drawer.setAttribute('aria-label', c.pageTitle);
+    }
+  }
+
   function cardCfg() {
     const c = (uiConfig && uiConfig.productCardConfig) || {};
     return {
@@ -60,8 +84,8 @@
 
     if (!merged || typeof merged !== 'object') return;
 
-    // Theme editor styling takes priority when its advanced controls are enabled.
-    if (typeof CFG().settings?.advancedSettings === 'boolean' && CFG().settings.advancedSettings) return;
+    // Explicit admin settings take precedence over the embed's default controls.
+    if (CFG().settings?.advancedSettings && !current.primaryColor && !current.secondaryColor) return;
 
     const root = document.documentElement;
     if (merged.primaryColor) root.style.setProperty('--ws-primary', merged.primaryColor);
@@ -86,8 +110,9 @@
   function setHeaderCount(n) {
     const v = Math.max(0, n | 0);
     try { localStorage.setItem('wishlist_count', String(v)); } catch { /* ignore */ }
-    const el = document.getElementById('ws-header-count');
-    if (el) { el.textContent = String(v); el.dataset.count = String(v); }
+    document.querySelectorAll('#ws-header-count, #ws-floating-count, [data-ws-menu-count]').forEach((el) => {
+      el.textContent = String(v); el.dataset.count = String(v);
+    });
   }
 
   /* ---------- Fetch wishlist ---------- */
@@ -610,6 +635,37 @@
     document.body.style.overflow = '';
   }
 
+  function savedLaterPanelMarkup() {
+    return '<div class="ws-page__panel" data-panel="saved-later">' +
+      '<div class="ws-saved-heading"><h2>Saved for Later</h2><span id="ws-saved-later-count"></span></div>' +
+      '<p class="ws-saved-browser-note">Saved in this browser. Move an item back to your cart whenever you’re ready.</p>' +
+      '<div id="ws-saved-later-items" class="ws-saved-grid"></div>' +
+      '<div id="ws-saved-later-empty" class="ws-save-later"><h3>No items saved for later yet</h3>' +
+      '<p>Save items when removing them from your cart, or use the Save for later link when available.</p></div></div>';
+  }
+
+  function ensureSavedLaterPanel() {
+    const page = document.getElementById('ws-wishlist-page');
+    if (!page) return;
+    if (!page.querySelector('.ws-page__tabs')) {
+      const panel = document.createElement('div');
+      panel.className = 'ws-page__panel is-active';
+      panel.dataset.panel = 'wishlist';
+      panel.append(...Array.from(page.childNodes));
+      page.appendChild(panel);
+      const tabs = document.createElement('div');
+      tabs.className = 'ws-page__tabs';
+      tabs.setAttribute('role', 'tablist');
+      tabs.setAttribute('aria-label', 'Wishlist views');
+      tabs.innerHTML = '<button class="ws-page__tab is-active" type="button" role="tab" aria-selected="true" data-tab="wishlist">Wishlist</button><button class="ws-page__tab" type="button" role="tab" aria-selected="false" data-tab="saved-later">Saved for later</button>';
+      page.prepend(tabs);
+    }
+    if (!page.querySelector('[data-panel="saved-later"]')) page.insertAdjacentHTML('beforeend', savedLaterPanelMarkup());
+    bindPageTabs();
+    if (new URLSearchParams(location.search).get('view') === 'saved-later') showPageTab('saved-later');
+    document.dispatchEvent(new CustomEvent('wishlist:page-ready'));
+  }
+
   /* ---------- Auto-mount page markup on the wishlist page ---------- */
   function showPageTab(tabName) {
     const page = document.getElementById('ws-wishlist-page');
@@ -650,12 +706,19 @@
     };
     const cur = norm(window.location.pathname);
     const want = norm(configured);
-    if (cur !== want && !cur.endsWith(want)) return;
+    const proxyMount = document.getElementById('ws-wishlist-page-root');
+    const legacyWishlist = cur.endsWith('/pages/wishlist');
+    const matchesWishlist = cur === want || cur.endsWith(want);
+    if (CFG().settings.isNotFoundPage && (matchesWishlist || legacyWishlist)) {
+      window.location.replace(CFG().proxyBase.replace(/\/api\/?$/, '') + '/wishlist');
+      return;
+    }
+    if (!proxyMount && !matchesWishlist) return;
 
     if (document.getElementById('ws-wishlist-page')) return;
 
     const host =
-      document.getElementById('MainContent') ||
+      proxyMount || document.getElementById('MainContent') ||
       document.querySelector('main') ||
       document.querySelector('[role="main"]') ||
       document.body;
@@ -691,47 +754,10 @@
       '      <div class="ws-page__grid ws-page__grid--rows" id="ws-page-grid"></div>',
       '    </div>',
       '  </div>',
-      '  <div class="ws-page__panel" data-panel="saved-later">',
-      '    <div class="ws-page__notice">',
-      '      <div class="ws-page__notice-copy">',
-      '        <strong>Your collections are to stay here forever!</strong>',
-      '        <span>Login to save your stuff for good and access them whenever, wherever!</span>',
-      '      </div>',
-      '      <button class="ws-btn ws-btn--primary ws-btn--small" type="button" data-login>Login to Save →</button>',
-      '    </div>',
-      '    <div class="ws-save-later">',
-      '      <div class="ws-save-later__icon">✓</div>',
-      '      <h3>Not ready to buy something? Park it here</h3>',
-      '      <p>Move items from your cart without losing them. Come back when you\'re ready.</p>',
-      '      <div class="ws-save-later__choice">',
-      '        <div class="ws-save-later__choice-icon ws-save-later__choice-icon--green">🛒</div>',
-      '        <div>',
-      '          <strong>From your cart</strong>',
-      '          <span>Tap "Save for later" next to any item to move it here.</span>',
-      '        </div>',
-      '      </div>',
-      '      <div class="ws-save-later__choice">',
-      '        <div class="ws-save-later__choice-icon ws-save-later__choice-icon--red">🗑</div>',
-      '        <div>',
-      '          <strong>When deleting from cart</strong>',
-      '          <span>Choose "Save for later" on the prompt instead of removing permanently.</span>',
-      '        </div>',
-      '      </div>',
-      '      <div class="ws-save-later__note">',
-      '        <span>ℹ</span>',
-      '        <p>Items saved this session disappear when you leave. <strong>Log in to keep them across visits.</strong></p>',
-      '      </div>',
-      '      <div class="ws-save-later__actions">',
-      '        <button type="button" class="ws-save-later__button" data-go-cart>Go to cart →</button>',
-      '        <button type="button" class="ws-save-later__button ws-save-later__button--muted" data-login>Log in to save permanently</button>',
-      '      </div>',
-      '      <p class="ws-save-later__signup">No account? <a href="/account/register">Sign up — it takes a minute</a></p>',
-      '    </div>',
-      '  </div>',
+      savedLaterPanelMarkup(),
       '</div>'
     ].join('');
     host.appendChild(mount);
-    bindPageTabs();
   }
 
   function autoMountDrawerFooter() {
@@ -775,6 +801,8 @@
     });
 
     autoMountPage();
+    ensureSavedLaterPanel();
+    applyPageSettings();
     autoMountDrawerFooter();
     if (document.getElementById('ws-wishlist-page')) {
       renderPage();
@@ -782,6 +810,10 @@
   }
 
   function boot() {
+    window.addEventListener('focus', fetchConfig);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') fetchConfig();
+    });
     const start = () => {
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
       else init();

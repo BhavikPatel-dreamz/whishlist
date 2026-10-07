@@ -27,15 +27,20 @@ export type ProductCardLayout = (typeof PRODUCT_CARD_LAYOUTS)[number];
 export const PRODUCT_CARD_IMAGE_SIZES = ["small", "medium", "large"] as const;
 export type ProductCardImageSize = (typeof PRODUCT_CARD_IMAGE_SIZES)[number];
 
+export type WishlistIconType = "heart" | "star" | "bookmark" | "image";
+
 export type ThemeSettings = {
   wishlistPageUrl?: string;
   primaryColor?: string;
+  secondaryColor?: string;
   backgroundColor?: string;
   textColor?: string;
   mutedTextColor?: string;
   borderColor?: string;
   borderRadius?: number;
   buttonStyle?: "filled" | "outlined";
+  iconType?: WishlistIconType;
+  iconImage?: string;
 };
 
 export type ProductCardConfig = {
@@ -56,6 +61,7 @@ export type ProductCardConfig = {
 export function defaultThemeSettings(): ThemeSettings {
   return {
     primaryColor: "#e74c3c",
+    secondaryColor: "#ffffff",
     backgroundColor: "#ffffff",
     textColor: "#1a1a1a",
     mutedTextColor: "#6b7280",
@@ -105,6 +111,7 @@ export function normalizeWishlistThemeConfig(stored: unknown): ThemeSettings {
     typeof raw.borderColor === "string" ? raw.borderColor : undefined;
 
   if (primaryColor) normalized.primaryColor = primaryColor;
+  if (secondaryColor) normalized.secondaryColor = secondaryColor;
   if (backgroundColor) normalized.backgroundColor = backgroundColor;
   if (textColor) normalized.textColor = textColor;
   if (borderColor) normalized.borderColor = borderColor;
@@ -116,6 +123,20 @@ export function normalizeWishlistThemeConfig(stored: unknown): ThemeSettings {
   const buttonStyle = raw.buttonStyle;
   if (buttonStyle === "filled" || buttonStyle === "outlined") {
     normalized.buttonStyle = buttonStyle;
+  }
+
+  const iconType = raw.iconType ?? raw.icon;
+  if (
+    iconType === "heart" ||
+    iconType === "star" ||
+    iconType === "bookmark" ||
+    iconType === "image"
+  ) {
+    normalized.iconType = iconType;
+  }
+
+  if (typeof raw.iconImage === "string") {
+    normalized.iconImage = raw.iconImage;
   }
 
   return normalized;
@@ -141,7 +162,6 @@ export function effectiveProductCardConfig(stored: unknown): ProductCardConfig {
   if (raw.theme && typeof raw.theme === "object" && !Array.isArray(raw.theme)) {
     merged.theme = {
       ...normalizedTheme,
-      ...defaultThemeSettings(),
       ...(raw.theme as Record<string, unknown>),
     } as ThemeSettings;
   } else {

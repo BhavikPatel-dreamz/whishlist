@@ -10,15 +10,24 @@
     #ws-header-link, #ws-drawer-toggle, #ws-drawer, #ws-drawer-overlay { display: none !important; }
   </style>
 {% else %}
+<style>
+  /* Prevent launcher/drawer flashes before assets and saved settings load. */
+  #ws-header-link:not([data-ws-ready]),
+  #ws-drawer-toggle:not([data-ws-ready]),
+  #ws-drawer[aria-hidden="true"],
+  #ws-drawer-overlay:not(.is-open) { display: none !important; }
+</style>
 {{ 'wishlist.css' | asset_url | stylesheet_tag }}
 
 <script>
   window.__wishlist_stock = window.__wishlist_stock || {};
   window.__wishlist_stock.proxyBase = window.__wishlist_stock.proxyBase || '/apps/wishlist-stock/api';
   window.__wishlist_stock.customerEmail = {{ customer.email | default: nil | json }};
+  window.__wishlist_stock.customerId = {{ customer.id | default: nil | json }};
   window.__wishlist_stock.customerLoggedIn = {% if customer %}true{% else %}false{% endif %};
   window.__wishlist_stock.settings = {
     advancedSettings: {% if block.settings.advanced_settings == false %}false{% else %}true{% endif %},
+    isNotFoundPage: {% if template.name == '404' %}true{% else %}false{% endif %},
     pageSelected: {% if block.settings.wishlist_page != blank %}true{% else %}false{% endif %},
     buttonBackground: {{ block.settings.button_background | default: "#000000" | json }},
     buttonText: {{ block.settings.button_text | default: "#FFFFFF" | json }},
@@ -38,6 +47,10 @@
     borderColor: {{ block.settings.border_color | default: "#e5e7eb" | json }},
     borderRadius: {{ block.settings.border_radius | default: 8 }},
   };
+
+  if (!window.__wishlist_stock.settings.pageSelected && window.__wishlist_stock.settings.wishlistPageUrl === '/pages/wishlist') {
+    window.__wishlist_stock.settings.wishlistPageUrl = window.__wishlist_stock.proxyBase.replace(/\/api\/?$/, '') + '/wishlist';
+  }
 
   /* Inject Wishlist theme CSS custom properties */
   (function() {
@@ -99,6 +112,7 @@
 <script src="{{ 'wishlist-button.js' | asset_url }}" defer></script>
 <script src="{{ 'wishlist-page.js' | asset_url }}" defer></script>
 <script src="{{ 'wishlist-toggle.js' | asset_url }}" defer></script>
+<script src="{{ 'save-for-later.js' | asset_url }}" defer></script>
 
 {% endif %}
 

@@ -4,6 +4,7 @@ import {
   defaultProductCardConfig,
   defaultThemeSettings,
   effectiveProductCardConfig,
+  normalizeWishlistThemeConfig,
   isExtensionActive,
   type ExtensionActive,
   type ProductCardConfig,
@@ -21,7 +22,9 @@ export async function getUIConfigByShopDomain(
 ): Promise<UIConfigView | null> {
   const shop = await prisma.shop.findUnique({ where: { shop: shopDomain } });
   if (!shop) return null;
-  const config = await prisma.uIConfig.findUnique({ where: { shopId: shop.id } });
+  const config = await prisma.uIConfig.findUnique({
+    where: { shopId: shop.id },
+  });
   if (!config) {
     return {
       extensionActive: "none",
@@ -29,8 +32,13 @@ export async function getUIConfigByShopDomain(
       themeSettings: defaultThemeSettings(),
     };
   }
-  const themeSettings = effectiveThemeSettings(config.themeSettings);
-  const productCardConfig = effectiveProductCardConfig(config.productCardConfig);
+  const themeSettings = resolveWishlistTheme(
+    config.productCardConfig,
+    config.themeSettings,
+  );
+  const productCardConfig = effectiveProductCardConfig(
+    config.productCardConfig,
+  );
   if (themeSettings) productCardConfig.theme = themeSettings;
   return {
     extensionActive: isExtensionActive(config.extensionActive)
@@ -52,7 +60,9 @@ export async function upsertUIConfigForShopDomain(
   const shop = await prisma.shop.findUnique({ where: { shop: shopDomain } });
   if (!shop) throw new Error("Shop not found");
 
-  const existing = await prisma.uIConfig.findUnique({ where: { shopId: shop.id } });
+  const existing = await prisma.uIConfig.findUnique({
+    where: { shopId: shop.id },
+  });
   const currentExtensionActive = isExtensionActive(existing?.extensionActive)
     ? (existing.extensionActive as ExtensionActive)
     : "none";
@@ -89,7 +99,10 @@ export async function upsertUIConfigForShopDomain(
   } as any;
 
   const result = await prisma.uIConfig.upsert(upsertData as any);
-  const resultTheme = effectiveThemeSettings(result.themeSettings);
+  const resultTheme = resolveWishlistTheme(
+    result.productCardConfig,
+    result.themeSettings,
+  );
   const resultConfig = effectiveProductCardConfig(result.productCardConfig);
   if (resultTheme) resultConfig.theme = resultTheme;
   return {
@@ -103,8 +116,37 @@ export async function upsertUIConfigForShopDomain(
 
 export function effectiveThemeSettings(stored: unknown): ThemeSettings {
   const base = defaultThemeSettings();
-  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return base;
+  if (!stored || typeof stored !== "object" || Array.isArray(stored))
+    return base;
   return { ...base, ...(stored as Record<string, unknown>) } as ThemeSettings;
+}
+
+/** Saved admin controls override legacy theme defaults, without losing page URLs. */
+export function resolveWishlistTheme(
+  product: unknown,
+  theme: unknown,
+): ThemeSettings {
+  const raw =
+    product && typeof product === "object" && !Array.isArray(product)
+      ? (product as Record<string, unknown>)
+      : {};
+  const nested =
+    raw.theme && typeof raw.theme === "object" && !Array.isArray(raw.theme)
+      ? (raw.theme as Record<string, unknown>)
+      : {};
+  const legacy = effectiveThemeSettings(theme);
+  return {
+    ...legacy,
+    ...normalizeWishlistThemeConfig({
+      ...legacy,
+      ...nested,
+      ...raw,
+      ...(typeof raw.secondaryColor === "string"
+        ? { backgroundColor: raw.secondaryColor }
+        : {}),
+      ...(typeof raw.icon === "string" ? { iconType: raw.icon } : {}),
+    }),
+  };
 }
 
 export default { getUIConfigByShopDomain, upsertUIConfigForShopDomain };

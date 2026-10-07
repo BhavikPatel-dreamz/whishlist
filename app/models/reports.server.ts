@@ -1,4 +1,5 @@
 import db from "../db.server";
+import { loadOutOfStockProducts } from "./out-of-stock.server";
 import { metricsDateRange, shopperValue } from "../lib/analytics-metrics";
 import { filterReport, reportTab, type ReportTable } from "../lib/reports";
 import { loadAnalyticsMetrics } from "./analytics-metrics.server";
@@ -25,7 +26,22 @@ export async function loadReport(
       ? value.toISOString().replace("T", " ").slice(0, 19) + " UTC"
       : "Not recorded";
   let table: ReportTable;
-  if (tab === "shared") {
+  if (tab === "products" && params.get("kind") === "running-low") {
+    const products = await loadOutOfStockProducts(admin);
+    table = {
+      title: "Running out soon",
+      description: "Currently out-of-stock products in your store",
+      label: "Products",
+      imageColumn: true,
+      columns: ["Product Title", "Inventory", "Status"],
+      rows: [...products].map(([id, product]) => ({
+        id,
+        image: product.imageUrl,
+        cells: [product.title, product.totalInventory, "Out of stock"],
+      })),
+      note: "Current inventory across all locations for active, inventory-tracked products with zero or fewer units. Independent of wishlist saves and selected dates.",
+    };
+  } else if (tab === "shared") {
     table = {
       title: "Shared Wishlists Report",
       description: "View details of wishlists shared by your customers",

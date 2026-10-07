@@ -791,7 +791,9 @@
 // }
 
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { useActionData, useFetcher, useLoaderData } from "@remix-run/react";
+import { Link as RemixLink, useActionData, useFetcher, useLoaderData, useSearchParams } from "@remix-run/react";
+import { ConfigurationFeatures } from "../components/ConfigurationFeatures";
+import featureNavigationStyles from "../components/ConfigurationFeaturesNavigation.css?url";
 import {
   Page,
   Text,
@@ -819,6 +821,8 @@ import { authenticate } from "../shopify.server";
 import { requireShop } from "../lib/shop.server";
 import { encryptSecret, decryptSecret, maskSecret } from "../lib/crypto.server";
 import db from "../db.server";
+
+export const links = () => [{ rel: "stylesheet", href: featureNavigationStyles }];
 
 /* Replace with your real help-centre URLs */
 const TUTORIAL_URL = "https://example.com/docs/advanced-button";
@@ -920,6 +924,11 @@ const buildHtml = (icon: IconType, type: BtnType, label: string) => {
 const DEFAULT_CSS = `.wl-icon-text {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  border-radius: 0;
   gap: 8px;
   padding: 12px 20px;
   border: 1px solid var(--wl-primary);
@@ -1303,6 +1312,14 @@ export default function Settings() {
   const actionData = useActionData<typeof action>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
+
+  const [searchParams] = useSearchParams();
+  const showingSaveFeatures = searchParams.get("section") === "save";
+  const overviewParams = new URLSearchParams(searchParams);
+  overviewParams.delete("section");
+  const overviewUrl = `/app/settings${overviewParams.size ? `?${overviewParams}` : ""}`;
+  const featureParams = new URLSearchParams(searchParams);
+  featureParams.set("section", "save");
 
   const [search, setSearch] = useState("");
   const [selectedTab, setSelectedTab] = useState(0);
@@ -1884,10 +1901,10 @@ export default function Settings() {
           )}
         </div>
 
-        <div className="wl-option-card muted">
+        <div className={`wl-option-card ${cfg.saveLaterMode === "inline" ? "selected" : ""}`}>
           <InlineStack align="space-between" blockAlign="center">
-            <RadioButton id="sl-inline" name="saveLaterMode" label="Inline cart-line-item link" checked={false} disabled onChange={() => {}} />
-            <Badge tone="attention">Coming soon</Badge>
+            <RadioButton id="sl-inline" name="saveLaterMode" label="Inline cart-line-item link" checked={cfg.saveLaterMode === "inline"} onChange={() => set("saveLaterMode", "inline")} />
+            <Badge tone="success">Live</Badge>
           </InlineStack>
         </div>
 
@@ -2113,6 +2130,7 @@ export default function Settings() {
               <div className="wl-ph-line" style={{ height: 10 }} />
               <div className="wl-ph-line" style={{ width: "60%", height: 10 }} />
               <div className="wl-remove">Remove</div>
+              {cfg.saveLaterMode === "inline" && <div className="wl-remove">Save for later</div>}
             </div>
           </div>
         ))}
@@ -2247,26 +2265,51 @@ export default function Settings() {
 
   return (
     <Page fullWidth>
-      <TitleBar title="" />
+      <TitleBar title={showingSaveFeatures ? "Help Shoppers Save Favorites" : "Configurations"} />
       <style>{CSS}</style>
 
       <BlockStack gap="400">
         <InlineStack gap="200" blockAlign="center">
-          <Text as="span" tone="subdued">
-            Configurations
-          </Text>
+          {showingSaveFeatures ? <RemixLink to={overviewUrl}>Configurations</RemixLink> : <Text as="span" fontWeight="semibold">Configurations</Text>}
+          {showingSaveFeatures && <>
           <Text as="span" tone="subdued">
             /
           </Text>
           <Text as="span" fontWeight="semibold">
-            Features
+            Help Shoppers Save Favorites
           </Text>
+          </>}
         </InlineStack>
 
+        {!showingSaveFeatures && <>
         <Text as="p" variant="bodySm" tone="subdued">
           Manage and configure Wishlist Plus capabilities
         </Text>
 
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingSm">Pricing Plan</Text>
+            <RemixLink to="/app/settings/pricing" className="wl-subscription-link">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="14" rx="3" />
+                <path d="M3 10h18M7 15h4" />
+              </svg>
+              <span>
+                <strong>Manage Subscription</strong>
+                <span>View pricing plans, compare options, and explore monthly or annual subscriptions.</span>
+              </span>
+              <span aria-hidden="true">›</span>
+            </RemixLink>
+          </BlockStack>
+        </Card>
+
+        <ConfigurationFeatures
+          saveFeaturesUrl={`/app/settings?${featureParams}`}
+          onAccessSettings={() => openSettings({ ...features[0], tab: "Wishlist Page" })}
+        />
+        </>}
+
+        {showingSaveFeatures && <div className="wl-save-features"><BlockStack gap="400">
         <TextField label="Search features" labelHidden value={search} onChange={setSearch} placeholder="Search..." autoComplete="off" clearButton onClearButtonClick={() => setSearch("")} />
 
         <InlineStack align="space-between" blockAlign="center">
@@ -2317,6 +2360,7 @@ export default function Settings() {
             )}
           </div>
         </BlockStack>
+        </BlockStack></div>}
       </BlockStack>
 
       {isOpen && (
@@ -2377,6 +2421,13 @@ export default function Settings() {
 /* -------------------------------------------------------------------------- */
 
 const CSS = `
+.wl-subscription-link{display:flex;align-items:center;gap:14px;padding:16px;border:1px solid #dedede;border-radius:10px;color:#303030;text-decoration:none}
+.wl-subscription-link:hover{background:#f7f7f7}
+.wl-subscription-link:focus-visible{outline:2px solid #005bd3;outline-offset:3px}
+.wl-subscription-link>svg{flex-shrink:0}
+.wl-subscription-link>span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:5px}
+.wl-subscription-link strong{font-weight:600}
+.wl-subscription-link>span:last-child{font-size:24px;color:#777}
 .wl-feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
 .wl-feature-visual{height:150px;border:1px solid var(--p-color-border);border-radius:8px;overflow:hidden;background:#fff}
 .wl-status{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500}
