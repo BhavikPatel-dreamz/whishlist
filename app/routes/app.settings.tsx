@@ -2333,7 +2333,7 @@ export default function Settings() {
         <Card>
           <BlockStack gap="300">
             <Text as="h2" variant="headingSm">Pricing Plan</Text>
-            <RemixLink to="/app/settings/pricing" className="wl-subscription-link">
+            <div className="wl-subscription-link" aria-disabled="true">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                 <rect x="3" y="5" width="18" height="14" rx="3" />
                 <path d="M3 10h18M7 15h4" />
@@ -2342,14 +2342,13 @@ export default function Settings() {
                 <strong>Manage Subscription</strong>
                 <span>View pricing plans, compare options, and explore monthly or annual subscriptions.</span>
               </span>
-              <span aria-hidden="true">›</span>
-            </RemixLink>
+              <span className="wl-configuration-coming-soon">Coming soon</span>
+            </div>
           </BlockStack>
         </Card>
 
         <ConfigurationFeatures
           saveFeaturesUrl={`/app/settings?${featureParams}`}
-          onAccessSettings={() => openSettings({ ...features[0], tab: "Wishlist Page" })}
         />
         </>}
 
@@ -2466,12 +2465,12 @@ export default function Settings() {
 
 const CSS = `
 .wl-subscription-link{display:flex;align-items:center;gap:14px;padding:16px;border:1px solid #dedede;border-radius:10px;color:#303030;text-decoration:none}
-.wl-subscription-link:hover{background:#f7f7f7}
+.wl-subscription-link[aria-disabled="true"]{cursor:default}
 .wl-subscription-link:focus-visible{outline:2px solid #005bd3;outline-offset:3px}
 .wl-subscription-link>svg{flex-shrink:0}
 .wl-subscription-link>span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:5px}
 .wl-subscription-link strong{font-weight:600}
-.wl-subscription-link>span:last-child{font-size:24px;color:#777}
+.wl-subscription-link>.wl-configuration-coming-soon{font-size:11px;color:#616161}
 .wl-feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
 .wl-feature-visual{height:150px;border:1px solid var(--p-color-border);border-radius:8px;overflow:hidden;background:#fff}
 .wl-status{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500}

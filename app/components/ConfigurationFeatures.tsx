@@ -1,6 +1,6 @@
 import { Link } from "@remix-run/react";
 
-type Props = { saveFeaturesUrl: string; onAccessSettings: () => void };
+type Props = { saveFeaturesUrl: string };
 
 function FeatureIcon({
   kind,
@@ -33,7 +33,6 @@ function FeatureIcon({
 
 export function ConfigurationFeatures({
   saveFeaturesUrl,
-  onAccessSettings,
 }: Props) {
   return (
     <section
@@ -55,10 +54,9 @@ export function ConfigurationFeatures({
             ›
           </span>
         </Link>
-        <button
-          type="button"
-          className="wl-configuration-row"
-          onClick={onAccessSettings}
+        <div
+          className="wl-configuration-row wl-configuration-row-unavailable"
+          aria-disabled="true"
         >
           <FeatureIcon kind="share" />
           <span>
@@ -67,11 +65,9 @@ export function ConfigurationFeatures({
               Manage the wishlist page, sharing options, and launch points.
             </span>
           </span>
-          <span className="wl-configuration-chevron" aria-hidden="true">
-            ›
-          </span>
-        </button>
-        <Link to="/app/alerts" className="wl-configuration-row">
+          <span className="wl-configuration-coming-soon">Coming soon</span>
+        </div>
+        <div className="wl-configuration-row wl-configuration-row-unavailable" aria-disabled="true">
           <FeatureIcon kind="alerts" />
           <span>
             <strong>Help Shoppers Rediscover Their Favorites</strong>
@@ -80,10 +76,8 @@ export function ConfigurationFeatures({
               requests.
             </span>
           </span>
-          <span className="wl-configuration-chevron" aria-hidden="true">
-            ›
-          </span>
-        </Link>
+          <span className="wl-configuration-coming-soon">Coming soon</span>
+        </div>
         <div
           className="wl-configuration-row wl-configuration-row-unavailable"
           aria-disabled="true"
