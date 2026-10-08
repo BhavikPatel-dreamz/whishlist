@@ -26,9 +26,11 @@
     const saved = CFG().uiConfig?.productCardConfig || {};
     const s = CFG().settings || {};
     if (!s.advancedSettings) return saved;
-    return { ...saved, primaryColor: s.buttonBackground || '#000000',
+    return {
+      ...saved, primaryColor: s.buttonBackground || '#000000',
       secondaryColor: s.buttonText || '#ffffff', collIconColor: s.buttonColor || '#e74c3c',
-      icon: s.iconType || 'heart', iconImage: s.iconImage };
+      icon: s.iconType || 'heart', iconImage: s.iconImage
+    };
   };
   const query = (root, selector) => {
     try { return selector ? root.querySelector(selector) : null; } catch { return null; }
@@ -59,6 +61,10 @@
     if (wsToastTimer) clearTimeout(wsToastTimer);
     wsToastTimer = setTimeout(() => toast.classList.remove('is-visible'), 4000);
   }
+
+  document.addEventListener('wishlist:item-removed', () => {
+    showToast('Removed from wishlist');
+  });
 
   function promptLogin() {
     const returnUrl = encodeURIComponent(location.pathname + location.search);
@@ -137,11 +143,13 @@
     const s = CFG().settings || {};
     if (s.advancedSettings) {
       const root = document.documentElement;
-      const values = { '--wl-primary': s.buttonBackground || '#000000', '--wl-secondary': s.buttonText || '#ffffff',
+      const values = {
+        '--wl-primary': s.buttonBackground || '#000000', '--wl-secondary': s.buttonText || '#ffffff',
         '--ws-button-bg': s.buttonBackground || '#000000', '--ws-button-text': s.buttonText || '#ffffff',
         '--ws-primary': s.buttonColor || '#e74c3c', '--ws-bg': s.drawerBg || '#ffffff',
         '--ws-text': s.drawerText || '#1a1a1a', '--ws-border': s.borderColor || '#e5e7eb',
-        '--ws-radius': (s.borderRadius ?? 8) + 'px' };
+        '--ws-radius': (s.borderRadius ?? 8) + 'px'
+      };
       Object.entries(values).forEach(([key, value]) => root.style.setProperty(key, value));
       return;
     }
@@ -266,6 +274,7 @@
           socialCounts.delete(btn.dataset.productId);
           void refreshSocialCounts();
           setHeartState(btn, !!data.inWishlist);
+          showToast(data.inWishlist ? 'Added to wishlist' : 'Removed from wishlist');
           if (data.count !== undefined) setCount(data.count);
           if (window.__wishlistStock && window.__wishlistStock.renderDrawer) {
             window.__wishlistStock.renderDrawer();
@@ -281,7 +290,7 @@
           socialCounts.delete(btn.dataset.productId);
           void refreshSocialCounts();
           refreshHeartStates();
-    void refreshSocialCounts();
+          void refreshSocialCounts();
         }
       } while (btn.__wsDirty);
     } finally {
@@ -500,14 +509,21 @@
     const c = savedSettings();
     const toggle = document.getElementById('ws-drawer-toggle');
     const header = document.getElementById('ws-header-link');
-    // Respect the chosen launcher; the header fallback must not duplicate it.
-    const useFloating = c.launchFrom === 'floating' || (!c.launchFrom && !header);
+    const launchMode = c.launchFrom === 'header' || c.launchFrom === 'floating' || c.launchFrom === 'menu'
+      ? c.launchFrom
+      : 'floating';
+
+    const showHeader = launchMode === 'header';
+    const showFloating = launchMode === 'floating';
+    const showMenu = launchMode === 'menu';
+
     if (header) {
-      header.hidden = useFloating && !!toggle;
+      header.hidden = !showHeader;
       header.style.display = header.hidden ? 'none' : '';
     }
+
     if (toggle) {
-      toggle.hidden = !useFloating;
+      toggle.hidden = !showFloating;
       toggle.style.display = toggle.hidden ? 'none' : '';
       if (c.floatingPosition) {
         const left = c.floatingPosition.includes('left');
@@ -518,6 +534,7 @@
         toggle.style.bottom = bottom ? '16px' : 'auto';
       }
     }
+
     [header, toggle].filter(Boolean).forEach((link) => {
       if (link === header || c.pageType === 'page') link.removeAttribute('data-open-drawer');
       else if (c.pageType) link.setAttribute('data-open-drawer', '');
@@ -529,9 +546,9 @@
         link.insertAdjacentHTML('afterbegin', wishlistIconMarkup(20));
         link.__wsIcon = iconSignature;
       }
-      // Reveal only after saved settings have been fetched and applied.
       if (link === header || CFG().uiConfig) link.setAttribute('data-ws-ready', '');
     });
+
     if (toggle && c.showCount === true && !document.getElementById('ws-floating-count')) {
       const count = document.createElement('span');
       count.id = 'ws-floating-count';
@@ -539,16 +556,51 @@
       applyCount(count, cachedCount() || 0);
       toggle.appendChild(count);
     }
+
     document.querySelectorAll('#ws-header-count, #ws-floating-count, [data-ws-menu-count]').forEach((count) => {
-      count.hidden = c.showCount === false;
+      count.hidden = c.showCount === false || showMenu;
       count.style.display = count.hidden ? 'none' : '';
     });
+
     if (toggle && !toggle.__wsPageNavigationBound) {
       toggle.__wsPageNavigationBound = true;
       toggle.addEventListener('click', () => {
         if (savedSettings().pageType === 'page') location.assign(CFG().settings.wishlistPageUrl);
       });
     }
+
+    if (showMenu) {
+      document.querySelectorAll('[data-ws-menu-item]').forEach((item) => item.remove());
+      document.querySelectorAll('[data-ws-menu-managed]').forEach((link) => {
+        const original = link.__wsOriginalLaunch;
+        if (original) {
+          link.setAttribute('href', original.href);
+          if (original.drawer) link.setAttribute('data-open-drawer', '');
+          else link.removeAttribute('data-open-drawer');
+        }
+        link.querySelector('[data-ws-menu-count]')?.remove();
+        link.removeAttribute('data-ws-menu-managed');
+        delete link.__wsOriginalLaunch;
+      });
+      applyMenuLaunch(c);
+      return;
+    }
+
+    if (showHeader || showFloating) {
+      document.querySelectorAll('[data-ws-menu-item]').forEach((item) => item.remove());
+      document.querySelectorAll('[data-ws-menu-managed]').forEach((link) => {
+        const original = link.__wsOriginalLaunch;
+        if (original) {
+          link.setAttribute('href', original.href);
+          if (original.drawer) link.setAttribute('data-open-drawer', '');
+          else link.removeAttribute('data-open-drawer');
+        }
+        link.querySelector('[data-ws-menu-count]')?.remove();
+        link.removeAttribute('data-ws-menu-managed');
+        delete link.__wsOriginalLaunch;
+      });
+    }
+
     applyMenuLaunch(c);
   }
 
@@ -677,8 +729,9 @@
     )).find((element) => {
       const rect = element.getBoundingClientRect();
       const style = getComputedStyle(element);
-      return rect.width > 0 && rect.height > 0 && rect.bottom > 0 &&
-        rect.top < window.innerHeight && style.visibility !== 'hidden' && style.display !== 'none';
+      // A header outside the viewport is still the correct host when scrolling.
+      return rect.width > 0 && rect.height > 0 &&
+        style.visibility !== 'hidden' && style.display !== 'none';
     });
     let link = document.getElementById('ws-header-link');
     if (link) {

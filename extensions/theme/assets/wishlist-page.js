@@ -220,7 +220,11 @@
           guestToken: getGuestToken(),
         }),
       });
-      return (await resp.json()).ok;
+      const data = await resp.json();
+      if (data.ok) {
+        document.dispatchEvent(new CustomEvent('wishlist:item-removed'));
+      }
+      return data.ok;
     } catch {
       return false;
     }

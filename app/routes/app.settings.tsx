@@ -792,6 +792,7 @@
 
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { Link as RemixLink, useActionData, useFetcher, useLoaderData, useSearchParams } from "@remix-run/react";
+import { SmartSaveSettings } from "../components/SmartSaveSettings";
 import { ConfigurationFeatures } from "../components/ConfigurationFeatures";
 import featureNavigationStyles from "../components/ConfigurationFeaturesNavigation.css?url";
 import {
@@ -847,6 +848,14 @@ export type WishlistConfig = {
   labelBefore: string;
   labelAfter: string;
   smartSave: boolean;
+  smartSaveVisits: number;
+  smartSavePosition: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  smartSaveLoggedInOnly: boolean;
+  boostEngagement: boolean;
+  loginNudge: boolean;
+  wishlistNudge: boolean;
+  worksWithoutCookies: boolean;
+  askPermission: boolean;
   socialProof: boolean;
   // Product page – basic
   basicPlacement: "near-cart" | "on-image";
@@ -974,6 +983,14 @@ const DEFAULT_CONFIG: WishlistConfig = {
   labelBefore: "Add To Wishlist",
   labelAfter: "Added To Wishlist",
   smartSave: true,
+  smartSaveVisits: 5,
+  smartSavePosition: "top-left",
+  smartSaveLoggedInOnly: true,
+  boostEngagement: true,
+  loginNudge: true,
+  wishlistNudge: false,
+  worksWithoutCookies: false,
+  askPermission: true,
   socialProof: false,
   basicPlacement: "near-cart",
   basicPosition: "below",
@@ -1336,6 +1353,7 @@ export default function Settings() {
   const featureParams = new URLSearchParams(searchParams);
   featureParams.set("section", "save");
 
+  const [smartSaveOpen, setSmartSaveOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedTab, setSelectedTab] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -1382,6 +1400,7 @@ export default function Settings() {
       if (fetcher.data.saved) {
         setSaved(cfg);
         setIsOpen(false);
+        setSmartSaveOpen(false);
         shopify.toast.show("Settings saved");
       } else {
         shopify.toast.show("Could not save settings", { isError: true });
@@ -1412,6 +1431,10 @@ export default function Settings() {
 
   const openSettings = (f: FeatureCard) => {
     setCfg(saved);
+    if (f.id === "smart-save" || f.id === "boost-engagement") {
+      setSmartSaveOpen(true);
+      return;
+    }
     setPpView(saved.activeMode);
     setTab(f.tab);
     setEditing(false);
@@ -1422,7 +1445,7 @@ export default function Settings() {
   const closeSettings = () => setIsOpen(false);
 
   const saveSettings = () => {
-    const payload: WishlistConfig = tab === "Product Page" ? { ...cfg, activeMode: ppView } : cfg;
+    const payload: WishlistConfig = !smartSaveOpen && tab === "Product Page" ? { ...cfg, activeMode: ppView } : cfg;
     setCfg(payload);
     const fd = new FormData();
     fd.set("intent", "saveWishlistConfig");
@@ -2277,6 +2300,12 @@ export default function Settings() {
   };
 
   /* --------------------------------- Render -------------------------------- */
+
+  if (smartSaveOpen) return <Page fullWidth>
+    <TitleBar title="Wishlist Configuration" />
+    <SmartSaveSettings config={cfg} onChange={set} onBack={() => setSmartSaveOpen(false)} onSave={saveSettings} saving={fetcher.state !== "idle"} />
+  </Page>;
+
 
   return (
     <Page fullWidth>
