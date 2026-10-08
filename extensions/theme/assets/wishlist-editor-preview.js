@@ -13,7 +13,8 @@
     sessionStorage.setItem(storageKey, JSON.stringify(settings));
   } catch (_) { /* Preview still works when browser storage is unavailable. */ }
   const changed = (key) => previous && previous[key] !== settings[key];
-  const wishlistSettingsChanged = previous && Object.keys(settings).some(changed);
+  const iconSettings = ['icon_type', 'icon_color', 'icon_thickness', 'show_header_wishlist_icon'];
+  const wishlistSettingsChanged = previous && Object.keys(settings).some(key => !iconSettings.includes(key) && changed(key));
   let selected = false;
   let toastTimer;
 

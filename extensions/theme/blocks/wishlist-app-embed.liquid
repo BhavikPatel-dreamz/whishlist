@@ -40,12 +40,13 @@
     buttonBackground: {{ block.settings.button_background | default: "#000000" | json }},
     buttonText: {{ block.settings.button_text | default: "#FFFFFF" | json }},
     notificationAlignment: {{ block.settings.notification_alignment | default: "center" | json }},
-    buttonColor: "#e74c3c",
+    buttonColor: {{ block.settings.icon_color | default: "#000000" | json }},
+    iconThickness: {{ block.settings.icon_thickness | default: 1.5 }},
     buttonSize: 20,
-    iconType: "heart",
+    iconType: {{ block.settings.icon_type | default: "heart" | json }},
     iconImage: null,
     drawerPosition: {{ block.settings.drawer_position | default: "right" | json }},
-    headerLink: true,
+    headerLink: {% if block.settings.show_header_wishlist_icon == false %}false{% else %}true{% endif %},
     wishlistPageUrl: {{ block.settings.wishlist_page.url | default: "/pages/wishlist" | default: '/pages/wishlist' | json }},
     allProductsCollectionUrl: {{ routes.all_products_collection_url | json }},
     cardHearts: true,
@@ -146,38 +147,80 @@
     },
     {
       "type": "checkbox",
+      "id": "show_header_wishlist_icon",
+      "label": "Show header wishlist icon",
+      "default": true,
+      "info": "Show or hide the wishlist icon in your store header."
+    },
+    {
+      "type": "checkbox",
       "id": "advanced_settings",
       "label": "Advanced Wishlist Settings",
       "default": false,
-      "info": "Apply the colors, corner radius, and notification alignment below. These visual settings override app styling when enabled. Turn off to use styling saved in the app."
+      "info": "Show the settings below and apply custom colors and corner radius. These visual settings override app styling when enabled. Turn off to use styling saved in the app."
+    },
+    {
+      "type": "select",
+      "id": "icon_type",
+      "label": "Wishlist icon type",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "options": [
+        { "value": "heart", "label": "Heart" },
+        { "value": "star", "label": "Star" },
+        { "value": "bookmark", "label": "Bookmark" }
+      ],
+      "default": "heart"
+    },
+    {
+      "type": "color",
+      "id": "icon_color",
+      "label": "Wishlist icon color",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "default": "#000000"
+    },
+    {
+      "type": "range",
+      "id": "icon_thickness",
+      "label": "Wishlist icon thickness",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "min": 1,
+      "max": 3,
+      "step": 0.1,
+      "unit": "px",
+      "default": 1.5
     },
     {
       "type": "color",
       "id": "button_background",
+      "visible_if": "{{ block.settings.advanced_settings }}",
       "label": "Button background color (in wishlist)",
       "default": "#000000"
     },
     {
       "type": "color",
       "id": "button_text",
+      "visible_if": "{{ block.settings.advanced_settings }}",
       "label": "Button text color (in wishlist)",
       "default": "#FFFFFF"
     },
     {
       "type": "color",
       "id": "drawer_bg_color",
+      "visible_if": "{{ block.settings.advanced_settings }}",
       "label": "Background color (wishlist header, footer and pop-ups)",
       "default": "#F4F8FE"
     },
     {
       "type": "color",
       "id": "drawer_text_color",
+      "visible_if": "{{ block.settings.advanced_settings }}",
       "label": "Text color (wishlist header, footer and pop-ups)",
       "default": "#333333"
     },
     {
       "type": "range",
       "id": "border_radius",
+      "visible_if": "{{ block.settings.advanced_settings }}",
       "label": "Corner radius",
       "min": 0,
       "max": 24,

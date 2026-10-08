@@ -28,7 +28,7 @@
     if (!s.advancedSettings) return saved;
     return {
       ...saved, primaryColor: s.buttonBackground || '#000000',
-      secondaryColor: s.buttonText || '#ffffff', collIconColor: s.buttonColor || '#e74c3c',
+      secondaryColor: s.buttonText || '#ffffff', collIconColor: s.buttonColor || '#000000', collThickness: s.iconThickness ?? 1.5,
       icon: s.iconType || 'heart', iconImage: s.iconImage
     };
   };
@@ -271,8 +271,6 @@
 
         if (data && data.ok) {
           heartFetch = null;
-          socialCounts.delete(btn.dataset.productId);
-          void refreshSocialCounts();
           setHeartState(btn, !!data.inWishlist);
           showToast(data.inWishlist ? 'Added to wishlist' : 'Removed from wishlist');
           if (data.count !== undefined) setCount(data.count);
@@ -287,10 +285,7 @@
           }
           setHeartState(btn, !desired);
           heartFetch = null;
-          socialCounts.delete(btn.dataset.productId);
-          void refreshSocialCounts();
           refreshHeartStates();
-          void refreshSocialCounts();
         }
       } while (btn.__wsDirty);
     } finally {
@@ -439,6 +434,14 @@
       text.textContent = label;
       btn.appendChild(text);
     }
+    if (CFG().settings?.advancedSettings) {
+      const svg = btn.querySelector('svg');
+      if (svg) {
+        svg.style.color = c.collIconColor;
+        svg.style.stroke = 'currentColor';
+        svg.style.strokeWidth = String(c.collThickness);
+      }
+    }
     if (card) {
       const position = c.collPosition || 'top-right';
       ['top', 'bottom', 'left', 'right'].forEach((side) => {
@@ -513,7 +516,7 @@
       ? c.launchFrom
       : 'floating';
 
-    const showHeader = launchMode === 'header';
+    const showHeader = on('headerLink', false);
     const showFloating = launchMode === 'floating';
     const showMenu = launchMode === 'menu';
 
@@ -1034,7 +1037,6 @@
       renderConfiguredButton(heart, false);
     }
     refreshHeartStates();
-    void refreshSocialCounts();
 
     if (!form.__wsWishlistBound) {
       form.__wsWishlistBound = true;
@@ -1046,46 +1048,6 @@
         }, 60);
       });
     }
-  }
-
-  const socialCounts = new Map();
-  let socialCountLoading = false;
-  async function refreshSocialCounts() {
-    if (!savedSettings().socialCount) {
-      document.querySelectorAll('.ws-social-count').forEach((node) => node.remove());
-      return;
-    }
-    if (socialCountLoading) return;
-    socialCountLoading = true;
-    try {
-      const buttons = Array.from(document.querySelectorAll('.ws-card-heart .wishlist-heart'));
-      const products = await Promise.all(buttons.map((button) => ensureIds(button)));
-      const missing = [...new Set(products.filter(Boolean).map((product) => product.productId))]
-        .filter((id) => !socialCounts.has(id));
-      for (let i = 0; i < missing.length; i += 100) {
-        const response = await fetch(`${CFG().proxyBase}/wishlist-counts?ids=${encodeURIComponent(missing.slice(i, i + 100).join(','))}`);
-        if (!response.ok) return;
-        const data = await response.json();
-        if (!data.ok) return;
-        Object.entries(data.counts).forEach(([id, count]) => socialCounts.set(id, count));
-      }
-      if (!savedSettings().socialCount) return;
-      buttons.forEach((button, index) => {
-        const id = products[index]?.productId;
-        const card = button.closest('.card-wrapper, .card');
-        if (!card || !id || !socialCounts.has(id)) return;
-        let count = card.querySelector('.ws-social-count');
-        if (!count) {
-          count = document.createElement('span');
-          count.className = 'ws-social-count';
-          (card.querySelector('.card__information') || card).appendChild(count);
-        }
-        const value = socialCounts.get(id);
-        const label = `${value} wishlist saves`;
-        if (count.textContent !== label) count.textContent = label;
-      });
-    } catch (_) { /* Leave unavailable counts hidden instead of inventing values. */ }
-    finally { socialCountLoading = false; }
   }
 
   /* ---------- Enhance: inject + bind + refresh ---------- */
@@ -1100,7 +1062,6 @@
       renderConfiguredButton(btn, btn.getAttribute('aria-pressed') === 'true');
     });
     refreshHeartStates();
-    void refreshSocialCounts();
   }
 
   function scheduleEnhance() {

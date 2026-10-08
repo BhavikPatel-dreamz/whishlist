@@ -1,14 +1,16 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { Link, useLoaderData } from "@remix-run/react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { useLoaderData } from "@remix-run/react";
+import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
+import { AnalyticsMetrics } from "../components/AnalyticsMetrics";
+import { loadAnalyticsMetrics } from "../models/analytics-metrics.server";
+import { requireShop } from "../lib/shop.server";
 import { DashboardHelp } from "../components/DashboardHelp";
-import { fetchEmbedExtensions, getEmbedStatus } from "../lib/embed-status";
-import type { ExtensionInfo } from "../lib/embed-status";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
+  const shop = await requireShop(session.shop);
+  const metrics = await loadAnalyticsMetrics(shop.id, admin, new URL(request.url).searchParams);
   const editor = `https://${session.shop}/admin/themes/current/editor?context=apps&template=index`;
   const apiKey = process.env.SHOPIFY_API_KEY;
   const embedUrl = (handle: string) =>
@@ -16,6 +18,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       ? `${editor}&activateAppId=${encodeURIComponent(`${apiKey}/${handle}`)}`
       : editor;
   return {
+    metrics,
     wishlistEditor: embedUrl("wishlist-app-embed"),
     backInStockEditor: embedUrl("back-in-stock-app-embed"),
     storefrontUiEditor: embedUrl("storefront-ui-app-embed"),
@@ -137,51 +140,7 @@ function AnalyticsPreview() {
 }
 
 export default function Dashboard() {
-  const { wishlistEditor, backInStockEditor, storefrontUiEditor } = useLoaderData<typeof loader>();
-  const shopify = useAppBridge();
-  const [extensions, setExtensions] = useState<ExtensionInfo[]>([]);
-  const [checking, setChecking] = useState(true);
-  const [error, setError] = useState(false);
-  const inFlight = useRef(false);
-  const mounted = useRef(false);
-  const refresh = useCallback(async () => {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    setChecking(true);
-    try {
-      // Older installed App Bridge types do not yet include the App API.
-      const bridge = shopify as unknown as {
-        app?: { extensions?: () => Promise<ExtensionInfo[]> };
-      };
-      const result = await fetchEmbedExtensions(bridge);
-      if (mounted.current) {
-        setExtensions(result);
-        setError(false);
-      }
-    } catch {
-      if (mounted.current) {
-        setError(true);
-      }
-    } finally {
-      inFlight.current = false;
-      if (mounted.current) setChecking(false);
-    }
-  }, [shopify]);
-  useEffect(() => {
-    mounted.current = true;
-    void refresh();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
-    };
-    window.addEventListener("focus", onVisible);
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      mounted.current = false;
-      window.removeEventListener("focus", onVisible);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [refresh]);
-
+  const { wishlistEditor, storefrontUiEditor, metrics } = useLoaderData<typeof loader>();
   const embeds = [
     {
       title: "App Control Centre",
@@ -213,37 +172,15 @@ export default function Dashboard() {
       <TitleBar title="Dashboard" />
       <section className="ws-home-panel" aria-labelledby="embed-title">
         <div className="ws-home-sectionHeading">
-          <h1 id="embed-title">App Embed Status</h1>
-          <button
-            className="ws-home-refresh"
-            onClick={() => void refresh()}
-            disabled={checking}
-          >
-            {checking
-              ? "Checking…"
-              : error
-                ? "Retry status check"
-                : "Refresh status"}
-          </button>
+          <h1 id="embed-title">App Embeds</h1>
+
         </div>
         <div className="ws-home-embedGrid">
           {embeds.map((embed) => {
-            const knownStatus = getEmbedStatus(extensions, embed.handle);
-            const status =
-              knownStatus !== "Unknown"
-                ? knownStatus
-                : checking
-                  ? "Checking…"
-                  : "Unknown";
             return (
               <article className="ws-home-embedCard" key={embed.handle}>
                 <h2>{embed.title}</h2>
-                <span
-                  className={`ws-home-badge ${status === "Enabled" ? "ws-home-enabled" : "ws-home-neutral"}`}
-                  role="status"
-                >
-                  {status}
-                </span>
+
                 <p>{embed.description}</p>
                 <a
                   className="ws-home-button"
@@ -258,18 +195,12 @@ export default function Dashboard() {
             );
           })}
         </div>
-        {error && (
-          <p className="ws-home-statusNote" role="status">
-            Status could not be checked. Any previous status is from the last
-            successful check. Retry or open the theme editor to verify your
-            embeds.
-          </p>
-        )}
         <p className="ws-home-statusNote">
-          Status reflects your published theme. Save your changes in the theme
-          editor to apply them.
+          Save your changes in the theme editor to apply them.
         </p>
       </section>
+
+      <AnalyticsMetrics data={metrics} />
 
       <section
         className={`ws-home-panel ws-home-features`}

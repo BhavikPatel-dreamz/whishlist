@@ -117,13 +117,7 @@
 }
 
 /* Header wishlist link with counter */
-.ws-social-count {
-  display: block;
-  margin-top: 6px;
-  color: #6b7280;
-  font-size: 12px;
-  line-height: 1.5;
-}
+
 
 .ws-header-link {
   display: inline-flex;

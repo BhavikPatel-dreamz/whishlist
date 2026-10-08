@@ -877,7 +877,6 @@ export type WishlistConfig = {
   collIconColor: string;
   collThickness: number;
   collPosition: TilePos;
-  socialCount: boolean;
   circularBg: boolean;
   collHtml: string;
   collCss: string;
@@ -1009,7 +1008,6 @@ const DEFAULT_CONFIG: WishlistConfig = {
   collIconColor: "#000000",
   collThickness: 1.7,
   collPosition: "top-left",
-  socialCount: false,
   circularBg: true,
   collHtml: buildCollHtml("heart"),
   collCss: buildCollCss({ collIconColor: "#000000", collThickness: 1.7, collPosition: "top-left", circularBg: true }),
@@ -1804,7 +1802,6 @@ export default function Settings() {
       </div>
       <Divider />
       <Section title="Other Settings">
-        <Checkbox label="Show Social Count" helpText="Display the number of times a product has been wishlisted" checked={cfg.socialCount} onChange={(v) => set("socialCount", v)} />
         <Checkbox
           label="Enable circular background for collection icon"
           helpText="Adds a white circular background with shadow behind the icon to improve visibility on all product images"
@@ -2056,11 +2053,6 @@ export default function Settings() {
           </div>
           <div className="wl-ph" style={{ height: 24, width: "75%", marginTop: 12 }} />
           <div className="wl-ph-line" style={{ marginTop: 6 }} />
-          {cfg.socialCount && (
-            <Text as="p" variant="bodyXs" tone="subdued">
-              ♥ 24
-            </Text>
-          )}
         </div>
       ))}
     </div>

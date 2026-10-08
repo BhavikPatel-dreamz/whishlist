@@ -41,7 +41,6 @@ export default function App() {
         {/* <Link to="/app/alerts">Stock Alerts</Link> */}
         <Link to="/app/analytics">Analytics</Link>
         <Link to="/app/settings">Configurations</Link>
-        <Link to="/app/reports">Reports</Link>
       </NavMenu>
       <div className="ws-admin-pages">
         <Outlet />

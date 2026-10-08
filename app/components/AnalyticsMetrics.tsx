@@ -43,7 +43,7 @@ export function MetricsDateFilter({
 
 export function AnalyticsMetrics({ data }: { data: MetricsData }) {
   const query = new URLSearchParams({ from: data.from, to: data.to });
-  const report = (kind: string) => `/app/reports?${query}&kind=${kind}`;
+  const report = (kind: string) => `/app/analytics?${query}&kind=${kind}`;
   return (
     <section className="ws-metrics" aria-labelledby="ws-metrics-heading">
       <header className="ws-metrics-heading">
@@ -51,7 +51,7 @@ export function AnalyticsMetrics({ data }: { data: MetricsData }) {
           <h2 id="ws-metrics-heading">Metrics</h2>
           <p>Here is how your store is performing</p>
         </div>
-        <MetricsDateFilter data={data} action="/app/analytics" />
+        <MetricsDateFilter data={data} action="/app" />
       </header>
       {data.error && <p role="alert">{data.error} Showing the last 7 days.</p>}
       <div className="ws-metrics-columns">
