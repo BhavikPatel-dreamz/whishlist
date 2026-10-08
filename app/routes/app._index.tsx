@@ -17,7 +17,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       : editor;
   return {
     wishlistEditor: embedUrl("wishlist-app-embed"),
-    storefrontEditor: embedUrl("storefront-ui-app-embed"),
+    backInStockEditor: embedUrl("back-in-stock-app-embed"),
+    storefrontUiEditor: embedUrl("storefront-ui-app-embed"),
   };
 }
 
@@ -136,7 +137,7 @@ function AnalyticsPreview() {
 }
 
 export default function Dashboard() {
-  const { wishlistEditor, storefrontEditor } = useLoaderData<typeof loader>();
+  const { wishlistEditor, backInStockEditor, storefrontUiEditor } = useLoaderData<typeof loader>();
   const shopify = useAppBridge();
   const [extensions, setExtensions] = useState<ExtensionInfo[]>([]);
   const [checking, setChecking] = useState(true);
@@ -187,16 +188,24 @@ export default function Dashboard() {
       handle: "wishlist-app-embed",
       url: wishlistEditor,
       description:
-        "The main wishlist interface — enables the wishlist button and interface that shoppers use to view and manage their saved items on your storefront.",
+        "Manage wishlist visibility, colors, notification alignment, drawer direction, and the wishlist page from one app embed.",
       label: "Wishlist",
+    },
+    {
+      title: "Back-in-Stock",
+      handle: "back-in-stock-app-embed",
+      url: backInStockEditor,
+      description:
+        "Manage stock alert buttons, icons, colors, and notification text independently from wishlist.",
+      label: "Back-in-Stock",
     },
     {
       title: "Storefront UI Elements",
       handle: "storefront-ui-app-embed",
-      url: storefrontEditor,
+      url: storefrontUiEditor,
       description:
-        "Wishlist UI components — lets shoppers choose their preferred product variant before saving. Customize the selector’s colors, text, and typography in your theme editor. Requires App Control Centre to be enabled.",
-      label: "Storefront UI Elements",
+        "Show a popup to choose product options before saving to wishlist. Customize its colors, text, and font sizes.",
+      label: "Variant popup",
     },
   ];
   return (
@@ -284,14 +293,14 @@ export default function Dashboard() {
               ready to buy.
             </p>
             <WishlistPreview />
-            <a
+            {/* <a
               className="ws-home-featureLink"
               href={wishlistEditor}
               target="_blank"
               rel="noopener noreferrer"
             >
               Customize wishlist <span aria-hidden="true">→</span>
-            </a>
+            </a> */}
           </article>
           <article className="ws-home-featureCard">
             <AlertPreview />
@@ -301,9 +310,14 @@ export default function Dashboard() {
               rekindle your shoppers’ interest and bring them back to the
               products they love.
             </p>
-            <Link className="ws-home-featureLink" to="/app/alerts">
+            {/* <a
+              className="ws-home-featureLink"
+              href={backInStockEditor}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               Manage stock alerts <span aria-hidden="true">→</span>
-            </Link>
+            </a> */}
           </article>
           <article className="ws-home-featureCard">
             <h3>Convert Interest into Sales.</h3>
@@ -313,9 +327,9 @@ export default function Dashboard() {
               favorites into your next opportunity.
             </p>
             <AnalyticsPreview />
-            <Link className="ws-home-featureLink" to="/app/analytics">
+            {/* <Link className="ws-home-featureLink" to="/app/analytics">
               Explore analytics <span aria-hidden="true">→</span>
-            </Link>
+            </Link> */}
           </article>
         </div>
       </section>

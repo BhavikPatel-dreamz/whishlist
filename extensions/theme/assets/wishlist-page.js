@@ -11,6 +11,7 @@
 
   let uiConfig = null; // { extensionActive, productCardConfig } from /ui-config
   let configRequest = null;
+  let initialized = false;
 
   function fetchConfig() {
     if (configRequest) return configRequest;
@@ -23,7 +24,7 @@
           uiConfig = data.config;
           window.__wishlist_stock.uiConfig = uiConfig;
           const pageUrl = uiConfig.themeSettings && uiConfig.themeSettings.wishlistPageUrl;
-          if (!CFG().settings?.pageSelected && typeof pageUrl === 'string' && /^\/pages\/[a-zA-Z0-9][a-zA-Z0-9_-]*\/?$/.test(pageUrl)) {
+          if (!CFG().settings?.pageSelected && !CFG().settings?.pageUrlConfigured && typeof pageUrl === 'string' && /^\/pages\/[a-zA-Z0-9][a-zA-Z0-9_-]*\/?$/.test(pageUrl)) {
             window.__wishlist_stock.settings = window.__wishlist_stock.settings || {};
             window.__wishlist_stock.settings.wishlistPageUrl = pageUrl === '/pages/wishlist'
               ? cfg.proxyBase.replace(/\/api\/?$/, '') + '/wishlist' : pageUrl;
@@ -32,7 +33,15 @@
           }
           applyThemeFromConfig();
           applyPageSettings();
-          if (changed) document.dispatchEvent(new CustomEvent('wishlist:config-updated'));
+          if (changed) {
+            document.dispatchEvent(new CustomEvent('wishlist:config-updated'));
+            if (initialized) {
+              autoMountPage();
+              ensureSavedLaterPanel();
+              if (document.getElementById('ws-wishlist-page')) renderPage();
+              if (document.getElementById('ws-drawer')?.classList.contains('is-open')) renderDrawer();
+            }
+          }
         }
       })
       .catch(() => null)
@@ -52,6 +61,7 @@
     }
     const drawer = document.getElementById('ws-drawer');
     if (drawer) {
+      drawer.dataset.position = CFG().settings?.drawerPosition || 'right';
       drawer.classList.toggle('ws-drawer--modal', c.pageType === 'modal');
       if (c.pageTitle) drawer.setAttribute('aria-label', c.pageTitle);
     }
@@ -84,8 +94,8 @@
 
     if (!merged || typeof merged !== 'object') return;
 
-    // Explicit admin settings take precedence over the embed's default controls.
-    if (CFG().settings?.advancedSettings && !current.primaryColor && !current.secondaryColor) return;
+    // Advanced embed styling is an explicit override of saved app styling.
+    if (CFG().settings?.advancedSettings) return;
 
     const root = document.documentElement;
     if (merged.primaryColor) root.style.setProperty('--ws-primary', merged.primaryColor);
@@ -684,7 +694,7 @@
     const page = document.getElementById('ws-wishlist-page');
     if (!page) return;
     page.querySelectorAll('.ws-page__tab').forEach((tab) => {
-      tab.addEventListener('click', () => showPageTab(tab.dataset.tab));
+      tab.onclick = () => showPageTab(tab.dataset.tab);
     });
     page.querySelectorAll('[data-go-cart]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -710,7 +720,12 @@
     const legacyWishlist = cur.endsWith('/pages/wishlist');
     const matchesWishlist = cur === want || cur.endsWith(want);
     if (CFG().settings.isNotFoundPage && (matchesWishlist || legacyWishlist)) {
-      window.location.replace(CFG().proxyBase.replace(/\/api\/?$/, '') + '/wishlist');
+      const fallback = new URL(CFG().proxyBase.replace(/\/api\/?$/, '') + '/wishlist', window.location.origin);
+      // Keep the requested tab when a missing custom page falls back to the app page.
+      if (new URLSearchParams(window.location.search).get('view') === 'saved-later') {
+        fallback.searchParams.set('view', 'saved-later');
+      }
+      window.location.replace(fallback.href);
       return;
     }
     if (!proxyMount && !matchesWishlist) return;
@@ -777,6 +792,7 @@
 
   /* ---------- Event wiring ---------- */
   function init() {
+    initialized = true;
     document.addEventListener('click', (e) => {
       const trigger = e.target.closest('[data-open-drawer]');
       if (trigger) {
@@ -807,6 +823,7 @@
     if (document.getElementById('ws-wishlist-page')) {
       renderPage();
     }
+    document.dispatchEvent(new CustomEvent('wishlist:ready'));
   }
 
   function boot() {

@@ -87,7 +87,9 @@
   gap: 10px;
 }
 
-:where(.ws-pdp, .ws-product-block) .wishlist-heart {
+:where(.ws-pdp, .ws-product-block) .wishlist-heart,
+.ws-pdp .wishlist-heart:hover,
+.ws-product-block .wishlist-heart:hover {
   --ws-icon-size: 18px;
   box-sizing: border-box;
   align-self: stretch;
@@ -105,14 +107,9 @@
   font-weight: 400;
   line-height: 1.4;
   text-align: center;
-}
-
-.ws-pdp .wishlist-heart:hover,
-.ws-product-block .wishlist-heart:hover {
+  transition: none;
   transform: none;
-  background: var(--wl-primary, #000);
-  color: var(--wl-secondary, #fff);
-  filter: brightness(0.9);
+  filter: none;
 }
 
 .ws-pdp .wishlist-heart[aria-pressed="true"] svg,

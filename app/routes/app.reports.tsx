@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import {
   Form,
@@ -6,6 +7,7 @@ import {
   useNavigation,
   useRevalidator,
   useSearchParams,
+  useSubmit,
 } from "@remix-run/react";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -40,6 +42,23 @@ export default function Reports() {
   const data = useLoaderData<typeof loader>();
   const [params] = useSearchParams();
   const navigation = useNavigation();
+  const submit = useSubmit();
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [search, setSearch] = useState(params.get("q") || "");
+  useEffect(() => {
+    setSearch(params.get("q") || "");
+  }, [params]);
+  const datesRef = useRef<HTMLDetailsElement>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const [from, setFrom] = useState(data.from);
+  const [to, setTo] = useState(data.to);
+  useEffect(() => {
+    setFrom(data.from);
+    setTo(data.to);
+    if (!data.error && datesRef.current) datesRef.current.open = false;
+  }, [data]);
+  useEffect(() => () => clearTimeout(searchTimer.current), [data.tab]);
   const revalidator = useRevalidator();
   const busy = navigation.state !== "idle" || revalidator.state !== "idle";
   const query = new URLSearchParams({
@@ -55,6 +74,38 @@ export default function Reports() {
     next.set("page", String(page));
     return `/app/reports?${next}`;
   };
+  async function exportReport() {
+    setExporting(true);
+    setExportError("");
+    try {
+      // Fetch within the embedded app so App Bridge can authenticate the request.
+      const response = await fetch(`/app/reports/export?${query}`, {
+        headers: { Accept: "text/csv" },
+      });
+      if (
+        !response.ok ||
+        !response.headers.get("Content-Type")?.includes("text/csv")
+      ) {
+        throw new Error("Export failed. Please try again or reload the app.");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${data.tab}-${data.from}-${data.to}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      setExportError(
+        error instanceof Error
+          ? error.message
+          : "Export failed. Please try again.",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
   return (
     <main className="ws-reports">
       <TitleBar title="Reports" />
@@ -76,24 +127,28 @@ export default function Reports() {
           <p>{data.table.description}</p>
         </div>
         <div className="ws-reports-actions">
-          {data.count ? (
-            <a
-              className="ws-reports-button"
-              href={`/app/reports/export?${query}`}
-              download
-            >
-              ↥ Export
-            </a>
-          ) : (
-            <button className="ws-reports-button" disabled>
-              ↥ Export
-            </button>
-          )}
-          <details className="ws-reports-dates">
+          <button
+            type="button"
+            className="ws-reports-button"
+            disabled={
+              !data.count ||
+              busy ||
+              exporting ||
+              search !== (params.get("q") || "")
+            }
+            onClick={exportReport}
+          >
+            {exporting ? "Exporting…" : "↥ Export"}
+          </button>
+          <details className="ws-reports-dates" ref={datesRef}>
             <summary>
               ▣ {data.from} – {data.to}
             </summary>
-            <Form method="get">
+            <Form
+              method="get"
+              action="/app/reports"
+              onSubmit={() => clearTimeout(searchTimer.current)}
+            >
               <input type="hidden" name="tab" value={data.tab} />
               {params.get("kind") === "running-low" && (
                 <input type="hidden" name="kind" value="running-low" />
@@ -109,8 +164,9 @@ export default function Reports() {
                 <input
                   type="date"
                   name="from"
-                  key={`from-${data.from}`}
-                  defaultValue={data.from}
+                  value={from}
+                  onChange={(event) => setFrom(event.target.value)}
+                  max={to}
                   required
                 />
               </label>
@@ -119,8 +175,10 @@ export default function Reports() {
                 <input
                   type="date"
                   name="to"
-                  key={`to-${data.to}`}
-                  defaultValue={data.to}
+                  value={to}
+                  onChange={(event) => setTo(event.target.value)}
+                  min={from}
+                  max={new Date().toISOString().slice(0, 10)}
                   required
                 />
               </label>
@@ -131,6 +189,7 @@ export default function Reports() {
           </details>
         </div>
       </header>
+      {exportError && <p role="alert">{exportError}</p>}
       {data.error && <p role="alert">{data.error} Showing the last 7 days.</p>}
       <section
         className="ws-reports-card"
@@ -141,8 +200,10 @@ export default function Reports() {
           <span>{data.table.label}</span>
           <Form
             method="get"
+            action="/app/reports"
             className="ws-reports-search"
-            key={`${data.tab}-${params.get("q")}-${params.get("sort")}`}
+            key={data.tab}
+            onSubmit={() => clearTimeout(searchTimer.current)}
           >
             <input type="hidden" name="tab" value={data.tab} />
             <input type="hidden" name="from" value={data.from} />
@@ -155,12 +216,25 @@ export default function Reports() {
               type="search"
               aria-label="Search report"
               placeholder="Search report…"
-              defaultValue={params.get("q") || ""}
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                const form = event.currentTarget.form!;
+                clearTimeout(searchTimer.current);
+                searchTimer.current = setTimeout(
+                  () => submit(form, { replace: true }),
+                  350,
+                );
+              }}
             />
             <select
               name="sort"
               aria-label="Sort report"
-              defaultValue={params.get("sort") || "default"}
+              value={params.get("sort") || "default"}
+              onChange={(event) => {
+                clearTimeout(searchTimer.current);
+                submit(event.currentTarget.form!, { replace: true });
+              }}
             >
               <option value="default">Default order</option>
               <option value="title-asc">{data.table.columns[0]} A–Z</option>

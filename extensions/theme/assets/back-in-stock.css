@@ -4,8 +4,8 @@
    ============================================================ */
 
 /* ---------- CSS Custom Properties ---------- */
-:root {
-  --ws-bis-primary: #e74c3c;
+.back-in-stock,
+#ws-bis-modal {
   --ws-bg: #ffffff;
   --ws-text: #1a1a1a;
   --ws-text-muted: #6b7280;
@@ -24,11 +24,11 @@
   align-items: center;
   gap: 6px;
   padding: 10px 20px;
-  background: transparent;
+  background: var(--ws-bis-button-bg, transparent);
   border: 2px solid var(--ws-bis-primary);
-  color: var(--ws-bis-primary);
-  border-radius: var(--ws-radius);
-  font-size: 14px;
+  color: var(--ws-bis-button-text, var(--ws-bis-primary));
+  border-radius: var(--ws-bis-radius, 8px);
+  font-size: var(--ws-bis-font-size, 14px);
   font-weight: 600;
   cursor: pointer;
   transition: background var(--ws-transition), color var(--ws-transition);
@@ -144,7 +144,7 @@
 .ws-modal__field input {
   padding: 10px 12px;
   border: 1px solid var(--ws-border);
-  border-radius: var(--ws-radius);
+  border-radius: var(--ws-bis-radius, 8px);
   font-size: 14px;
   font-family: inherit;
   transition: border-color var(--ws-transition);
@@ -164,13 +164,13 @@
   padding: 0 24px 20px;
 }
 
-.ws-btn {
+#ws-bis-modal .ws-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 7px 14px;
-  border-radius: var(--ws-radius);
+  border-radius: var(--ws-bis-radius, 8px);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -182,33 +182,33 @@
   white-space: nowrap;
 }
 
-.ws-btn:hover {
+#ws-bis-modal .ws-btn:hover {
   background: #f9fafb;
   border-color: #d1d5db;
 }
 
-.ws-btn--primary {
+#ws-bis-modal .ws-btn--primary {
   background: var(--ws-bis-primary);
   color: #fff;
   border-color: var(--ws-bis-primary);
 }
 
-.ws-btn--primary:hover {
+#ws-bis-modal .ws-btn--primary:hover {
   opacity: 0.9;
   border-color: var(--ws-bis-primary);
 }
 
-.ws-btn--danger {
+#ws-bis-modal .ws-btn--danger {
   color: #dc2626;
   border-color: #fca5a5;
 }
 
-.ws-btn--danger:hover {
+#ws-bis-modal .ws-btn--danger:hover {
   background: #fef2f2;
   border-color: #dc2626;
 }
 
-.ws-btn--small {
+#ws-bis-modal .ws-btn--small {
   padding: 4px 10px;
   font-size: 12px;
 }
@@ -252,7 +252,7 @@
   color: var(--ws-bis-primary);
   background: rgba(231, 76, 60, 0.08);
   border: 1px solid rgba(231, 76, 60, 0.25);
-  border-radius: var(--ws-radius);
+  border-radius: var(--ws-bis-radius, 8px);
   padding: 8px 12px;
   margin: 0 0 12px;
 }
@@ -294,7 +294,7 @@
 .ws-product-block--empty {
   padding: 14px;
   border: 1px dashed var(--ws-border);
-  border-radius: var(--ws-radius);
+  border-radius: var(--ws-bis-radius, 8px);
   color: var(--ws-text-muted);
   font-size: 13px;
 }

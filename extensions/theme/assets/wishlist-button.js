@@ -22,7 +22,14 @@
     return fallback;
   };
 
-  const savedSettings = () => CFG().uiConfig?.productCardConfig || {};
+  const savedSettings = () => {
+    const saved = CFG().uiConfig?.productCardConfig || {};
+    const s = CFG().settings || {};
+    if (!s.advancedSettings) return saved;
+    return { ...saved, primaryColor: s.buttonBackground || '#000000',
+      secondaryColor: s.buttonText || '#ffffff', collIconColor: s.buttonColor || '#e74c3c',
+      icon: s.iconType || 'heart', iconImage: s.iconImage };
+  };
   const query = (root, selector) => {
     try { return selector ? root.querySelector(selector) : null; } catch { return null; }
   };
@@ -127,6 +134,17 @@
 
   function applyThemeFromConfig() {
     if (!CFG().uiConfig) return;
+    const s = CFG().settings || {};
+    if (s.advancedSettings) {
+      const root = document.documentElement;
+      const values = { '--wl-primary': s.buttonBackground || '#000000', '--wl-secondary': s.buttonText || '#ffffff',
+        '--ws-button-bg': s.buttonBackground || '#000000', '--ws-button-text': s.buttonText || '#ffffff',
+        '--ws-primary': s.buttonColor || '#e74c3c', '--ws-bg': s.drawerBg || '#ffffff',
+        '--ws-text': s.drawerText || '#1a1a1a', '--ws-border': s.borderColor || '#e5e7eb',
+        '--ws-radius': (s.borderRadius ?? 8) + 'px' };
+      Object.entries(values).forEach(([key, value]) => root.style.setProperty(key, value));
+      return;
+    }
     const panel = { ...(CFG().uiConfig.themeSettings || {}), ...savedSettings() };
     const source = panel && typeof panel === 'object' ? panel : {};
     const theme = {
@@ -146,7 +164,7 @@
     root.style.setProperty('--ws-bg', theme.backgroundColor);
     root.style.setProperty('--ws-text', theme.textColor);
     root.style.setProperty('--ws-border', theme.borderColor);
-    root.style.setProperty('--ws-radius', Number(theme.borderRadius || 8) + 'px');
+    root.style.setProperty('--ws-radius', Number(theme.borderRadius ?? 8) + 'px');
   }
 
   function setCount(n) {
@@ -395,6 +413,10 @@
     btn.classList.toggle('wl-icon-text', advanced && !!markup);
     if (markup) {
       btn.innerHTML = templateContents(markup, label);
+      if (CFG().settings?.advancedSettings) {
+        const icon = btn.querySelector('svg, img');
+        if (icon) icon.outerHTML = wishlistIconMarkup();
+      }
     } else {
       const type = card ? 'icon' : c.basicType || 'icon-text';
       btn.innerHTML = type === 'text' ? '' : wishlistIconMarkup(card ? 20 : 24);
@@ -416,14 +438,14 @@
         card.style.setProperty('--ws-card-blur', 'none');
       }
       btn.style.setProperty('position', 'static', 'important');
-      if (c.collIconColor) btn.style.color = inList ? c.primaryColor || c.collIconColor : c.collIconColor;
+      if (c.collIconColor) btn.style.color = inList && !CFG().settings?.advancedSettings ? c.primaryColor || c.collIconColor : c.collIconColor;
       const svg = btn.querySelector('svg');
       if (svg && c.collThickness != null) svg.style.setProperty('--ws-card-stroke', String(c.collThickness));
     } else if (c.activeMode === 'basic') {
       btn.style.gap = '8px';
       btn.style.margin = '0';
       btn.style.padding = '12px 20px';
-      btn.style.borderRadius = '0';
+      btn.style.borderRadius = CFG().settings?.advancedSettings ? (CFG().settings.borderRadius ?? 8) + 'px' : '0';
       const solid = !c.basicStyle || c.basicStyle === 'solid';
       btn.style.background = solid ? c.primaryColor || '#000000' : 'transparent';
       btn.style.color = solid ? c.secondaryColor || '#ffffff' : c.primaryColor || '#000000';
@@ -601,7 +623,7 @@
     const savedProduct = (cfg.uiConfig && (cfg.uiConfig.productCardConfig || {})) || {};
     const themeIcon = savedProduct.icon || savedProduct.iconType || savedTheme.iconType || savedTheme.icon;
     const blockIcon = cfg.settings && cfg.settings.iconType;
-    const iconType = themeIcon || blockIcon || 'heart';
+    const iconType = cfg.settings?.advancedSettings ? blockIcon || 'heart' : themeIcon || blockIcon || 'heart';
     return (iconType === 'bookmark' || iconType === 'star' || iconType === 'heart' || iconType === 'image') ? iconType : 'heart';
   }
 
@@ -611,8 +633,8 @@
     const productCfg = (uiConfig.productCardConfig && typeof uiConfig.productCardConfig === 'object') ? uiConfig.productCardConfig : {};
     const themeCfg = (uiConfig.themeSettings && typeof uiConfig.themeSettings === 'object') ? uiConfig.themeSettings : {};
     const iconType = resolvedIconType();
-    const imageUrl = (productCfg.iconImage || themeCfg.iconImage || s.iconImage || '');
-    const dimension = size || 22;
+    const imageUrl = s.advancedSettings ? s.iconImage || '' : productCfg.iconImage || themeCfg.iconImage || s.iconImage || '';
+    const dimension = s.buttonSize || size || 22;
 
     if (iconType === 'image' && imageUrl) {
       return `<img src="${imageUrl}" alt="Wishlist" width="${dimension}" height="${dimension}" style="width:${dimension}px;height:${dimension}px;" />`;
@@ -633,7 +655,7 @@
   }
 
   function injectHeaderLink() {
-    if (savedSettings().launchFrom ? savedSettings().launchFrom !== 'header' : !on('headerLink', false)) {
+    if (!on('headerLink', false) || (savedSettings().launchFrom && savedSettings().launchFrom !== 'header')) {
       const existing = document.getElementById('ws-header-link');
       if (existing) existing.remove();
       return;

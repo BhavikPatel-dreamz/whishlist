@@ -37,7 +37,6 @@
         productId: String(product.id),
         variantId: String(variant.id),
       });
-      if (product.variants.length === 1) return selection(product.variants[0]);
       if (!dialog.isConnected) return null;
       if (typeof dialog.showModal !== "function")
         throw new Error(

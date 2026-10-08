@@ -1,0 +1,38 @@
+{% comment %}Variant selector owned by the Storefront UI Elements embed.{% endcomment %}
+
+<dialog
+  id="ws-variant-selector"
+  class="ws-variant-selector"
+  aria-labelledby="ws-variant-title"
+  data-enabled="{{ block.settings.variant_selector_enabled }}"
+  data-products-root="{{ routes.root_url | escape }}"
+  style="
+    --ws-variant-title: {{ block.settings.title_color }};
+    --ws-variant-primary-size: {{ block.settings.primary_font_size }}px;
+    --ws-variant-bg: {{ block.settings.popup_background }};
+    --ws-variant-heading: {{ block.settings.heading_color }};
+    --ws-variant-secondary-size: {{ block.settings.secondary_font_size }}px;
+    --ws-variant-button-bg: {{ block.settings.button_background }};
+    --ws-variant-button-text: {{ block.settings.button_text }};
+    --ws-variant-detail: {{ block.settings.product_detail_color }};
+  "
+>
+  <form method="dialog" class="ws-variant-selector__close-form">
+    <button type="submit" class="ws-variant-selector__close" aria-label="Close variant selector">&times;</button>
+  </form>
+  <h2 id="ws-variant-title">{{ block.settings.popup_title | escape }}</h2>
+  <div class="ws-variant-selector__product">
+    <img id="ws-variant-image" alt="" width="88" height="88" hidden>
+    <div>
+      <p id="ws-variant-product-title"></p>
+      <p id="ws-variant-detail" aria-live="polite"></p>
+    </div>
+  </div>
+  <form id="ws-variant-form">
+    <label for="ws-variant-choice">{{ block.settings.choose_action_text | escape }}</label>
+    <select id="ws-variant-choice" name="variant" required></select>
+    <p class="ws-variant-selector__hint">Choose your preferred options to save this item to your wishlist. Sold-out variants can also be saved.</p>
+    <button type="submit" class="ws-variant-selector__submit">{{ block.settings.add_button_text | escape }}</button>
+  </form>
+</dialog>
+

@@ -1,13 +1,12 @@
 {% comment %}
-  Wishlist App Embed – off-canvas drawer, header counter, config and runtime assets.
-  This is the WISHLIST half of the single theme extension. It can be enabled or
-  disabled independently from the Back-in-Stock App Embed in the theme editor.
+  App Control Centre: wishlist UI and appearance controls.
 {% endcomment %}
 
 {% if block.settings.show_wishlist_ui == false %}
   <style>
     .wishlist-heart, .ws-product-block, .ws-page-block, .ws-page, #ws-wishlist-page,
-    #ws-header-link, #ws-drawer-toggle, #ws-drawer, #ws-drawer-overlay { display: none !important; }
+    #ws-header-link, #ws-drawer-toggle, #ws-drawer, #ws-drawer-overlay,
+    [data-ws-menu-item], [data-ws-menu-managed], .ws-save-inline, .ws-save-dialog { display: none !important; }
   </style>
 {% else %}
 <style>
@@ -18,6 +17,14 @@
   #ws-drawer-overlay:not(.is-open) { display: none !important; }
 </style>
 {{ 'wishlist.css' | asset_url | stylesheet_tag }}
+<style>
+  .wishlist-heart svg, .wishlist-heart img,
+  #ws-header-link svg, #ws-header-link img,
+  #ws-drawer-toggle svg, #ws-drawer-toggle img {
+    width: 20px !important;
+    height: 20px !important;
+  }
+</style>
 
 <script>
   window.__wishlist_stock = window.__wishlist_stock || {};
@@ -28,24 +35,25 @@
   window.__wishlist_stock.settings = {
     advancedSettings: {% if block.settings.advanced_settings == false %}false{% else %}true{% endif %},
     isNotFoundPage: {% if template.name == '404' %}true{% else %}false{% endif %},
+    pageUrlConfigured: false,
     pageSelected: {% if block.settings.wishlist_page != blank %}true{% else %}false{% endif %},
     buttonBackground: {{ block.settings.button_background | default: "#000000" | json }},
     buttonText: {{ block.settings.button_text | default: "#FFFFFF" | json }},
     notificationAlignment: {{ block.settings.notification_alignment | default: "center" | json }},
-    buttonColor: {{ block.settings.wishlist_button_color | default: "#e74c3c" | json }},
-    buttonSize: {{ block.settings.wishlist_button_size | default: 20 }},
-    iconType: {{ block.settings.header_icon_type | default: "heart" | json }},
-    iconImage: {% if block.settings.header_icon_image %}{{ block.settings.header_icon_image | image_url: width: 200 | json }}{% else %}null{% endif %},
+    buttonColor: "#e74c3c",
+    buttonSize: 20,
+    iconType: "heart",
+    iconImage: null,
     drawerPosition: {{ block.settings.drawer_position | default: "right" | json }},
-    headerLink: {% if block.settings.header_link == false %}false{% else %}true{% endif %},
-    wishlistPageUrl: {{ block.settings.wishlist_page.url | default: block.settings.wishlist_page_url | default: '/pages/wishlist' | json }},
+    headerLink: true,
+    wishlistPageUrl: {{ block.settings.wishlist_page.url | default: "/pages/wishlist" | default: '/pages/wishlist' | json }},
     allProductsCollectionUrl: {{ routes.all_products_collection_url | json }},
-    cardHearts: {% if block.settings.card_hearts == false %}false{% else %}true{% endif %},
-    productButton: {% if block.settings.product_button == false %}false{% else %}true{% endif %},
-    drawerBg: {{ block.settings.drawer_bg_color | default: "#ffffff" | json }},
-    drawerText: {{ block.settings.drawer_text_color | default: "#1a1a1a" | json }},
-    borderColor: {{ block.settings.border_color | default: "#e5e7eb" | json }},
-    borderRadius: {{ block.settings.border_radius | default: 8 }},
+    cardHearts: true,
+    productButton: true,
+    drawerBg: {{ block.settings.drawer_bg_color | default: "#F4F8FE" | json }},
+    drawerText: {{ block.settings.drawer_text_color | default: "#333333" | json }},
+    borderColor: "#e5e7eb",
+    borderRadius: {{ block.settings.border_radius | default: 6 }},
   };
 
   if (!window.__wishlist_stock.settings.pageSelected && window.__wishlist_stock.settings.wishlistPageUrl === '/pages/wishlist') {
@@ -114,7 +122,14 @@
 <script src="{{ 'wishlist-toggle.js' | asset_url }}" defer></script>
 <script src="{{ 'save-for-later.js' | asset_url }}" defer></script>
 
+{% if request.design_mode %}
+  <div id="ws-editor-preview-config" hidden data-block-id="{{ block.id }}" data-settings="{{ block.settings | json | escape }}"></div>
+  <script src="{{ 'wishlist-editor-preview.js' | asset_url }}" defer></script>
 {% endif %}
+
+{% endif %}
+
+
 
 {% schema %}
 {
@@ -132,8 +147,8 @@
       "type": "checkbox",
       "id": "advanced_settings",
       "label": "Advanced Wishlist Settings",
-      "default": true,
-      "info": "Apply the colors, corner radius, and notification alignment below. Turn off to use the default styling."
+      "default": false,
+      "info": "Apply the colors, corner radius, and notification alignment below. These visual settings override app styling when enabled. Turn off to use styling saved in the app."
     },
     {
       "type": "color",
@@ -146,6 +161,28 @@
       "id": "button_text",
       "label": "Button text color (in wishlist)",
       "default": "#FFFFFF"
+    },
+    {
+      "type": "color",
+      "id": "drawer_bg_color",
+      "label": "Background color (wishlist header, footer and pop-ups)",
+      "default": "#F4F8FE"
+    },
+    {
+      "type": "color",
+      "id": "drawer_text_color",
+      "label": "Text color (wishlist header, footer and pop-ups)",
+      "default": "#333333"
+    },
+    {
+      "type": "range",
+      "id": "border_radius",
+      "label": "Corner radius",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "unit": "px",
+      "default": 6
     },
     {
       "type": "select",
@@ -168,58 +205,6 @@
       "default": "center"
     },
     {
-      "type": "page",
-      "id": "wishlist_page",
-      "label": "Wishlist Page",
-      "info": "Select the page shoppers visit from the wishlist header icon. This selection takes priority over the wishlist page URL."
-    },
-    {
-      "type": "color",
-      "id": "wishlist_button_color",
-      "label": "Wishlist Button Color",
-      "default": "#e74c3c"
-    },
-    {
-      "type": "range",
-      "id": "wishlist_button_size",
-      "label": "Wishlist Icon Size",
-      "min": 14,
-      "max": 32,
-      "step": 2,
-      "unit": "px",
-      "default": 20
-    },
-    {
-      "type": "select",
-      "id": "header_icon_type",
-      "label": "Wishlist icon style",
-      "options": [
-        {
-          "label": "Heart",
-          "value": "heart"
-        },
-        {
-          "label": "Star",
-          "value": "star"
-        },
-        {
-          "label": "Bookmark",
-          "value": "bookmark"
-        },
-        {
-          "label": "Custom image",
-          "value": "image"
-        }
-      ],
-      "default": "heart"
-    },
-    {
-      "type": "image_picker",
-      "id": "header_icon_image",
-      "label": "Custom header icon image",
-      "info": "Use this to replace the wishlist icon in the header, product cards, and product pages."
-    },
-    {
       "type": "select",
       "id": "drawer_position",
       "label": "Drawer slide-in direction",
@@ -236,62 +221,10 @@
       "default": "right"
     },
     {
-      "type": "checkbox",
-      "id": "header_link",
-      "label": "Show wishlist link in header",
-      "default": true
-    },
-    {
-      "type": "text",
-      "id": "wishlist_page_url",
-      "label": "Fallback wishlist page URL",
-      "info": "Used when no Wishlist Page is selected above. Default: /pages/wishlist.",
-      "default": "/pages/wishlist"
-    },
-    {
-      "type": "checkbox",
-      "id": "card_hearts",
-      "label": "Show wishlist heart on product cards",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "product_button",
-      "label": "Show wishlist heart on product pages",
-      "info": "Automatically adds the heart to product pages, without placing the Wishlist Button block by hand.",
-      "default": true
-    },
-    {
-      "type": "header",
-      "content": "Theme Colors"
-    },
-    {
-      "type": "color",
-      "id": "drawer_bg_color",
-      "label": "Drawer / Card Background",
-      "default": "#ffffff"
-    },
-    {
-      "type": "color",
-      "id": "drawer_text_color",
-      "label": "Text Color",
-      "default": "#1a1a1a"
-    },
-    {
-      "type": "color",
-      "id": "border_color",
-      "label": "Border Color",
-      "default": "#e5e7eb"
-    },
-    {
-      "type": "range",
-      "id": "border_radius",
-      "label": "Border Radius",
-      "min": 0,
-      "max": 24,
-      "step": 2,
-      "unit": "px",
-      "default": 8
+      "type": "page",
+      "id": "wishlist_page",
+      "label": "Wishlist Page",
+      "info": "Select the page shoppers visit to view their wishlist."
     }
   ]
 }

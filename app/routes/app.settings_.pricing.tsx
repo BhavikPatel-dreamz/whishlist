@@ -1,9 +1,9 @@
 import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
 import { Link } from "@remix-run/react";
-import { Page, InlineStack, Text } from "@shopify/polaris";
+import { Page, InlineStack, Text, Box, Card, BlockStack } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
-import { PricingPlans } from "../components/PricingPlans";
+// import { PricingPlans } from "../components/PricingPlans";
 import pricingStyles from "../components/PricingPlans.css?url";
 
 export const links: LinksFunction = () => [
@@ -30,7 +30,21 @@ export default function PricingPage() {
           </Text>
         </InlineStack>
       </nav>
-      <PricingPlans />
+      {/* <PricingPlans /> */}
+      <Box paddingBlockStart="600">
+        <Card>
+          <Box paddingBlock="1200">
+            <BlockStack gap="300" inlineAlign="center">
+              <Text as="h1" variant="headingXl">
+                Coming Soon
+              </Text>
+              <Text as="p" tone="subdued" alignment="center">
+                Pricing plans will be available soon.
+              </Text>
+            </BlockStack>
+          </Box>
+        </Card>
+      </Box>
     </Page>
   );
 }
