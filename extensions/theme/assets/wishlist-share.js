@@ -1,5 +1,13 @@
 (function () {
   let dialog;
+  function trackShare(mode) {
+    const cfg = window.__wishlist_stock || {};
+    return fetch(`${cfg.proxyBase}/wishlist-share`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }), keepalive: true,
+    }).then((response) => { if (!response.ok) throw new Error('Share tracking failed'); });
+  }
+
   function mount() {
     const cfg = window.__wishlist_stock || {};
     const page = document.getElementById('ws-wishlist-page');
@@ -18,11 +26,17 @@
         dialog.innerHTML = '<form method="dialog"><button class="ws-share-close" aria-label="Close share dialog">×</button></form><h2 id="ws-share-title">Share via</h2><div class="ws-share-options" hidden><button type="button" class="ws-share-action ws-share-copy">Copy Link</button><a class="ws-share-action ws-share-facebook" target="_blank" rel="noopener noreferrer"><span class="ws-share-facebook-icon" aria-hidden="true">f</span>Facebook</a><a class="ws-share-action ws-share-x" aria-label="Share on X" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">𝕏</span></a></div><p role="status" class="ws-share-status"></p><label class="ws-share-fallback" hidden>Share link<input class="ws-share-url" readonly></label>';
         document.body.appendChild(dialog);
         dialog.addEventListener('close', () => trigger.focus());
+        ['facebook', 'x'].forEach((mode) => {
+          dialog.querySelector(`.ws-share-${mode}`).addEventListener('click', () => {
+            void trackShare(mode).catch(() => { dialog.querySelector('.ws-share-status').textContent = 'Share opened, but the report could not be updated.'; });
+          });
+        });
         dialog.querySelector('.ws-share-copy').addEventListener('click', async () => {
           const input = dialog.querySelector('.ws-share-url');
           try {
             await navigator.clipboard.writeText(input.value);
             dialog.querySelector('.ws-share-status').textContent = 'Wishlist link copied.';
+            void trackShare('copylink').catch(() => { dialog.querySelector('.ws-share-status').textContent = 'Link copied, but the report could not be updated.'; });
           } catch {
             dialog.querySelector('.ws-share-fallback').hidden = false;
             input.focus(); input.select();

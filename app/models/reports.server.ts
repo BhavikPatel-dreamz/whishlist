@@ -42,19 +42,25 @@ export async function loadReport(
       note: "Current inventory across all locations for active, inventory-tracked products with zero or fewer units. Independent of wishlist saves and selected dates.",
     };
   } else if (tab === "shared") {
+    const shares = await db.wishlistShare.findMany({ where: { shopId, createdAt: dates }, orderBy: [{ createdAt: "desc" }, { id: "asc" }] });
+    const snapshots = shares.map((share) => Array.isArray(share.products)
+      ? share.products as { productId: string; handle: string | null }[] : []);
+    const ids = [...new Set(snapshots.flatMap((items) => items.map((item) => item.productId)))];
+    const products = ids.length ? await getProductsByIds(admin, ids, 1) : new Map();
     table = {
       title: "Shared Wishlists Report",
-      description: "View details of wishlists shared by your customers",
+      description: "View products in wishlists shared by your customers",
       label: "Shared Wishlist Details",
-      columns: [
-        "User Email",
-        "List Name",
-        "Sharing Mode",
-        "Shared Email",
-        "Created Date",
-      ],
-      rows: [],
-      note: "Wishlist sharing and share-event tracking are not implemented in this app. No historical sharing data is available.",
+      columns: ["Customer", "List Name", "Products", "Sharing Mode", "Created Date"],
+      rows: shares.map((share, index) => ({
+        id: share.id,
+        cells: [
+          `Customer ${share.customerId}`, "My Wishlist",
+          snapshots[index].map((item) => products.get(item.productId)?.title || item.handle || `Product ${item.productId}`).join(", ") || "Empty wishlist",
+          share.mode, date(share.createdAt),
+        ],
+      })),
+      note: "Products are captured when a link is copied or a social sharing window is opened. Opening a social window does not confirm a published post. Tracking starts with this feature; earlier shares are not available.",
     };
   } else if (tab === "shoppers") {
     const data = await loadAnalyticsMetrics(

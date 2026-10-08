@@ -65,6 +65,7 @@ model Shop {
   doubleOptIn           Boolean @default(false)
   alertsPerVariantCap   Int     @default(0) // 0 = unlimited
 
+  wishlistShares  WishlistShare[]
   wishlists       WishlistItem[]
   wishlistMetrics WishlistMetric[]
   wishlistCartDays WishlistCartDay[]
@@ -202,5 +203,17 @@ model WishlistOrder {
   createdAt DateTime @default(now())
 
   @@unique([shopId, orderId, productId])
+  @@index([shopId, createdAt])
+}
+
+/// Customer-initiated share actions with product IDs captured at sharing time.
+model WishlistShare {
+  id String @id @default(uuid())
+  shopId String
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customerId String
+  mode String
+  products Json
+  createdAt DateTime @default(now())
   @@index([shopId, createdAt])
 }

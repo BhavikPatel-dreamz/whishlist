@@ -317,7 +317,7 @@ export default function Reports() {
             <h2>No data available</h2>
             <p>
               {data.tab === "shared"
-                ? "Shared wishlist tracking is not available yet."
+                ? "No wishlists were shared during the selected dates."
                 : "There are no items to display for the selected criteria."}
             </p>
             <button
