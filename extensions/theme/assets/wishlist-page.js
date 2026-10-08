@@ -51,6 +51,9 @@
 
   /* Card display options, merged over defaults. Applied to the wishlist page. */
   function applyPageSettings() {
+    if (CFG().customerLoggedIn) {
+      document.querySelectorAll('.ws-page__notice, #ws-drawer-footer').forEach((notice) => notice.remove());
+    }
     const c = uiConfig?.productCardConfig || {};
     if (c.pageTitle) {
       document.querySelectorAll('.ws-drawer__title, .ws-page__section-head h2').forEach((heading) => {
@@ -772,10 +775,15 @@
       savedLaterPanelMarkup(),
       '</div>'
     ].join('');
+    if (CFG().customerLoggedIn) mount.querySelector('.ws-page__notice')?.remove();
     host.appendChild(mount);
   }
 
   function autoMountDrawerFooter() {
+    if (CFG().customerLoggedIn) {
+      document.getElementById('ws-drawer-footer')?.remove();
+      return;
+    }
     if (document.getElementById('ws-drawer-footer')) return;
     const drawer = document.getElementById('ws-drawer');
     if (!drawer) return;

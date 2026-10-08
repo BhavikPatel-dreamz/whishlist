@@ -13,6 +13,8 @@
     sessionStorage.setItem(storageKey, JSON.stringify(settings));
   } catch (_) { /* Preview still works when browser storage is unavailable. */ }
   const changed = (key) => previous && previous[key] !== settings[key];
+  const wishlistSettingsChanged = previous && Object.keys(settings).some(changed);
+  let selected = false;
   let toastTimer;
 
   function reveal() {
@@ -51,12 +53,18 @@
     }
   }
 
-  document.addEventListener('wishlist:ready', reveal, { once: true });
+  // Other embeds share this page. Loading their preview must not navigate
+  // away from the home/product page where the variant popup is being edited.
+  document.addEventListener('wishlist:ready', () => {
+    if (selected || wishlistSettingsChanged) reveal();
+  }, { once: true });
   document.addEventListener('shopify:block:select', (event) => {
-    if (String(event.detail?.blockId) === marker.dataset.blockId) reveal();
+    selected = String(event.detail?.blockId) === marker.dataset.blockId;
+    if (selected) reveal();
   });
   document.addEventListener('shopify:block:deselect', (event) => {
     if (String(event.detail?.blockId) !== marker.dataset.blockId) return;
+    selected = false;
     window.__wishlistStock?.closeDrawer();
     document.getElementById('ws-editor-toast')?.remove();
   });

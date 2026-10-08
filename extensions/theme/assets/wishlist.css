@@ -32,7 +32,7 @@
   position: relative;
 }
 
-.wishlist-heart:hover {
+.wishlist-heart:where(:not(.ws-pdp *, .ws-product-block *)):hover {
   transform: scale(1.15);
   background-color: rgba(0, 0, 0, 0.04);
 }
@@ -87,9 +87,7 @@
   gap: 10px;
 }
 
-:where(.ws-pdp, .ws-product-block) .wishlist-heart,
-.ws-pdp .wishlist-heart:hover,
-.ws-product-block .wishlist-heart:hover {
+:where(.ws-pdp, .ws-product-block) .wishlist-heart {
   --ws-icon-size: 18px;
   box-sizing: border-box;
   align-self: stretch;
@@ -119,6 +117,14 @@
 }
 
 /* Header wishlist link with counter */
+.ws-social-count {
+  display: block;
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .ws-header-link {
   display: inline-flex;
   align-items: center;
@@ -135,6 +141,21 @@
   width: var(--ws-icon-size, 20px);
   height: var(--ws-icon-size, 20px);
   object-fit: contain;
+}
+
+#ws-header-link.ws-header-link--floating {
+  position: fixed;
+  top: 96px;
+  right: 20px;
+  z-index: 9999;
+  display: inline-flex;
+  width: 48px;
+  height: 48px;
+  background: #fff;
+  color: #222;
+  border: 1px solid #e5e7eb;
+  border-radius: 50%;
+  box-shadow: 0 3px 12px rgb(0 0 0 / 15%);
 }
 
 .ws-header-link svg {
@@ -1121,3 +1142,19 @@ a.ws-page-card__image {
 .ws-saved-move { width: 100%; min-height: 46px; margin-top: auto; font-weight: 600; }
 .ws-save-dialog :focus-visible, .ws-saved-card :focus-visible, .ws-save-inline:focus-visible { outline: 2px solid #005bd3; outline-offset: 3px; }
 @media (max-width: 500px) { .ws-save-dialog { padding: 28px 16px 16px; } .ws-save-dialog-content { grid-template-columns: 1fr; gap: 12px; } .ws-save-dialog-image { width: 80px; height: 80px; } .ws-save-dialog-actions > button { flex: 1; } }
+
+#ws-share-trigger { display: block; margin: 0 0 16px auto; }
+.ws-share-dialog { box-sizing: border-box; width: min(480px, calc(100vw - 32px)); margin: auto; padding: 40px 21px 21px; border: 0; border-radius: 5px; background: #fafafa; color: #111; box-shadow: 0 4px 14px rgb(0 0 0 / 12%); font-family: inherit; }
+.ws-share-dialog::backdrop { background: rgb(0 0 0 / 32%); }
+.ws-share-dialog #ws-share-title { margin: 0 0 20px; text-align: center; font-size: 13px; line-height: 18px; font-weight: 600; letter-spacing: 1px; color: #45465a; }
+.ws-share-close { position: absolute; top: 12px; right: 10px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; background: none; border: 0; font: 22px/1 sans-serif; cursor: pointer; color: #111; }
+.ws-share-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.ws-share-options[hidden], .ws-share-fallback[hidden] { display: none; }
+.ws-share-dialog .ws-share-action { display: flex; align-items: center; justify-content: center; gap: 7px; box-sizing: border-box; min-width: 0; min-height: 50px; padding: 10px 6px; border: 1px solid #ddd; border-radius: 4px; background: transparent; color: #080808; line-height: 1.4; font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: .5px; text-decoration: none; cursor: pointer; }
+.ws-share-facebook-icon { display: inline-flex; align-items: flex-end; justify-content: center; width: 13px; height: 13px; border-radius: 1px; background: #1877f2; color: #fff; font: bold 14px/12px Arial, sans-serif; }
+.ws-share-dialog :focus-visible { outline: 2px solid #005bd3; outline-offset: 3px; }
+.ws-share-url { display: block; width: 100%; box-sizing: border-box; padding: 10px; }
+.ws-share-fallback { display: block; margin-top: 16px; font-size: 13px; }
+.ws-share-status { margin: 12px 0 0; text-align: center; font-size: 13px; line-height: 1.5; }
+.ws-share-status:empty { display: none; }
+@media (max-width: 360px) { .ws-share-options { gap: 8px; }.ws-share-dialog { padding-inline: 14px; } .ws-share-dialog .ws-share-action { font-size: 11px; letter-spacing: 0; } }

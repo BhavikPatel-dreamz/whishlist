@@ -263,6 +263,8 @@
 
         if (data && data.ok) {
           heartFetch = null;
+          socialCounts.delete(btn.dataset.productId);
+          void refreshSocialCounts();
           setHeartState(btn, !!data.inWishlist);
           if (data.count !== undefined) setCount(data.count);
           if (window.__wishlistStock && window.__wishlistStock.renderDrawer) {
@@ -276,7 +278,10 @@
           }
           setHeartState(btn, !desired);
           heartFetch = null;
+          socialCounts.delete(btn.dataset.productId);
+          void refreshSocialCounts();
           refreshHeartStates();
+    void refreshSocialCounts();
         }
       } while (btn.__wsDirty);
     } finally {
@@ -495,8 +500,14 @@
     const c = savedSettings();
     const toggle = document.getElementById('ws-drawer-toggle');
     const header = document.getElementById('ws-header-link');
+    // Respect the chosen launcher; the header fallback must not duplicate it.
+    const useFloating = c.launchFrom === 'floating' || (!c.launchFrom && !header);
+    if (header) {
+      header.hidden = useFloating && !!toggle;
+      header.style.display = header.hidden ? 'none' : '';
+    }
     if (toggle) {
-      toggle.hidden = !!c.launchFrom && c.launchFrom !== 'floating';
+      toggle.hidden = !useFloating;
       toggle.style.display = toggle.hidden ? 'none' : '';
       if (c.floatingPosition) {
         const left = c.floatingPosition.includes('left');
@@ -508,8 +519,9 @@
       }
     }
     [header, toggle].filter(Boolean).forEach((link) => {
-      if (c.pageType === 'page') link.removeAttribute('data-open-drawer');
+      if (link === header || c.pageType === 'page') link.removeAttribute('data-open-drawer');
       else if (c.pageType) link.setAttribute('data-open-drawer', '');
+      if (link === header) link.href = CFG().settings.wishlistPageUrl || '/pages/wishlist';
       const iconSignature = JSON.stringify([resolvedIconType(), c.iconImage, CFG().uiConfig?.themeSettings?.iconImage, CFG().settings.iconImage]);
       if (link.__wsIcon !== iconSignature) {
         const old = link.querySelector('svg, img');
@@ -518,7 +530,7 @@
         link.__wsIcon = iconSignature;
       }
       // Reveal only after saved settings have been fetched and applied.
-      if (CFG().uiConfig) link.setAttribute('data-ws-ready', '');
+      if (link === header || CFG().uiConfig) link.setAttribute('data-ws-ready', '');
     });
     if (toggle && c.showCount === true && !document.getElementById('ws-floating-count')) {
       const count = document.createElement('span');
@@ -655,18 +667,28 @@
   }
 
   function injectHeaderLink() {
-    if (!on('headerLink', false) || (savedSettings().launchFrom && savedSettings().launchFrom !== 'header')) {
+    if (!on('headerLink', false)) {
       const existing = document.getElementById('ws-header-link');
       if (existing) existing.remove();
       return;
     }
-    if (document.getElementById('ws-header-link')) return;
-    const host =
-      document.querySelector('.header__icons') ||
-      document.querySelector('[class*="header__icons"]');
-    if (!host) return;
+    const host = Array.from(document.querySelectorAll(
+      '.header__icons, [class*="header__icons"], .site-header__icons, .header-icons'
+    )).find((element) => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return rect.width > 0 && rect.height > 0 && rect.bottom > 0 &&
+        rect.top < window.innerHeight && style.visibility !== 'hidden' && style.display !== 'none';
+    });
+    let link = document.getElementById('ws-header-link');
+    if (link) {
+      link.classList.toggle('ws-header-link--floating', !host);
+      const parent = host || document.body;
+      if (link.parentElement !== parent) parent.appendChild(link);
+      return;
+    }
 
-    const link = document.createElement('a');
+    link = document.createElement('a');
     link.href = CFG().settings.wishlistPageUrl || '/pages/wishlist';
     link.id = 'ws-header-link';
     link.className = 'ws-header-link header__icon header__icon--summary link focus-inset';
@@ -687,6 +709,11 @@
     counter.classList.add('ws-count');
     link.appendChild(counter);
 
+    link.classList.toggle('ws-header-link--floating', !host);
+    if (!host) {
+      document.body.appendChild(link);
+      return;
+    }
     const cart =
       host.querySelector('#cart-icon-bubble') ||
       host.querySelector('a[href$="/cart"], a[href*="/cart?"]');
@@ -954,6 +981,7 @@
       renderConfiguredButton(heart, false);
     }
     refreshHeartStates();
+    void refreshSocialCounts();
 
     if (!form.__wsWishlistBound) {
       form.__wsWishlistBound = true;
@@ -965,6 +993,46 @@
         }, 60);
       });
     }
+  }
+
+  const socialCounts = new Map();
+  let socialCountLoading = false;
+  async function refreshSocialCounts() {
+    if (!savedSettings().socialCount) {
+      document.querySelectorAll('.ws-social-count').forEach((node) => node.remove());
+      return;
+    }
+    if (socialCountLoading) return;
+    socialCountLoading = true;
+    try {
+      const buttons = Array.from(document.querySelectorAll('.ws-card-heart .wishlist-heart'));
+      const products = await Promise.all(buttons.map((button) => ensureIds(button)));
+      const missing = [...new Set(products.filter(Boolean).map((product) => product.productId))]
+        .filter((id) => !socialCounts.has(id));
+      for (let i = 0; i < missing.length; i += 100) {
+        const response = await fetch(`${CFG().proxyBase}/wishlist-counts?ids=${encodeURIComponent(missing.slice(i, i + 100).join(','))}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!data.ok) return;
+        Object.entries(data.counts).forEach(([id, count]) => socialCounts.set(id, count));
+      }
+      if (!savedSettings().socialCount) return;
+      buttons.forEach((button, index) => {
+        const id = products[index]?.productId;
+        const card = button.closest('.card-wrapper, .card');
+        if (!card || !id || !socialCounts.has(id)) return;
+        let count = card.querySelector('.ws-social-count');
+        if (!count) {
+          count = document.createElement('span');
+          count.className = 'ws-social-count';
+          (card.querySelector('.card__information') || card).appendChild(count);
+        }
+        const value = socialCounts.get(id);
+        const label = `${value} wishlist saves`;
+        if (count.textContent !== label) count.textContent = label;
+      });
+    } catch (_) { /* Leave unavailable counts hidden instead of inventing values. */ }
+    finally { socialCountLoading = false; }
   }
 
   /* ---------- Enhance: inject + bind + refresh ---------- */
@@ -979,6 +1047,7 @@
       renderConfiguredButton(btn, btn.getAttribute('aria-pressed') === 'true');
     });
     refreshHeartStates();
+    void refreshSocialCounts();
   }
 
   function scheduleEnhance() {
@@ -998,6 +1067,17 @@
       refreshConfiguredUI();
 
       document.addEventListener('shopify:section:load', scheduleEnhance);
+      let headerFrame = null;
+      const updateHeaderPlacement = () => {
+        if (headerFrame !== null) return;
+        headerFrame = requestAnimationFrame(() => {
+          headerFrame = null;
+          injectHeaderLink();
+          applyLaunchSettings();
+        });
+      };
+      window.addEventListener('scroll', updateHeaderPlacement, { passive: true });
+      window.addEventListener('resize', updateHeaderPlacement);
       const grid =
         document.getElementById('ProductGridContainer') || document.querySelector('main') || document.body;
       if (window.MutationObserver && grid) {

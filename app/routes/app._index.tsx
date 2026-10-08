@@ -191,14 +191,14 @@ export default function Dashboard() {
         "Manage wishlist visibility, colors, notification alignment, drawer direction, and the wishlist page from one app embed.",
       label: "Wishlist",
     },
-    {
-      title: "Back-in-Stock",
-      handle: "back-in-stock-app-embed",
-      url: backInStockEditor,
-      description:
-        "Manage stock alert buttons, icons, colors, and notification text independently from wishlist.",
-      label: "Back-in-Stock",
-    },
+    // {
+    //   title: "Back-in-Stock",
+    //   handle: "back-in-stock-app-embed",
+    //   url: backInStockEditor,
+    //   description:
+    //     "Manage stock alert buttons, icons, colors, and notification text independently from wishlist.",
+    //   label: "Back-in-Stock",
+    // },
     {
       title: "Storefront UI Elements",
       handle: "storefront-ui-app-embed",

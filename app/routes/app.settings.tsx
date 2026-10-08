@@ -809,7 +809,6 @@ import {
   Checkbox,
   RadioButton,
   Select,
-  Popover,
   Badge,
   Link,
   RangeSlider,
@@ -1191,32 +1190,48 @@ function ColorField({
   onChange: (v: string) => void;
   variant?: "dropdown" | "field";
 }) {
-  const [open, setOpen] = useState(false);
-  const picker = (
-    <div style={{ padding: 12, width: 200 }}>
-      <BlockStack gap="200">
-        <input
-          type="color"
-          value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
-          onChange={(e) => onChange(e.target.value)}
-          style={{ width: "100%", height: 80, border: 0, padding: 0, background: "none" }}
-          aria-label={`${label} picker`}
-        />
-        <TextField label="Hex" labelHidden value={value} onChange={onChange} autoComplete="off" />
-      </BlockStack>
-    </div>
-  );
-  const activator = (
-    <button type="button" className={variant === "field" ? "wl-color-field" : "wl-color-btn"} onClick={() => setOpen((o) => !o)}>
-      <span className="wl-swatch" style={{ background: value }} />
-      <span>{value}</span>
-      {variant === "dropdown" && <span className="wl-caret">⌄</span>}
-    </button>
-  );
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const normalize = (color: string) => {
+    const hex = color.trim().replace(/^#/, "");
+    if (/^[0-9a-f]{3}$/i.test(hex)) {
+      return `#${hex.split("").map((digit) => digit + digit).join("")}`;
+    }
+    return /^[0-9a-f]{6}$/i.test(hex) ? `#${hex}` : null;
+  };
+  const update = (color: string) => {
+    setDraft(color);
+    const valid = normalize(color);
+    if (valid) onChange(valid);
+  };
   return (
-    <Popover active={open} onClose={() => setOpen(false)} activator={activator}>
-      {picker}
-    </Popover>
+    <div className={variant === "field" ? "wl-color-field" : "wl-color-btn"}>
+      <input
+        type="color"
+        className="wl-color-picker"
+        value={normalize(value) || "#000000"}
+        onChange={(event) => update(event.target.value)}
+        aria-label={`${label} picker`}
+      />
+      <input
+        type="text"
+        className="wl-color-hex"
+        aria-label={`${label} HEX value`}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          const valid = normalize(draft);
+          if (valid) { onChange(valid); setDraft(valid); }
+          else setDraft(value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
+        }}
+        autoComplete="off"
+        spellCheck={false}
+        maxLength={7}
+      />
+    </div>
   );
 }
 
@@ -2452,6 +2467,10 @@ const CSS = `
 .wl-color-btn{min-width:146px;justify-content:flex-start}
 .wl-color-btn .wl-caret{margin-left:auto}
 .wl-color-field{width:100%}
+.wl-color-picker{width:26px;height:26px;border:0;padding:0;background:transparent;cursor:pointer;flex-shrink:0}
+.wl-color-hex{width:90px;min-width:0;border:0;background:transparent;font:inherit;color:inherit;padding:4px}
+.wl-color-field .wl-color-hex{flex:1}
+.wl-color-hex:focus-visible,.wl-color-picker:focus-visible{outline:2px solid #005bd3;outline-offset:2px}
 .wl-swatch{width:16px;height:16px;border-radius:3px;border:1px solid #ccc}
 .wl-color-btn .wl-swatch{border-radius:50%}
 .wl-icon-options{display:flex;gap:10px;flex-wrap:wrap}
