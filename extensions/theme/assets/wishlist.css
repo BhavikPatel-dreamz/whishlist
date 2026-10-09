@@ -1138,27 +1138,32 @@ a.ws-page-card__image {
 @media (max-width: 500px) { .ws-save-dialog { padding: 28px 16px 16px; } .ws-save-dialog-content { grid-template-columns: 1fr; gap: 12px; } .ws-save-dialog-image { width: 80px; height: 80px; } .ws-save-dialog-actions > button { flex: 1; } }
 
 #ws-share-trigger { display: block; margin: 0 0 16px auto; }
-.ws-share-dialog { box-sizing: border-box; width: min(390px, calc(100vw - 32px)); margin: auto; padding: 18px 16px 14px; border: 1px solid #e5e7eb; border-radius: 14px; background: #ffffff; color: #111827; box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18); font-family: inherit; }
-.ws-share-dialog::backdrop { background: rgba(17, 24, 39, 0.32); }
-.ws-share-dialog #ws-share-title { margin: 0 0 14px; text-align: left; font-size: 17px; line-height: 1.3; font-weight: 700; color: #111827; }
-.ws-share-close { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; background: #f3f4f6; border: 0; border-radius: 8px; font: 22px/1 sans-serif; cursor: pointer; color: #374151; }
-.ws-share-close:hover { background: #e5e7eb; }
-.ws-share-options { display: flex; align-items: stretch; gap: 8px; width: 100%; }
-.ws-share-options[hidden], .ws-share-fallback[hidden] { display: none; }
-.ws-share-dialog .ws-share-action { display: flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; flex: 1 1 0; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: #f9fafb; color: #111827; line-height: 1.2; font-family: inherit; font-size: 12px; font-weight: 600; text-decoration: none; cursor: pointer; transition: all 0.15s ease; }
-.ws-share-dialog .ws-share-action:hover { background: #f3f4f6; border-color: #d1d5db; }
+.ws-share-dialog { box-sizing: border-box; width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; margin: auto; padding: 28px; border: 1px solid #e5e7eb; border-radius: 18px; background: #fff; color: #111827; box-shadow: 0 24px 64px #0f172a33; font-family: inherit; letter-spacing: normal; }
+.ws-share-dialog::backdrop { background: #11182766; }
+.ws-share-dialog #ws-share-title { margin: 0 36px 8px 0; text-align: left; font: inherit; font-size: 20px; line-height: 1.3; font-weight: 650; color: #111827; letter-spacing: normal; }
+.ws-share-dialog #ws-share-description { margin: 0 0 24px; color: #6b7280; font-size: 13px; line-height: 1.6; }
+.ws-share-dialog .ws-share-close-form { margin: 0; padding: 0; }
+.ws-share-dialog .ws-share-close { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 36px; height: 36px; min-width: 0; min-height: 0; padding: 8px; background: #f3f4f6; border: 0; border-radius: 50%; cursor: pointer; color: #4b5563; box-shadow: none; }
+.ws-share-dialog .ws-share-close:hover { background: #e5e7eb; }
+.ws-share-dialog .ws-share-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; }
+.ws-share-dialog .ws-share-options[hidden], .ws-share-dialog .ws-share-fallback[hidden] { display: none; }
+.ws-share-dialog .ws-share-action { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; box-sizing: border-box; width: 100%; min-width: 0; min-height: 88px; margin: 0; padding: 14px 6px; border: 1px solid #e5e7eb; border-radius: 12px; background: #f9fafb; color: #111827; font: inherit; font-size: 12px; font-weight: 600; line-height: 1.4; letter-spacing: normal; text-transform: none; text-decoration: none; cursor: pointer; box-shadow: none; transition: background-color .15s, border-color .15s; }
+.ws-share-dialog .ws-share-action span { white-space: nowrap; }
+.ws-share-dialog .ws-share-action svg, .ws-share-dialog .ws-share-close svg { display: block; flex: none; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ws-share-dialog .ws-share-close svg { width: 18px; height: 18px; }
+.ws-share-dialog .ws-share-action:hover { background: #f0f1f3; border-color: #9ca3af; }
 .ws-share-dialog .ws-share-copy { background: #111827; border-color: #111827; color: #fff; }
-.ws-share-dialog .ws-share-copy:hover { background: #1f2937; }
-.ws-share-dialog .ws-share-facebook { color: #1877f2; }
-.ws-share-dialog .ws-share-x { color: #111827; }
-.ws-share-facebook-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #1877f2; color: #fff; font-size: 11px; font-weight: 700; }
-.ws-share-dialog .ws-share-x span { font-size: 16px; font-weight: 700; }
+.ws-share-dialog .ws-share-copy:hover { background: #253045; border-color: #253045; }
+.ws-share-dialog .ws-share-facebook svg { color: #1877f2; }
 .ws-share-dialog :focus-visible { outline: 2px solid #111827; outline-offset: 3px; }
-.ws-share-url { display: block; width: 100%; box-sizing: border-box; min-height: 42px; margin-top: 8px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; background: #f9fafb; }
-.ws-share-fallback { display: block; margin-top: 12px; font-size: 12px; }
-.ws-share-status { margin: 12px 0 0; min-height: 18px; text-align: center; font-size: 12px; line-height: 1.5; color: #374151; }
-.ws-share-status:empty { display: none; }
-@media (max-width: 360px) { .ws-share-options { gap: 8px; }.ws-share-dialog { padding-inline: 14px; } .ws-share-dialog .ws-share-action { font-size: 11px; letter-spacing: 0; } }
+.ws-share-dialog .ws-share-url { display: block; width: 100%; box-sizing: border-box; min-height: 44px; margin-top: 8px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #f9fafb; color: #111827; font: inherit; }
+.ws-share-dialog .ws-share-fallback { display: block; margin-top: 16px; font-size: 12px; }
+.ws-share-dialog .ws-share-status { margin: 16px 0 0; padding: 10px 12px; border-radius: 8px; background: #f3f4f6; text-align: center; font-size: 13px; line-height: 1.5; color: #374151; }
+.ws-share-dialog .ws-share-status:empty { display: none; }
+@media (max-width: 400px) {
+  .ws-share-dialog { padding: 24px 20px; }
+  .ws-share-dialog .ws-share-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* Configurable wishlist features */
 .ws-feature-notice { position: fixed; z-index: 2147483000; width: min(360px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--ws-border, #ddd); border-radius: 12px; background: var(--ws-bg, white); color: var(--ws-text, #222); box-shadow: 0 8px 32px #0002; }

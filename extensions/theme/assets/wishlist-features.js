@@ -223,10 +223,12 @@
 
   let started = false;
   let nudgeTimer;
+  let productRun = 0;
   const viewed = new Set();
   async function productFeatures() {
-    if (!cfg().uiConfig || window.Shopify?.designMode) return;
+    const run = ++productRun;
     clearTimeout(nudgeTimer);
+    if (!cfg().uiConfig || window.Shopify?.designMode) return;
     const match = location.pathname.match(/\/products\/([^/]+)/);
     if (!match) return;
     const handle = decodeURIComponent(match[1]);
@@ -234,6 +236,7 @@
     if (!c.smartSave && !c.wishlistNudge) return;
     try {
       const data = await request(`wishlist?enrich=0&guest_token=${encodeURIComponent(guest())}`);
+      if (run !== productRun) return;
       cfg().customerLoggedIn = data.loggedIn;
       const alreadySaved = data.items.some((item) => item.handle === handle);
       if (c.wishlistNudge && !alreadySaved && !read(`ws-nudge:${handle}`, false)) {
@@ -245,17 +248,20 @@
           notice('Love this product? Save it to your wishlist and come back to it later.', 'Save to wishlist', () => heart.click());
         }, 12000);
       }
-      if (!c.smartSave || (c.smartSaveLoggedInOnly !== false && !data.loggedIn) || (data.requiresLogin && !data.loggedIn) || viewed.has(handle)) return;
-      viewed.add(handle);
+      if (!c.smartSave || (c.smartSaveLoggedInOnly !== false && !data.loggedIn) || (data.requiresLogin && !data.loggedIn)) return;
       const key = `ws-visits:${data.loggedIn ? cfg().customerId || 'customer' : guest()}:${handle}`;
       const previous = read(key, {});
-      const visits = Math.min(100, (Number(previous.visits) || 0) + 1);
+      // A settings refresh may change the threshold without another page visit.
+      // Re-evaluate eligibility, but only count this page once per shopper.
+      const visits = Math.min(100, (Number(previous.visits) || 0) + (viewed.has(key) ? 0 : 1));
+      viewed.add(key);
       write(key, { ...previous, visits });
       const threshold = Math.min(100, Math.max(1, Number(c.smartSaveVisits) || 5));
       if (alreadySaved || previous.dismissed || visits < threshold) return;
       const response = await fetch(`/products/${encodeURIComponent(handle)}.js`);
       if (!response.ok) return;
       const product = await response.json();
+      if (run !== productRun) return;
       const selectedVariant = new URLSearchParams(location.search).get('variant') || document.querySelector('form[action*="/cart/add"] [name="id"]')?.value;
       const variant = String((product.variants?.find((item) => String(item.id) === selectedVariant) || product.variants?.[0])?.id || '');
       if (!variant) return;
@@ -268,7 +274,10 @@
         await request('wishlist', { _method: 'DELETE', productId: String(product.id), variantId: variant, itemId: result.item.id });
         write(key, { visits, dismissed: true }); changed();
       }, position);
-    } catch { /* Background suggestions must never interrupt shopping. */ }
+    } catch (error) {
+      // Keep shopping usable, but make failed feature requests diagnosable.
+      console.warn('[Wishlist] Product features could not run:', error.message);
+    }
   }
   function saved() {
     if (settings().loginNudge && !cfg().customerLoggedIn && !read('ws-login-nudge', false)) {
@@ -289,11 +298,18 @@
     });
   }
   function boot() {
-    if (started) return;
+    if (started || !cfg().uiConfig) return;
     started = true; productFeatures(); tips();
   }
   document.addEventListener('wishlist:ready', boot);
-  document.addEventListener('wishlist:config-updated', () => { if (started) { productFeatures(); tips(); } });
+  document.addEventListener('wishlist:config-updated', () => {
+    if (started) { productFeatures(); tips(); }
+    else boot();
+  });
+  // Catch up when assets load after the ready event, or config succeeds on retry.
+  document.addEventListener('wishlist:config-ready', boot);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
   document.addEventListener('wishlist:item-added', saved);
   document.addEventListener('wishlist:changed', refreshViews);
   window.__wishlistFeatures = {

@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { MultiWishlistConfirmation } from './MultiWishlistConfirmation';
 import type { WishlistConfig } from '../routes/app.settings';
-import './SmartSaveSettings.css';
 
 type Props = { onMultiWishlistEnabled: () => void; config: WishlistConfig; onChange: <K extends keyof WishlistConfig>(key: K, value: WishlistConfig[K]) => void; onBack: () => void; onSave: () => void; saving: boolean };
 const alertGroups = [

@@ -576,12 +576,26 @@
     window.__wishlistFeatures?.decorate(container);
     container.querySelectorAll('[data-action="remove"]').forEach((btn) => {
       btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
         const card = btn.closest('.ws-page-card');
+        if (!card) return;
+        btn.disabled = true;
         const ok = await removeItem(card.dataset.productId);
         if (ok) {
-          card.style.opacity = '0';
-          card.style.transform = 'scale(0.98)';
-          setTimeout(() => renderPage(), 250);
+          // Removal is product-level, so remove every visible variant as well.
+          // Do not leave an invisible card occupying space while refetching.
+          container.querySelectorAll('.ws-page-card').forEach((item) => {
+            if (item.dataset.productId === card.dataset.productId) item.remove();
+          });
+          const remaining = container.querySelectorAll('.ws-page-card').length;
+          const count = document.getElementById('ws-page-count');
+          const empty = document.getElementById('ws-page-empty');
+          if (count) count.textContent = remaining ? `${remaining} item${remaining === 1 ? '' : 's'}` : '';
+          if (empty) empty.style.display = remaining ? 'none' : '';
+          renderPage();
+        } else {
+          btn.disabled = false;
+          window.__wishlistFeatures?.notice('Could not remove this product. Please try again.');
         }
       });
     });

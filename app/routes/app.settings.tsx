@@ -795,6 +795,7 @@ import { Link as RemixLink, useActionData, useFetcher, useLoaderData, useSearchP
 import { SmartSaveSettings } from "../components/SmartSaveSettings";
 import { ConfigurationFeatures } from "../components/ConfigurationFeatures";
 import featureNavigationStyles from "../components/ConfigurationFeaturesNavigation.css?url";
+import smartSaveStyles from "../components/SmartSaveSettings.css?url";
 import {
   Page,
   Text,
@@ -824,7 +825,10 @@ import db from "../db.server";
 import { upsertUIConfigForShopDomain } from "../models/ui-config.server";
 import { ProxyError } from "../lib/proxy.server";
 
-export const links = () => [{ rel: "stylesheet", href: featureNavigationStyles }];
+export const links = () => [
+  { rel: "stylesheet", href: featureNavigationStyles },
+  { rel: "stylesheet", href: smartSaveStyles },
+];
 
 /* Replace with your real help-centre URLs */
 const TUTORIAL_URL = "https://example.com/docs/advanced-button";

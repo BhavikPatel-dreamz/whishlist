@@ -49,7 +49,19 @@
           dialog = document.createElement('dialog');
           dialog.className = 'ws-share-dialog';
           dialog.setAttribute('aria-labelledby', 'ws-share-title');
-          dialog.innerHTML = '<form method="dialog"><button class="ws-share-close" aria-label="Close share dialog">×</button></form><h2 id="ws-share-title">Share via</h2><div class="ws-share-options" hidden><button type="button" class="ws-share-action ws-share-copy">Copy Link</button><a class="ws-share-action ws-share-email">Email</a><a class="ws-share-action ws-share-facebook" target="_blank" rel="noopener noreferrer"><span class="ws-share-facebook-icon" aria-hidden="true">f</span>Facebook</a><a class="ws-share-action ws-share-x" aria-label="Share on X" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">𝕏</span></a></div><p role="status" class="ws-share-status"></p><label class="ws-share-fallback" hidden>Share link<input class="ws-share-url" readonly></label>';
+          dialog.setAttribute('aria-describedby', 'ws-share-description');
+          dialog.innerHTML = `
+            <form method="dialog" class="ws-share-close-form"><button class="ws-share-close" aria-label="Close share dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></form>
+            <h2 id="ws-share-title">Share your wishlist</h2>
+            <p id="ws-share-description">Send your favorites to friends and family.</p>
+            <div class="ws-share-options" hidden>
+              <button type="button" class="ws-share-action ws-share-copy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg><span>Copy link</span></button>
+              <a class="ws-share-action ws-share-email"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/></svg><span>Email</span></a>
+              <a class="ws-share-action ws-share-facebook" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 21v-8h3l.5-4H14V7c0-1 .5-2 2-2h2V1h-3c-4 0-6 2-6 6v2H6v4h3v8"/></svg><span>Facebook</span></a>
+              <a class="ws-share-action ws-share-x" aria-label="Share on X" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 3 16 18h-5L4 3h5l11 18M20 3 4 21"/></svg><span>X</span></a>
+            </div>
+            <p role="status" class="ws-share-status"></p>
+            <label class="ws-share-fallback" hidden>Share link<input class="ws-share-url" readonly /></label>`;
           document.body.appendChild(dialog);
           dialog.addEventListener('close', () => activeTrigger?.focus());
           ['facebook', 'x', 'email'].forEach((mode) => {
