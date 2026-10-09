@@ -66,6 +66,7 @@ model Shop {
   alertsPerVariantCap   Int     @default(0) // 0 = unlimited
 
   wishlistShares  WishlistShare[]
+  wishlistLists   WishlistList[]
   wishlists       WishlistItem[]
   wishlistMetrics WishlistMetric[]
   wishlistCartDays WishlistCartDay[]
@@ -85,6 +86,7 @@ model WishlistItem {
   guestToken String? // uuid persisted in localStorage for non-logged-in visitors
   productId  String // numeric product id
   variantId  String? // numeric variant id
+  listName   String   @default("My Wishlist")
   handle     String? // cached product handle for fast storefront links
   createdAt  DateTime @default(now())
 
@@ -216,4 +218,15 @@ model WishlistShare {
   products Json
   createdAt DateTime @default(now())
   @@index([shopId, createdAt])
+}
+
+/// Named lists are scoped to an authenticated customer or an opaque guest token.
+model WishlistList {
+  id String @id @default(uuid())
+  shopId String
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  owner String
+  name String
+  createdAt DateTime @default(now())
+  @@unique([shopId, owner, name])
 }

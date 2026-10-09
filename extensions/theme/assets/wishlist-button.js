@@ -76,6 +76,7 @@
 
   /* ---------- Guest token ---------- */
   function getGuestToken() {
+    if (window.__wishlistFeatures) return window.__wishlistFeatures.guest();
     let t = localStorage.getItem('wishlist_guest_token');
     if (!t) {
       t = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
@@ -238,6 +239,7 @@
     if (!ids || !ids.productId) return null;
 
     const payload = { productId: ids.productId, guestToken: getGuestToken() };
+    if (add && btn.dataset.wishlistList) payload.listName = btn.dataset.wishlistList;
     if (add) {
       payload.variantId = btn.dataset.variantId || ids.variantId || null;
       payload.handle = btn.dataset.productHandle || null;
@@ -273,10 +275,9 @@
           heartFetch = null;
           setHeartState(btn, !!data.inWishlist);
           showToast(data.inWishlist ? 'Added to wishlist' : 'Removed from wishlist');
+          document.dispatchEvent(new CustomEvent('wishlist:changed'));
+          if (data.inWishlist) document.dispatchEvent(new CustomEvent('wishlist:item-added'));
           if (data.count !== undefined) setCount(data.count);
-          if (window.__wishlistStock && window.__wishlistStock.renderDrawer) {
-            window.__wishlistStock.renderDrawer();
-          }
         } else {
           if (data && data.code === 'login_required') {
             wsRequiresLogin = true;
@@ -321,6 +322,16 @@
         btn.__wsSelecting = false;
         btn.removeAttribute('aria-busy');
       }
+    }
+    if (next && window.__wishlistFeatures) {
+      btn.__wsSelecting = true;
+      try {
+        const list = await window.__wishlistFeatures.chooseList();
+        if (list === null) return;
+        btn.dataset.wishlistList = list;
+      } catch (error) {
+        window.__wishlistFeatures.notice(error.message); return;
+      } finally { btn.__wsSelecting = false; }
     }
     setHeartState(btn, next);
     setCount(getCount() + (next ? 1 : -1));
@@ -1062,6 +1073,7 @@
       renderConfiguredButton(btn, btn.getAttribute('aria-pressed') === 'true');
     });
     refreshHeartStates();
+    window.__wishlistFeatures?.tips();
   }
 
   function scheduleEnhance() {
@@ -1103,5 +1115,7 @@
     else start();
   }
 
+  document.addEventListener('wishlist:changed', () => { heartFetch = null; refreshHeartStates(); });
+  document.addEventListener('wishlist:item-removed', () => { heartFetch = null; refreshHeartStates(); });
   boot();
 })();

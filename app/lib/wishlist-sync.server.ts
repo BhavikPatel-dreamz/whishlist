@@ -13,6 +13,7 @@ export interface WishlistMetafield {
   variantId: string | null;
   handle: string | null;
   addedAt: string;
+  listName?: string;
 }
 
 /**
@@ -27,6 +28,7 @@ export async function syncWishlistToMetafield(
     variantId: string | null;
     handle: string | null;
     createdAt: Date;
+    listName?: string;
   }>,
 ): Promise<boolean> {
   try {
@@ -34,6 +36,7 @@ export async function syncWishlistToMetafield(
       productId: item.productId,
       variantId: item.variantId,
       handle: item.handle,
+      listName: item.listName || "My Wishlist",
       addedAt: item.createdAt.toISOString(),
     }));
 

@@ -1152,3 +1152,112 @@ a.ws-page-card__image {
 .ws-share-status { margin: 12px 0 0; text-align: center; font-size: 13px; line-height: 1.5; }
 .ws-share-status:empty { display: none; }
 @media (max-width: 360px) { .ws-share-options { gap: 8px; }.ws-share-dialog { padding-inline: 14px; } .ws-share-dialog .ws-share-action { font-size: 11px; letter-spacing: 0; } }
+
+/* Configurable wishlist features */
+.ws-feature-notice { position: fixed; z-index: 2147483000; width: min(360px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--ws-border, #ddd); border-radius: 12px; background: var(--ws-bg, white); color: var(--ws-text, #222); box-shadow: 0 8px 32px #0002; }
+.ws-feature-notice[data-position^="top"] { top: 24px; }
+.ws-feature-notice[data-position^="bottom"] { bottom: 24px; }
+.ws-feature-notice[data-position$="left"] { left: 16px; }
+.ws-feature-notice[data-position$="right"] { right: 16px; }
+.ws-feature-notice p { margin: 0 0 12px; }
+.ws-feature-notice button + button, .ws-feature-dialog button + button { margin-left: 8px; }
+.ws-feature-dialog { width: min(420px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; padding: 24px; border: 1px solid #ddd; border-radius: 12px; background: var(--ws-bg, white); color: var(--ws-text, #222); }
+.ws-feature-dialog::backdrop { background: #0005; }
+.ws-feature-dialog label { display: block; margin: 16px 0; }
+.ws-feature-dialog input, .ws-feature-dialog select { display: block; width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #aaa; border-radius: 6px; font: inherit; }
+.ws-list-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 16px 0; }
+.ws-list-toolbar select { padding: 8px; max-width: 220px; font: inherit; }
+.ws-item__actions, .ws-page-card__actions { flex-wrap: wrap; gap: 8px; }
+
+/* Wishlist collection layout */
+#ws-wishlist-page { padding-top: 16px; }
+#ws-wishlist-page .ws-page__tabs { justify-content: flex-start; gap: 28px; margin-bottom: 24px; }
+#ws-wishlist-page .ws-page__tab { font: inherit; font-weight: 600; padding: 14px 0; }
+.ws-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px; margin: 0 0 28px; background: #f8f9fb; border: 1px solid var(--ws-border, #e5e7eb); border-radius: 14px; }
+.ws-list-toolbar__selector { min-width: 0; flex: 1 1 240px; max-width: 340px; }
+.ws-list-toolbar__selector label { display: grid; gap: 8px; margin: 0; }
+.ws-list-toolbar__selector label > span { font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--ws-text-muted, #64748b); }
+.ws-list-toolbar__selector select { width: 100%; max-width: none; min-height: 44px; box-sizing: border-box; margin: 0; padding: 10px 38px 10px 14px; appearance: none; border: 1px solid #d8dde5; border-radius: 8px; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23475569' stroke-width='1.6'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E") no-repeat right 12px center; color: var(--ws-text, #1a1a1a); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-overflow: ellipsis; }
+.ws-list-toolbar__actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding-top: 24px; }
+.ws-list-toolbar__actions .ws-btn { min-height: 42px; margin: 0; padding: 10px 14px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; line-height: 1.3; white-space: nowrap; }
+.ws-list-toolbar__actions .ws-list-action { background: transparent; border-color: transparent; }
+.ws-list-toolbar__actions .ws-list-action:hover { background: #eaeef3; border-color: transparent; }
+.ws-list-toolbar__actions .ws-list-action--danger { color: #b42318; }
+.ws-list-toolbar__actions .ws-list-action--danger:hover { background: #fff0ee; }
+.ws-list-toolbar select:focus-visible, .ws-list-toolbar button:focus-visible, .ws-feature-dialog button:focus-visible, .ws-feature-dialog input:focus-visible, .ws-feature-dialog select:focus-visible { outline: 2px solid var(--ws-primary, #222); outline-offset: 3px; }
+#ws-wishlist-page .ws-page__section-head { margin-bottom: 18px; align-items: center; }
+#ws-wishlist-page .ws-page__section-head h2 { font-size: 20px; font-weight: 650; overflow-wrap: anywhere; }
+#ws-wishlist-page #ws-page-count { flex-shrink: 0; padding: 5px 10px; border-radius: 20px; background: #f3f4f6; font-size: 12px; font-weight: 500; color: var(--ws-text-muted, #64748b); }
+#ws-wishlist-page #ws-page-count:empty { display: none; }
+#ws-wishlist-page .ws-page-card--row { animation: none; gap: 22px; padding: 20px; border-radius: 12px; box-shadow: 0 2px 5px #00000003; }
+#ws-wishlist-page .ws-page-card--row:hover { border-color: #cbd2dc; box-shadow: 0 4px 16px #00000008; }
+#ws-wishlist-page .ws-page-card__body { padding: 2px 34px 2px 0; }
+#ws-wishlist-page .ws-page-card__title { font-size: 15px; line-height: 1.5; font-weight: 600; }
+#ws-wishlist-page .ws-page-card__variant { margin-top: 4px; }
+#ws-wishlist-page .ws-page-card__price { margin-top: 10px; }
+#ws-wishlist-page .ws-page-card__image { background: #f8f9fb; }
+#ws-wishlist-page .ws-page-card__image img { object-fit: contain; }
+#ws-wishlist-page .ws-page-card__actions { padding-top: 14px; }
+#ws-wishlist-page .ws-page-card__remove { top: 16px; right: 16px; width: 32px; height: 32px; box-shadow: none; }
+.ws-feature-dialog { box-sizing: border-box; width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); margin: auto; padding: 26px; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 24px 80px #0003; font-family: inherit; font-size: 14px; line-height: 1.5; }
+.ws-feature-dialog::backdrop { background: #11182766; }
+.ws-feature-dialog h2 { margin: 0 0 12px; font: inherit; font-size: 21px; font-weight: 650; letter-spacing: -.02em; }
+.ws-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ws-dialog-heading h2 { margin: 0; }
+.ws-feature-dialog .ws-dialog-close { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: #f3f4f6; color: #475569; font-size: 24px; cursor: pointer; }
+.ws-feature-dialog .ws-dialog-description { color: #64748b; margin: 12px 0 20px; }
+.ws-feature-dialog label { font-size: 13px; font-weight: 600; }
+.ws-feature-dialog input, .ws-feature-dialog select { box-sizing: border-box; min-height: 44px; border-color: #cbd2dc; border-radius: 8px; color: var(--ws-text, #222); background-color: #fff; }
+.ws-dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding-top: 20px; margin-top: 20px; border-top: 1px solid #e5e7eb; }
+.ws-feature-dialog .ws-dialog-actions button { min-height: 42px; margin: 0; border-radius: 8px; padding: 10px 16px; }
+.ws-feature-dialog .ws-btn--danger { background: #b42318; border-color: #b42318; color: white; }
+.ws-feature-dialog .ws-dialog-error { color: #b42318; font-size: 13px; margin: 12px 0 0; }
+.ws-feature-dialog .ws-dialog-error:empty { display: none; }
+#ws-drawer-body .ws-list-toolbar { padding: 14px; gap: 12px; margin-bottom: 16px; }
+#ws-drawer-body .ws-list-toolbar__selector { max-width: none; flex-basis: 100%; }
+#ws-drawer-body .ws-list-toolbar__actions { padding-top: 0; justify-content: flex-start; }
+@media (max-width: 760px) {
+  .ws-list-toolbar { align-items: stretch; gap: 14px; padding: 16px; }
+  .ws-list-toolbar__selector { flex-basis: 100%; max-width: none; }
+  .ws-list-toolbar__actions { width: 100%; justify-content: flex-start; padding-top: 0; }
+  .ws-list-toolbar__actions .ws-btn--primary { margin-left: auto; }
+  #ws-wishlist-page .ws-page-card--row { flex-direction: row; align-items: flex-start; gap: 14px; padding: 16px; }
+  #ws-wishlist-page .ws-page-card__image { width: 96px; min-width: 96px; height: 112px; }
+  #ws-wishlist-page .ws-page-card__body { padding-right: 36px; }
+}
+@media (max-width: 480px) {
+  #ws-wishlist-page { padding-left: 12px; padding-right: 12px; padding-bottom: 36px; }
+  #ws-wishlist-page .ws-page__tabs { gap: 24px; }
+  .ws-list-toolbar__actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .ws-list-toolbar__actions .ws-btn { width: 100%; box-sizing: border-box; }
+  .ws-list-toolbar__actions .ws-btn--primary { margin-left: 0; }
+  #ws-wishlist-page .ws-page-card__image { width: 76px; min-width: 76px; height: 100px; }
+  #ws-wishlist-page .ws-page-card__title { font-size: 14px; }
+  #ws-wishlist-page .ws-page-card__actions { flex-direction: column; align-items: stretch; }
+  #ws-wishlist-page .ws-page-card__actions .ws-btn { padding: 9px 12px; min-height: 40px; text-align: center; width: 100%; box-sizing: border-box; }
+  .ws-feature-dialog { padding: 20px; }
+}
+
+
+/* Reveal the first wishlist view only after controls and products are ready. */
+#ws-wishlist-page:not([data-ws-page-ready]) [data-panel="wishlist"] > :not(.ws-page-initial-loading) { display: none !important; }
+.ws-page-initial-loading { min-height: 350px; }
+.ws-page-skeleton-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px 20px; min-height: 108px; box-sizing: border-box; border: 1px solid var(--ws-border, #e5e7eb); border-radius: 14px; background: #f8f9fb; margin-bottom: 28px; }
+.ws-page-skeleton-toolbar span { display: block; height: 44px; width: 32%; border-radius: 8px; background: #e9edf2; }
+.ws-page-skeleton-heading { height: 24px; width: 160px; background: #e9edf2; border-radius: 6px; margin-bottom: 18px; }
+.ws-page-skeleton-card { display: flex; gap: 22px; border: 1px solid var(--ws-border, #e5e7eb); padding: 20px; border-radius: 12px; }
+.ws-page-skeleton-card > span { flex: 0 0 132px; height: 132px; border-radius: 10px; background: #f1f3f6; }
+.ws-page-skeleton-card > div { flex: 1; padding-top: 8px; }
+.ws-page-skeleton-card i { display: block; height: 16px; width: 70%; border-radius: 5px; background: #f1f3f6; margin-bottom: 18px; }
+.ws-page-skeleton-card i:nth-child(2) { width: 30%; }
+.ws-page-skeleton-card i:nth-child(3) { width: 45%; height: 32px; margin-top: 24px; }
+@media(max-width:760px) {
+  .ws-page-skeleton-toolbar { flex-direction: column; align-items: stretch; padding: 16px; gap: 14px; }
+  .ws-page-skeleton-toolbar span { width: 100%; }
+  .ws-page-skeleton-card { gap: 14px; padding: 16px; }
+  .ws-page-skeleton-card > span { flex-basis: 96px; height: 112px; }
+}
+@media(max-width:480px) {
+  .ws-page-skeleton-toolbar { min-height: 206px; }
+  .ws-page-skeleton-card > span { flex-basis: 76px; height: 100px; }
+}

@@ -1,3 +1,4 @@
+import { enforceWishlistMode } from "../lib/wishlist-mode.server";
 import type { Prisma } from "@prisma/client";
 import prisma from "app/db.server";
 import {
@@ -52,66 +53,75 @@ export async function getUIConfigByShopDomain(
 export async function upsertUIConfigForShopDomain(
   shopDomain: string,
   data: {
+    confirmation?: string;
     extensionActive?: ExtensionActive;
-    productCardConfig?: Partial<ProductCardConfig>;
+    productCardConfig?: Partial<ProductCardConfig> | Record<string, unknown>;
     themeSettings?: Partial<ThemeSettings>;
   },
 ): Promise<UIConfigView> {
   const shop = await prisma.shop.findUnique({ where: { shop: shopDomain } });
   if (!shop) throw new Error("Shop not found");
 
-  const existing = await prisma.uIConfig.findUnique({
-    where: { shopId: shop.id },
-  });
-  const currentExtensionActive = isExtensionActive(existing?.extensionActive)
-    ? (existing.extensionActive as ExtensionActive)
-    : "none";
-  const currentConfig = effectiveProductCardConfig(existing?.productCardConfig);
-  const currentTheme = effectiveThemeSettings(existing?.themeSettings);
+  return prisma.$transaction(async (tx) => {
+    // Serialize settings writes so a stale save cannot undo activation.
+    await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtext(${shop.id}))`;
+    const existing = await tx.uIConfig.findUnique({
+      where: { shopId: shop.id },
+    });
+    const currentExtensionActive = isExtensionActive(existing?.extensionActive)
+      ? (existing.extensionActive as ExtensionActive)
+      : "none";
+    const currentConfig = effectiveProductCardConfig(existing?.productCardConfig);
+    const currentTheme = effectiveThemeSettings(existing?.themeSettings);
 
-  const extensionActive = isExtensionActive(data.extensionActive)
-    ? (data.extensionActive as ExtensionActive)
-    : currentExtensionActive;
+    const extensionActive = isExtensionActive(data.extensionActive)
+      ? (data.extensionActive as ExtensionActive)
+      : currentExtensionActive;
 
-  const productCardConfig: ProductCardConfig =
-    data.productCardConfig === undefined
-      ? currentConfig
-      : { ...currentConfig, ...data.productCardConfig };
+    const storedConfig = existing?.productCardConfig && typeof existing.productCardConfig === "object" && !Array.isArray(existing.productCardConfig)
+      ? existing.productCardConfig as Record<string, unknown> : {};
+    // Preserve raw appearance preferences when only activating the wishlist mode.
+    const productCardConfig: Record<string, unknown> = { ...storedConfig, ...data.productCardConfig };
 
-  const themeSettings: ThemeSettings =
-    data.themeSettings === undefined
-      ? currentTheme
-      : { ...currentTheme, ...data.themeSettings };
+    productCardConfig.wishlistMode = enforceWishlistMode(
+      currentConfig.wishlistMode, data.productCardConfig?.wishlistMode, data.confirmation,
+    );
 
-  const upsertData: Prisma.UIConfigUpsertArgs = {
-    where: { shopId: shop.id },
-    create: {
-      shopId: shop.id,
-      extensionActive,
-      productCardConfig: productCardConfig as Prisma.InputJsonValue,
-      themeSettings: themeSettings as Prisma.InputJsonValue,
-    },
-    update: {
-      extensionActive,
-      productCardConfig: productCardConfig as Prisma.InputJsonValue,
-      themeSettings: themeSettings as Prisma.InputJsonValue,
-    },
-  } as any;
+    const themeSettings: ThemeSettings =
+      data.themeSettings === undefined
+        ? currentTheme
+        : { ...currentTheme, ...data.themeSettings };
 
-  const result = await prisma.uIConfig.upsert(upsertData as any);
-  const resultTheme = resolveWishlistTheme(
-    result.productCardConfig,
-    result.themeSettings,
-  );
-  const resultConfig = effectiveProductCardConfig(result.productCardConfig);
-  if (resultTheme) resultConfig.theme = resultTheme;
-  return {
-    extensionActive: isExtensionActive(result.extensionActive)
-      ? (result.extensionActive as ExtensionActive)
-      : "none",
-    productCardConfig: resultConfig,
-    themeSettings: resultTheme,
-  };
+    const upsertData: Prisma.UIConfigUpsertArgs = {
+      where: { shopId: shop.id },
+      create: {
+        shopId: shop.id,
+        extensionActive,
+        productCardConfig: productCardConfig as Prisma.InputJsonValue,
+        themeSettings: themeSettings as Prisma.InputJsonValue,
+      },
+      update: {
+        extensionActive,
+        productCardConfig: productCardConfig as Prisma.InputJsonValue,
+        themeSettings: themeSettings as Prisma.InputJsonValue,
+      },
+    } as any;
+
+    const result = await tx.uIConfig.upsert(upsertData as any);
+    const resultTheme = resolveWishlistTheme(
+      result.productCardConfig,
+      result.themeSettings,
+    );
+    const resultConfig = effectiveProductCardConfig(result.productCardConfig);
+    if (resultTheme) resultConfig.theme = resultTheme;
+    return {
+      extensionActive: isExtensionActive(result.extensionActive)
+        ? (result.extensionActive as ExtensionActive)
+        : "none",
+      productCardConfig: resultConfig,
+      themeSettings: resultTheme,
+    };
+  }, { timeout: 15000 });
 }
 
 export function effectiveThemeSettings(stored: unknown): ThemeSettings {

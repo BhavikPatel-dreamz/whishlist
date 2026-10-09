@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
+import { authenticate } from "../shopify.server";
 import { authenticateProxyRequest } from "../lib/proxy-auth.server";
-import { json, readBody } from "../lib/proxy.server";
+import { json, readBody, errorResponse } from "../lib/proxy.server";
 import {
   getUIConfigByShopDomain,
   upsertUIConfigForShopDomain,
@@ -27,7 +28,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const ctx = await authenticateProxyRequest(request);
+  const { session } = await authenticate.admin(request);
   const body = await readBody(request);
   const payload = typeof body === "string" ? JSON.parse(body) : body;
   if (!payload || typeof payload !== "object") {
@@ -48,10 +49,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ? payload.themeSettings
       : undefined;
 
-  const config = await upsertUIConfigForShopDomain(ctx.shop.shop, {
-    extensionActive,
-    productCardConfig,
-    themeSettings,
-  });
-  return json({ ok: true, config });
+  try {
+    const config = await upsertUIConfigForShopDomain(session.shop, {
+      extensionActive,
+      productCardConfig,
+      themeSettings,
+    });
+    return json({ ok: true, config });
+  } catch (error) { return errorResponse(error); }
 };

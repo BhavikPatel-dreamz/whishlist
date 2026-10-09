@@ -1,17 +1,20 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { authenticateProxyRequest } from "../lib/proxy-auth.server";
-import { errorResponse, clientIp } from "../lib/proxy.server";
+import { errorResponse, clientIp, ProxyError } from "../lib/proxy.server";
 import { readShareToken } from "../lib/wishlist-share.server";
 import { rateLimit } from "../lib/rate-limit.server";
 import db from "../db.server";
+import { identityWhere } from "../models/wishlist.server";
+import { wishlistFeatures } from "../models/wishlist-lists.server";
 import { getProductsByIds, formatMoney } from "../lib/shopify-data.server";
 const escape = (value: string) => value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 export async function loader({ request, params }: LoaderFunctionArgs) {
   try {
     const ctx = await authenticateProxyRequest(request);
     await rateLimit({ key: `wishlist-share-read:${ctx.shop.id}:${clientIp(request)}`, limit: 60, windowSeconds: 60, shopId: ctx.shop.id });
-    const customerId = readShareToken(params.token || "", ctx.shop.id);
-    const items = await db.wishlistItem.findMany({ where: { shopId: ctx.shop.id, customerId }, select: { productId: true, variantId: true }, take: 250, orderBy: { createdAt: "desc" } });
+    if ((await wishlistFeatures(ctx.shop.id)).allowShare === false) throw new ProxyError(403, "Wishlist sharing is disabled.", "sharing_disabled");
+    const shared = readShareToken(params.token || "", ctx.shop.id);
+    const items = await db.wishlistItem.findMany({ where: { ...identityWhere(ctx.shop.id, shared), ...(shared.listName ? { listName: shared.listName } : {}) }, select: { productId: true, variantId: true }, take: 250, orderBy: { createdAt: "desc" } });
     const products = await getProductsByIds(await ctx.admin(), [...new Set(items.map((item) => item.productId))]);
     const cards = items.map((item) => {
       const product = products.get(item.productId);

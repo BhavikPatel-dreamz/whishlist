@@ -44,6 +44,7 @@ export type ThemeSettings = {
 };
 
 export type ProductCardConfig = {
+  wishlistMode?: "single" | "multi";
   displayTitle?: boolean;
   displayPrice?: boolean;
   displaySKU?: boolean;

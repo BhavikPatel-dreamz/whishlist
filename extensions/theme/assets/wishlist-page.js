@@ -51,10 +51,11 @@
 
   /* Card display options, merged over defaults. Applied to the wishlist page. */
   function applyPageSettings() {
-    if (CFG().customerLoggedIn) {
-      document.querySelectorAll('.ws-page__notice, #ws-drawer-footer').forEach((notice) => notice.remove());
-    }
     const c = uiConfig?.productCardConfig || {};
+    document.querySelectorAll('.ws-page__notice, #ws-drawer-footer').forEach((notice) => {
+      notice.hidden = Boolean(CFG().customerLoggedIn) || c.loginNudge !== true;
+      notice.style.display = notice.hidden ? 'none' : '';
+    });
     if (c.pageTitle) {
       document.querySelectorAll('.ws-drawer__title, .ws-page__section-head h2').forEach((heading) => {
         const text = Array.from(heading.childNodes).find((node) => node.nodeType === 3);
@@ -111,6 +112,7 @@
 
   /* ---------- Guest token ---------- */
   function getGuestToken() {
+    if (window.__wishlistFeatures) return window.__wishlistFeatures.guest();
     let t = localStorage.getItem('wishlist_guest_token');
     if (!t) {
       t = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
@@ -218,6 +220,7 @@
           _method: 'DELETE',
           productId,
           guestToken: getGuestToken(),
+          listName: window.__wishlistFeatures?.selectedList() || undefined,
         }),
       });
       const data = await resp.json();
@@ -387,24 +390,26 @@
 
   /* ---------- Render Drawer ---------- */
   async function renderDrawer() {
-    const items = await fetchWishlist({ enriched: true });
+    const allItems = await fetchWishlist({ enriched: true });
     const body = document.getElementById('ws-drawer-items');
     const empty = document.getElementById('ws-drawer-empty');
     const count = document.getElementById('ws-drawer-count');
     if (!body) return;
+    await window.__wishlistFeatures?.toolbar(document.getElementById('ws-drawer-body'));
+    const items = window.__wishlistFeatures?.filter(allItems) || allItems;
 
     if (items.length === 0) {
       body.innerHTML = '';
       if (empty) empty.style.display = '';
       if (count) count.textContent = '';
-      setHeaderCount(0);
+      setHeaderCount(allItems.length);
       return;
     }
 
     if (empty) empty.style.display = 'none';
     body.innerHTML = items.map(drawerItemHTML).join('');
     if (count) count.textContent = `(${items.length})`;
-    setHeaderCount(items.length);
+    setHeaderCount(allItems.length);
 
     bindDrawerActions(body, items);
 
@@ -429,6 +434,7 @@
   }
 
   function bindDrawerActions(container, items) {
+    window.__wishlistFeatures?.decorate(container);
     container.querySelectorAll('[data-action="remove"]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const card = btn.closest('.ws-item');
@@ -506,58 +512,47 @@
     }).catch(() => { /* Analytics must not interrupt the wishlist. */ });
   }
 
+  let pageRenderVersion = 0;
+
   async function renderPage() {
+    const page = document.getElementById('ws-wishlist-page');
     const grid = document.getElementById('ws-page-grid');
     const empty = document.getElementById('ws-page-empty');
     const count = document.getElementById('ws-page-count');
-    if (!grid) return;
+    if (!page || !grid) return;
+    const version = ++pageRenderVersion;
     trackPageView();
-
-    if (empty) empty.style.display = 'none';
-    grid.innerHTML =
-      '<div class="ws-page__loading" role="status" aria-live="polite">' +
-      '<span class="ws-spinner ws-spinner--lg" aria-hidden="true"></span>' +
-      '<span class="ws-page__loading-text">Loading your wishlist…</span>' +
-      '</div>';
-
-    const items = await fetchWishlist({ enriched: true });
-
-    if (items.length === 0) {
-      grid.innerHTML = '';
-      if (empty) empty.style.display = '';
-      if (count) count.textContent = '';
-      setHeaderCount(0);
-      return;
-    }
-
-    if (empty) empty.style.display = 'none';
-    grid.innerHTML = items.map(pageCardHTML).join('');
-    if (count) count.textContent = `${items.length} item${items.length === 1 ? '' : 's'}`;
-    setHeaderCount(items.length);
-
-    bindPageActions(grid, items);
-
-    const enriched = await enrichItems(items);
-    if (enriched.length !== items.length) {
-      grid.innerHTML = enriched.map(pageCardHTML).join('');
-      bindPageActions(grid, enriched);
-    } else {
-      for (let i = 0; i < enriched.length; i += 1) {
-        const card = grid.querySelectorAll('.ws-page-card')[i];
-        if (!card || !enriched[i]) continue;
-
-        const nextHtml = pageCardHTML(enriched[i], i);
-        const wrapper = document.createElement('div');
-        wrapper.innerHTML = nextHtml;
-        const replacement = wrapper.firstElementChild;
-        if (replacement) card.replaceWith(replacement);
+    try {
+      // Prepare controls and products together; reveal the complete layout once.
+      const [allItems] = await Promise.all([
+        fetchWishlist({ enriched: true }),
+        window.__wishlistFeatures?.toolbar(page),
+      ]);
+      if (version !== pageRenderVersion) return;
+      const items = await enrichItems(window.__wishlistFeatures?.filter(allItems) || allItems);
+      if (version !== pageRenderVersion) return;
+      grid.innerHTML = items.map(pageCardHTML).join('');
+      if (empty) empty.style.display = items.length ? 'none' : '';
+      if (count) count.textContent = items.length ? `${items.length} item${items.length === 1 ? '' : 's'}` : '';
+      setHeaderCount(allItems.length);
+      bindPageActions(grid, items);
+    } catch {
+      if (version !== pageRenderVersion) return;
+      if (empty) empty.style.display = 'none';
+      grid.innerHTML = '<p role="alert">Your wishlist could not be loaded. Please try again.</p>';
+      const retry = document.createElement('button');
+      retry.type = 'button'; retry.className = 'ws-btn'; retry.textContent = 'Try again';
+      retry.addEventListener('click', renderPage); grid.append(retry);
+    } finally {
+      if (version === pageRenderVersion) {
+        page.setAttribute('data-ws-page-ready', 'true');
+        page.setAttribute('aria-busy', 'false');
       }
-      // Replacing cards removes the listeners bound to their old elements.
-      bindPageActions(grid, enriched);
     }
   }
 
   function bindPageActions(container, items) {
+    window.__wishlistFeatures?.decorate(container);
     container.querySelectorAll('[data-action="remove"]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const card = btn.closest('.ws-page-card');
@@ -832,6 +827,7 @@
     ensureSavedLaterPanel();
     applyPageSettings();
     autoMountDrawerFooter();
+    applyPageSettings();
     if (document.getElementById('ws-wishlist-page')) {
       renderPage();
     }

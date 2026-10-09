@@ -244,7 +244,7 @@
 //     {
 //       id: "smart-save",
 //       title: "Smart save",
-//       description: "Auto-wishlist products visited thrice or more by the shopper",
+//       description: `Auto-wishlist products after ${saved.smartSaveVisits} visits by the shopper`,
 //       enabled: true,
 //       variant: "smart",
 //     },
@@ -821,6 +821,8 @@ import { authenticate } from "../shopify.server";
 import { requireShop } from "../lib/shop.server";
 import { encryptSecret, decryptSecret, maskSecret } from "../lib/crypto.server";
 import db from "../db.server";
+import { upsertUIConfigForShopDomain } from "../models/ui-config.server";
+import { ProxyError } from "../lib/proxy.server";
 
 export const links = () => [{ rel: "stylesheet", href: featureNavigationStyles }];
 
@@ -847,6 +849,7 @@ export type WishlistConfig = {
   activeMode: "basic" | "advanced";
   labelBefore: string;
   labelAfter: string;
+  wishlistMode: "single" | "multi";
   smartSave: boolean;
   smartSaveVisits: number;
   smartSavePosition: "top-left" | "top-right" | "bottom-left" | "bottom-right";
@@ -981,6 +984,7 @@ const DEFAULT_CONFIG: WishlistConfig = {
   activeMode: "advanced",
   labelBefore: "Add To Wishlist",
   labelAfter: "Added To Wishlist",
+  wishlistMode: "single",
   smartSave: true,
   smartSaveVisits: 5,
   smartSavePosition: "top-left",
@@ -1064,27 +1068,42 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = await requireShop(session.shop);
   const formData = await request.formData();
 
+  if (formData.get("intent") === "enableMultiWishlist") {
+    try {
+      await upsertUIConfigForShopDomain(session.shop, {
+        productCardConfig: { wishlistMode: "multi" },
+        confirmation: String(formData.get("confirmation") || ""),
+      });
+      return { saved: true, kind: "multiWishlist" as const, error: null };
+    } catch (error) {
+      return { saved: false, kind: "multiWishlist" as const, error: error instanceof ProxyError ? error.message : "Could not enable Multi-Wishlist. Please try again." };
+    }
+  }
+
   if (formData.get("intent") === "saveWishlistConfig") {
     let config: unknown;
     try {
       config = JSON.parse(String(formData.get("config") || "{}"));
+      if (!config || typeof config !== "object" || Array.isArray(config)) throw new Error("Invalid settings");
+      const values = config as Record<string, unknown>;
+      if (values.wishlistMode != null && !["single", "multi"].includes(String(values.wishlistMode))) throw new Error("Invalid wishlist mode");
+      if (values.smartSaveVisits != null && (!Number.isInteger(values.smartSaveVisits) || Number(values.smartSaveVisits) < 1 || Number(values.smartSaveVisits) > 100)) throw new Error("Invalid visit threshold");
+      if (values.smartSavePosition != null && !["top-left", "top-right", "bottom-left", "bottom-right"].includes(String(values.smartSavePosition))) throw new Error("Invalid notification position");
+      for (const key of ["allowShare", "smartSave", "smartSaveLoggedInOnly", "boostEngagement", "loginNudge", "wishlistNudge"]) {
+        if (values[key] != null && typeof values[key] !== "boolean") throw new Error("Invalid feature setting");
+      }
     } catch {
       return { saved: false, kind: "wishlistConfig" as const };
     }
 
-    await db.uIConfig.upsert({
-      where: { shopId: shop.id },
-      create: {
-        shopId: shop.id,
+    try {
+      await upsertUIConfigForShopDomain(session.shop, {
         extensionActive: "wishlist",
-        productCardConfig: config as any,
-        themeSettings: {},
-      },
-      update: {
-        extensionActive: "wishlist",
-        productCardConfig: config as any,
-      },
-    });
+        productCardConfig: config as Record<string, unknown>,
+      });
+    } catch (error) {
+      return { saved: false, kind: "wishlistConfig" as const, error: error instanceof ProxyError ? error.message : "Could not save settings" };
+    }
 
     return { saved: true, kind: "wishlistConfig" as const };
   }
@@ -1401,7 +1420,7 @@ export default function Settings() {
         setSmartSaveOpen(false);
         shopify.toast.show("Settings saved");
       } else {
-        shopify.toast.show("Could not save settings", { isError: true });
+        shopify.toast.show(("error" in fetcher.data && fetcher.data.error) || "Could not save settings", { isError: true });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1411,8 +1430,8 @@ export default function Settings() {
     { id: "wishlist-button", title: "Wishlist button", description: "Shoppers can save products from product details page", enabled: true, variant: "wishlist", tab: "Product Page" },
     { id: "quick-save", title: "Quick save", description: "Shoppers can add items to wishlist from collections", enabled: saved.quickSaveEnabled, variant: "quick", tab: "Collections" },
     { id: "save-later", title: "Save for later", description: "Prompt to save items when shoppers remove them from cart", enabled: saved.saveLaterMode !== "disabled", variant: "later", tab: "Cart" },
-    { id: "smart-save", title: "Smart save", description: "Auto-wishlist products visited thrice or more by the shopper", enabled: saved.smartSave, variant: "smart", tab: "Product Page" },
-    { id: "boost-engagement", title: "Boost wishlist engagement", description: "Show subtle, non-intrusive tooltips and toasts that guide new shoppers on how and why to use their wishlist", enabled: false, variant: "boost", tab: "Basics" },
+    { id: "smart-save", title: "Smart save", description: `Auto-wishlist products after ${saved.smartSaveVisits} visits by the shopper`, enabled: saved.smartSave, variant: "smart", tab: "Product Page" },
+    { id: "boost-engagement", title: "Boost wishlist engagement", description: "Show subtle, non-intrusive tooltips and toasts that guide new shoppers on how and why to use their wishlist", enabled: saved.boostEngagement, variant: "boost", tab: "Basics" },
   ];
 
   const filterOptions = [
@@ -2295,7 +2314,11 @@ export default function Settings() {
 
   if (smartSaveOpen) return <Page fullWidth>
     <TitleBar title="Wishlist Configuration" />
-    <SmartSaveSettings config={cfg} onChange={set} onBack={() => setSmartSaveOpen(false)} onSave={saveSettings} saving={fetcher.state !== "idle"} />
+    <SmartSaveSettings config={cfg} onMultiWishlistEnabled={() => {
+      setSaved((current) => ({ ...current, wishlistMode: "multi" }));
+      setCfg((current) => ({ ...current, wishlistMode: "multi" }));
+      shopify.toast.show("Multi-Wishlist enabled");
+    }} onChange={set} onBack={() => setSmartSaveOpen(false)} onSave={saveSettings} saving={fetcher.state !== "idle"} />
   </Page>;
 
 

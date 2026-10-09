@@ -1,6 +1,6 @@
 import db from "../db.server";
+import { ensureList, listName } from "../models/wishlist-lists.server";
 import type { GraphqlClient } from "./shopify-data.server";
-import { getWishlistFromMetafield } from "./wishlist-sync.server";
 
 /**
  * On app install/reinstall, restore customer wishlists from metafields.
@@ -64,7 +64,7 @@ export async function restoreWishlistsFromMetafields(
         const items = JSON.parse(customer.metafield.value);
         if (!Array.isArray(items) || items.length === 0) continue;
 
-        const customerId = customer.id;
+        const customerId = customer.id.replace(/^gid:\/\/shopify\/Customer\//, "");
 
         // Check if customer already has wishlist items in the database
         const existing = await db.wishlistItem.count({
@@ -90,6 +90,8 @@ export async function restoreWishlistsFromMetafields(
             });
 
             if (!existing) {
+              const restoredList = listName(item.listName);
+              await ensureList(shopId, { customerId, guestToken: null }, restoredList);
               await db.wishlistItem.create({
                 data: {
                   shopId,
@@ -97,6 +99,7 @@ export async function restoreWishlistsFromMetafields(
                   productId: item.productId,
                   variantId: item.variantId || null,
                   handle: item.handle,
+                  listName: restoredList,
                   createdAt: item.addedAt ? new Date(item.addedAt) : new Date(),
                 },
               });

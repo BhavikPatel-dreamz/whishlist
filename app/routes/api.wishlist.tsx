@@ -9,6 +9,7 @@ import {
   readBody,
 } from "../lib/proxy.server";
 import db from "../db.server";
+import { ensureList, listName, wishlistFeatures } from "../models/wishlist-lists.server";
 import { rateLimit } from "../lib/rate-limit.server";
 import { formatMoney, getProductsByIds, type GraphqlClient } from "../lib/shopify-data.server";
 import { syncWishlistToMetafield } from "../lib/wishlist-sync.server";
@@ -99,7 +100,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const variantId = numericId(body.variantId);
 
     if (method === "DELETE") {
-      const removed = await removeFromWishlist(ctx.shop.id, identity, { productId, variantId });
+      const removed = await removeFromWishlist(ctx.shop.id, identity, { productId, variantId, ...(typeof body.itemId === "string" ? { itemId: body.itemId } : {}), ...(body.listName ? { listName: listName(body.listName) } : {}) });
       const items = await listWishlist(ctx.shop.id, identity);
       
       // Sync to customer metafield if customer is logged in (persists after app uninstall)
@@ -119,10 +120,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       throw new ProxyError(405, "Method not allowed", "method_not_allowed");
     }
 
+    const features = await wishlistFeatures(ctx.shop.id);
+    const targetList = features.wishlistMode === "multi" ? listName(body.listName) : "My Wishlist";
+    await ensureList(ctx.shop.id, identity, targetList);
     const item = await addToWishlist(ctx.shop.id, identity, {
       productId,
       variantId,
       handle: body.handle || null,
+      listName: targetList,
     });
     // If the client didn't supply a handle, try to resolve it from the Admin API
     // so the storefront can enrich wishlist items (images/titles) via /products/{handle}.js.
@@ -151,7 +156,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
     
-    return json({ ok: true, inWishlist: true, item: serialiseItem(item), count: items.length });
+    return json({ ok: true, inWishlist: true, created: item.wasCreated, item: serialiseItem(item), count: items.length });
   } catch (error) {
     return errorResponse(error);
   }
@@ -193,6 +198,7 @@ function serialiseItem(item: WishlistItem) {
     productId: item.productId,
     variantId: item.variantId,
     handle: item.handle || null,
+    listName: item.listName,
     createdAt: item.createdAt.toISOString(),
   };
 }

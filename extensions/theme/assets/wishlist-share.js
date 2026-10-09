@@ -1,32 +1,46 @@
 (function () {
   let dialog;
+  let shareContext;
+  let activeTrigger;
+  const sharing = () => Boolean(window.__wishlist_stock?.uiConfig) && window.__wishlist_stock.uiConfig.productCardConfig?.allowShare !== false;
+  const shareBody = () => ({ guestToken: window.__wishlistFeatures?.guest(), listName: window.__wishlistFeatures?.selectedList() || undefined });
   function trackShare(mode) {
     const cfg = window.__wishlist_stock || {};
     return fetch(`${cfg.proxyBase}/wishlist-share`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode }), keepalive: true,
+      body: JSON.stringify({ ...shareContext, mode }), keepalive: true,
     }).then((response) => { if (!response.ok) throw new Error('Share tracking failed'); });
   }
 
   function mount() {
     const cfg = window.__wishlist_stock || {};
-    const page = document.getElementById('ws-wishlist-page');
-    if (!page || !cfg.customerLoggedIn || document.getElementById('ws-share-trigger')) return;
+    document.querySelectorAll('[data-ws-share-trigger]').forEach((node) => { node.hidden = !sharing(); });
+    if (!sharing()) { if (dialog?.open) dialog.close(); return; }
+    [document.getElementById('ws-wishlist-page'), document.getElementById('ws-drawer-body')].filter(Boolean).forEach((page) => {
+    if (page.querySelector('[data-ws-share-trigger]')) return;
+    // Multi-list sharing belongs in the final toolbar, never a temporary row.
+    if (cfg.uiConfig?.productCardConfig?.wishlistMode === 'multi' && !page.querySelector('.ws-list-toolbar__actions')) return;
     const trigger = document.createElement('button');
-    trigger.id = 'ws-share-trigger';
+    trigger.dataset.wsShareTrigger = 'true';
     trigger.type = 'button';
     trigger.className = 'ws-btn';
     trigger.textContent = 'Share Wishlist';
-    page.prepend(trigger);
+    const slot = page.querySelector('.ws-list-toolbar__actions');
+    const panel = page.querySelector('[data-panel="wishlist"]') || page;
+    if (slot) slot.insertBefore(trigger, slot.querySelector('.ws-btn--primary'));
+    else panel.prepend(trigger);
     trigger.addEventListener('click', async () => {
+      if (!sharing()) return;
+      activeTrigger = trigger;
+      shareContext = shareBody();
       if (!dialog) {
         dialog = document.createElement('dialog');
         dialog.className = 'ws-share-dialog';
         dialog.setAttribute('aria-labelledby', 'ws-share-title');
-        dialog.innerHTML = '<form method="dialog"><button class="ws-share-close" aria-label="Close share dialog">×</button></form><h2 id="ws-share-title">Share via</h2><div class="ws-share-options" hidden><button type="button" class="ws-share-action ws-share-copy">Copy Link</button><a class="ws-share-action ws-share-facebook" target="_blank" rel="noopener noreferrer"><span class="ws-share-facebook-icon" aria-hidden="true">f</span>Facebook</a><a class="ws-share-action ws-share-x" aria-label="Share on X" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">𝕏</span></a></div><p role="status" class="ws-share-status"></p><label class="ws-share-fallback" hidden>Share link<input class="ws-share-url" readonly></label>';
+        dialog.innerHTML = '<form method="dialog"><button class="ws-share-close" aria-label="Close share dialog">×</button></form><h2 id="ws-share-title">Share via</h2><div class="ws-share-options" hidden><button type="button" class="ws-share-action ws-share-copy">Copy Link</button><a class="ws-share-action ws-share-email">Email</a><a class="ws-share-action ws-share-facebook" target="_blank" rel="noopener noreferrer"><span class="ws-share-facebook-icon" aria-hidden="true">f</span>Facebook</a><a class="ws-share-action ws-share-x" aria-label="Share on X" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">𝕏</span></a></div><p role="status" class="ws-share-status"></p><label class="ws-share-fallback" hidden>Share link<input class="ws-share-url" readonly></label>';
         document.body.appendChild(dialog);
-        dialog.addEventListener('close', () => trigger.focus());
-        ['facebook', 'x'].forEach((mode) => {
+        dialog.addEventListener('close', () => activeTrigger?.focus());
+        ['facebook', 'x', 'email'].forEach((mode) => {
           dialog.querySelector(`.ws-share-${mode}`).addEventListener('click', () => {
             void trackShare(mode).catch(() => { dialog.querySelector('.ws-share-status').textContent = 'Share opened, but the report could not be updated.'; });
           });
@@ -51,11 +65,12 @@
       dialog.showModal();
       trigger.disabled = true;
       try {
-        const response = await fetch(`${cfg.proxyBase}/wishlist-share`, { method: 'POST' });
+        const response = await fetch(`${cfg.proxyBase}/wishlist-share`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(shareContext) });
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.code === 'login_required' ? 'Please log in to share your wishlist.' : 'Could not create a share link. Please try again.');
         const url = new URL(`${cfg.proxyBase.replace(/\/api\/?$/, '')}/share/${encodeURIComponent(result.token)}`, location.origin).href;
         dialog.querySelector('.ws-share-url').value = url;
+        dialog.querySelector('.ws-share-email').href = `mailto:?subject=${encodeURIComponent('My wishlist')}&body=${encodeURIComponent(url)}`;
         dialog.querySelector('.ws-share-facebook').href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
         dialog.querySelector('.ws-share-x').href = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}`;
         dialog.querySelector('.ws-share-options').hidden = false;
@@ -63,7 +78,10 @@
       } catch (error) { status.textContent = error.message; }
       finally { trigger.disabled = false; }
     });
+    });
   }
+  document.addEventListener('wishlist:toolbar-ready', mount);
+  document.addEventListener('wishlist:config-updated', mount);
   document.addEventListener('wishlist:page-ready', mount);
   document.addEventListener('wishlist:ready', mount);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);

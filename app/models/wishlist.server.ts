@@ -25,7 +25,7 @@ export function requireIdentity(identity: Identity): Identity {
   return { customerId, guestToken };
 }
 
-function identityWhere(shopId: string, identity: Identity) {
+export function identityWhere(shopId: string, identity: Identity) {
   return identity.customerId
     ? { shopId, customerId: identity.customerId }
     : { shopId, guestToken: identity.guestToken, customerId: null };
@@ -45,8 +45,8 @@ export async function listWishlist(
 export async function addToWishlist(
   shopId: string,
   identity: Identity,
-  item: { productId: string; variantId: string | null; handle?: string | null },
-): Promise<WishlistItem> {
+  item: { productId: string; variantId: string | null; handle?: string | null; listName?: string },
+): Promise<WishlistItem & { wasCreated: boolean }> {
   const existing = await db.wishlistItem.findFirst({
     where: {
       ...identityWhere(shopId, identity),
@@ -54,10 +54,10 @@ export async function addToWishlist(
       variantId: item.variantId,
     },
   });
-  if (existing) return existing;
+  if (existing) return { ...existing, wasCreated: false };
 
   try {
-    return await db.wishlistItem.create({
+    const created = await db.wishlistItem.create({
       data: {
         shopId,
         customerId: identity.customerId,
@@ -65,8 +65,10 @@ export async function addToWishlist(
         productId: item.productId,
         variantId: item.variantId,
         handle: item.handle ?? null,
+        listName: item.listName || "My Wishlist",
       },
     });
+    return { ...created, wasCreated: true };
   } catch (error) {
     // Two concurrent taps on the heart button: fall back to the winning row.
     const raced = await db.wishlistItem.findFirst({
@@ -76,7 +78,7 @@ export async function addToWishlist(
         variantId: item.variantId,
       },
     });
-    if (raced) return raced;
+    if (raced) return { ...raced, wasCreated: false };
     throw error;
   }
 }
@@ -84,12 +86,14 @@ export async function addToWishlist(
 export async function removeFromWishlist(
   shopId: string,
   identity: Identity,
-  item: { productId: string; variantId?: string | null },
+  item: { productId: string; variantId?: string | null; listName?: string; itemId?: string },
 ): Promise<number> {
   const { count } = await db.wishlistItem.deleteMany({
     where: {
       ...identityWhere(shopId, identity),
       productId: item.productId,
+      ...(item.listName ? { listName: item.listName } : {}),
+      ...(item.itemId ? { id: item.itemId } : {}),
       // Omitting variantId clears every variant of the product.
       ...(item.variantId ? { variantId: item.variantId } : {}),
     },
@@ -109,6 +113,14 @@ export async function mergeGuestWishlist(
   const guestItems = await db.wishlistItem.findMany({
     where: { shopId, guestToken, customerId: null },
   });
+  const guestLists = await db.wishlistList.findMany({ where: { shopId, owner: `guest:${guestToken}` } });
+  for (const list of guestLists) {
+    await db.wishlistList.upsert({
+      where: { shopId_owner_name: { shopId, owner: `customer:${customerId}`, name: list.name } },
+      create: { shopId, owner: `customer:${customerId}`, name: list.name }, update: {},
+    });
+  }
+  await db.wishlistList.deleteMany({ where: { shopId, owner: `guest:${guestToken}` } });
   if (!guestItems.length) return 0;
 
   const owned = await db.wishlistItem.findMany({

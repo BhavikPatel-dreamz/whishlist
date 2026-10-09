@@ -1,1 +1,25 @@
 .ss-page{max-width:1120px;margin:auto;padding:24px;color:#303030;font-size:13px}.ss-page nav{display:flex;align-items:center;gap:12px;margin-bottom:24px}.ss-page button{cursor:pointer;border:1px solid #ccc;border-radius:7px;background:#fff;padding:8px 14px;font:inherit}.ss-page button:disabled{cursor:default;opacity:.6}.ss-page nav button{border:0;background:none;padding:0;text-decoration:underline}.ss-section{display:grid;grid-template-columns:280px minmax(0,1fr);gap:32px;padding:24px 0;border-bottom:1px solid #ddd}.ss-section aside{padding-top:14px}.ss-page h2{font-size:13px;font-weight:600;margin:0 0 10px}.ss-page p{line-height:1.5;color:#616161;margin:0 0 14px}.ss-stack{display:grid;gap:16px}.ss-card{background:#fff;border:1px solid #dedede;border-radius:12px;padding:16px;box-shadow:0 1px 1px #0000000d}.ss-choices{display:grid;grid-template-columns:1fr 1fr;gap:14px}.ss-choice{position:relative;display:flex;flex-direction:column;justify-content:flex-end;min-height:140px;border:1px solid #ddd;border-radius:10px;padding:22px}.ss-choice.selected{border-color:#123c70;background:#f1f1f1}.ss-choice>input{position:absolute;right:20px;top:20px}.ss-choice p{font-size:12px;margin:6px 0 0}.ss-group{border:1px solid #e5e5e5;border-radius:8px;overflow:hidden}.ss-row{padding:18px 16px;border-bottom:1px solid #ddd}.ss-row:last-child{border-bottom:0}.ss-check{display:flex;align-items:baseline;gap:10px;line-height:1.5}.ss-check input{flex-shrink:0;accent-color:#303030}.ss-row>p{margin:6px 0 0 26px}.ss-details{display:grid;gap:16px;margin:16px 0 0 26px;line-height:2}.ss-page input[type=number]{width:64px;padding:6px 9px;border:1px solid #999;border-radius:6px;margin:0 8px;font:inherit}.ss-page select{padding:6px 9px;border:1px solid #999;border-radius:6px;background:white;margin:0 8px}.ss-page input:disabled{background:#f1f1f1;border-color:#eee;color:#aaa}.ss-check small{background:#f1f1f1;border-radius:8px;padding:0 6px;color:#666;font-size:11px}.ss-integration{border:1px solid #ddd;border-radius:10px;padding:16px}.ss-integration p{margin:0}.ss-alerts{margin-top:20px}.ss-footer{position:sticky;bottom:0;padding:16px;background:#f6f6f7;display:flex;justify-content:flex-end;gap:8px}.ss-page .ss-primary{background:#303030;color:white;border-color:#303030}.ss-note{margin:14px 0 0!important;font-size:12px}@media(max-width:760px){.ss-page{padding:16px}.ss-section{grid-template-columns:1fr;gap:12px}.ss-choices{grid-template-columns:1fr}.ss-check{flex-wrap:wrap}.ss-section aside{padding:0}}
+
+.ss-choice:has(input:disabled){cursor:default}
+.ss-choice:has(input:disabled):not(.selected){opacity:.6}
+.ss-mode-dialog{width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 40px);margin:auto;padding:0;border:0;border-radius:22px;overflow:auto;background:#fff;color:#303030;box-shadow:0 18px 45px #0004;font:inherit}
+.ss-mode-dialog::backdrop{background:rgba(0,0,0,.52)}
+.ss-mode-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:#f3f3f3;border-bottom:1px solid #d9d9d9}
+.ss-mode-header h2{margin:0;font-size:13px;font-weight:650}
+.ss-mode-header .ss-mode-close{border:0;background:transparent;padding:0 4px;font-size:22px;line-height:1;color:#616161}
+.ss-mode-body{padding:24px 22px 22px}
+.ss-mode-body h3{font-size:13px;font-weight:650;margin:0 0 8px}
+.ss-mode-body p{color:inherit;margin:0 0 14px;line-height:1.5}
+.ss-mode-benefit,.ss-mode-warning{padding:14px;border-radius:8px;margin-bottom:8px}
+.ss-mode-benefit{background:#aff9cc}
+.ss-mode-warning{background:#ffd2d2}
+.ss-mode-benefit strong,.ss-mode-warning strong{display:block;margin-bottom:6px;font-weight:600}
+.ss-mode-benefit p,.ss-mode-warning p{margin:0}
+.ss-mode-body label{display:block;margin:16px 0 7px}
+.ss-mode-body input{width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #8a8a8a;border-radius:7px;font:inherit;background:#fff;color:#303030}
+.ss-mode-body input:focus-visible{outline:2px solid #005bd3;outline-offset:2px}
+.ss-mode-body .ss-mode-error{color:#b42318;margin:10px 0 0}
+.ss-mode-footer{display:flex;justify-content:flex-end;gap:8px;padding:14px;border-top:1px solid #dedede}
+.ss-mode-footer button{border:0;border-radius:20px;background:#ededed;padding:7px 12px;font-size:12px;font-weight:600}
+.ss-mode-footer .ss-primary:disabled{background:#ddd;color:#fff;opacity:1}
+@media(max-width:480px){.ss-mode-body{padding:18px 16px}.ss-mode-dialog{border-radius:16px}}

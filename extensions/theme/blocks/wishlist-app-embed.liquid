@@ -118,6 +118,7 @@
 {%- comment -%} Header wishlist counter (hidden – used by JS to track count) {%- endcomment -%}
 <span id="ws-header-count" class="ws-sr-only" data-count="0"></span>
 
+<script src="{{ 'wishlist-features.js' | asset_url }}" defer></script>
 <script src="{{ 'wishlist-button.js' | asset_url }}" defer></script>
 <script src="{{ 'wishlist-page.js' | asset_url }}" defer></script>
 <script src="{{ 'wishlist-toggle.js' | asset_url }}" defer></script>

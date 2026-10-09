@@ -112,14 +112,14 @@ export function DashboardHelp() {
             <h2 className="ws-help-title">Need Help?</h2>
             <p className="ws-help-description">
               Please email us at{" "}
-              <a className="ws-help-email" href="mailto:support@getswym.com">
-                support@getswym.com
+              <a className="ws-help-email" href="mailto:support@dynamicdreamz.com">
+                support@dynamicdreamz.com
               </a>
               . We will respond to you within 24-48 hours
             </p>
-            <a className="ws-help-button" href="mailto:support@getswym.com">
+            <button type="button" className="ws-help-button" aria-label="Get Help" disabled>
               Get Help <span aria-hidden="true">→</span>
-            </a>
+            </button>
           </div>
           <HelpIllustration support />
         </article>
@@ -132,11 +132,11 @@ export function DashboardHelp() {
             </p>
             <a
               className="ws-help-button"
-              href="https://help.swym.it/"
+              href="https://www.dynamicdreamz.com/"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Go to knowledge Base <span aria-hidden="true">→</span>
+              Visit Knowledge Base <span aria-hidden="true">→</span>
             </a>
           </div>
           <HelpIllustration />
