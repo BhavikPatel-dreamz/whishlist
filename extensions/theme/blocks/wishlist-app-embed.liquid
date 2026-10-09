@@ -9,7 +9,13 @@
     [data-ws-menu-item], [data-ws-menu-managed], .ws-save-inline, .ws-save-dialog { display: none !important; }
   </style>
 {% else %}
+<script>
+  document.documentElement.setAttribute('data-ws-config-pending', '');
+</script>
 <style>
+  /* Keep old/default controls out of the first paint while settings load. */
+  html[data-ws-config-pending] :is(.wishlist-heart, .ws-pdp, .ws-product-block, #ws-drawer, #ws-wishlist-page, .ws-feature-notice),
+  #ws-wishlist-page:not([data-ws-page-ready]) { visibility: hidden !important; }
   /* Prevent launcher/drawer flashes before assets and saved settings load. */
   #ws-header-link:not([data-ws-ready]),
   #ws-drawer-toggle:not([data-ws-ready]),

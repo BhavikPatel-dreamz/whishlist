@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "@remix-run/node";
-import { Link, Outlet, useLoaderData, useRouteError } from "@remix-run/react";
+import { Link, Outlet, useLoaderData, useNavigation, useRouteError } from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
@@ -31,6 +31,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function App() {
   const { apiKey } = useLoaderData<typeof loader>();
+  const navigation = useNavigation();
+  const isNavigating = navigation.state === "loading" || navigation.state === "submitting";
 
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
@@ -43,6 +45,11 @@ export default function App() {
         <Link to="/app/settings">Configurations</Link>
       </NavMenu>
       <div className="ws-admin-pages">
+        {isNavigating ? (
+          <div className="ws-admin-page-loader" role="status" aria-live="polite" aria-label="Page loading">
+            <span className="ws-admin-page-loader__spinner" aria-hidden="true" />
+          </div>
+        ) : null}
         <Outlet />
       </div>
     </AppProvider>

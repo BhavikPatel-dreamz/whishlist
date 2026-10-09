@@ -193,8 +193,10 @@
   }
   async function moveToCart(item, status, button) {
     if (button.disabled || moved.has(item.id)) return;
+    const originalText = button.textContent;
     button.disabled = true;
-    status.textContent = 'Moving to cart…';
+    button.innerHTML = '<span class="ws-spinner" aria-hidden="true"></span><span>Moving...</span>';
+    if (status) status.textContent = '';
     try {
       // Check storage access before altering the cart.
       localStorage.setItem(storageKey(), JSON.stringify(readItems()));
@@ -210,12 +212,18 @@
       }
       moved.add(item.id);
       writeItems(readItems().filter((entry) => entry.id !== item.id));
+      button.textContent = 'Added';
+      button.disabled = true;
       location.assign(root() + 'cart');
     } catch (error) {
-      status.textContent = moved.has(item.id)
-        ? 'Added to cart. Could not clear this saved item; refresh to update the list.'
-        : message(error);
-    } finally { button.disabled = moved.has(item.id); }
+      if (status) {
+        status.textContent = moved.has(item.id)
+          ? 'Added to cart. Could not clear this saved item; refresh to update the list.'
+          : message(error);
+      }
+      button.innerHTML = originalText;
+      button.disabled = false;
+    }
   }
   function renderSavedItems() {
     const host = document.getElementById('ws-saved-later-items');

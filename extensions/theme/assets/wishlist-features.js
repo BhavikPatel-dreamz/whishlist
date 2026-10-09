@@ -180,8 +180,35 @@
       const remove = button('Delete list', () => manage('delete')); remove.classList.add('ws-list-action', 'ws-list-action--danger');
       actions.append(rename, remove);
     }
-    if (share) actions.append(share);
     const create = button('+ New wishlist', () => manage('create')); create.classList.add('ws-btn--primary'); actions.append(create);
+    if (share) {
+      const shareMenu = document.createElement('div'); shareMenu.className = 'ws-share-menu';
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'ws-share-menu-trigger';
+      trigger.setAttribute('aria-label', 'Open wishlist share options');
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.innerHTML = '<span aria-hidden="true">⋯</span>';
+      const menu = document.createElement('div');
+      menu.className = 'ws-share-menu-panel';
+      menu.hidden = true;
+      share.classList.add('ws-share-menu-item');
+      share.hidden = true;
+      menu.appendChild(share);
+      trigger.addEventListener('click', () => {
+        const isOpen = !menu.hidden;
+        menu.hidden = isOpen;
+        trigger.setAttribute('aria-expanded', String(!isOpen));
+      });
+      document.addEventListener('click', (event) => {
+        if (!shareMenu.contains(event.target)) {
+          menu.hidden = true;
+          trigger.setAttribute('aria-expanded', 'false');
+        }
+      }, { capture: true });
+      shareMenu.append(trigger, menu);
+      actions.append(shareMenu);
+    }
     bar.append(selector, actions);
     const heading = host.querySelector('.ws-page__section-head h2');
     if (heading) heading.textContent = activeList || 'All wishlists';

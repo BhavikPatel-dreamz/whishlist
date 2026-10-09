@@ -1138,18 +1138,25 @@ a.ws-page-card__image {
 @media (max-width: 500px) { .ws-save-dialog { padding: 28px 16px 16px; } .ws-save-dialog-content { grid-template-columns: 1fr; gap: 12px; } .ws-save-dialog-image { width: 80px; height: 80px; } .ws-save-dialog-actions > button { flex: 1; } }
 
 #ws-share-trigger { display: block; margin: 0 0 16px auto; }
-.ws-share-dialog { box-sizing: border-box; width: min(480px, calc(100vw - 32px)); margin: auto; padding: 40px 21px 21px; border: 0; border-radius: 5px; background: #fafafa; color: #111; box-shadow: 0 4px 14px rgb(0 0 0 / 12%); font-family: inherit; }
-.ws-share-dialog::backdrop { background: rgb(0 0 0 / 32%); }
-.ws-share-dialog #ws-share-title { margin: 0 0 20px; text-align: center; font-size: 13px; line-height: 18px; font-weight: 600; letter-spacing: 1px; color: #45465a; }
-.ws-share-close { position: absolute; top: 12px; right: 10px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; background: none; border: 0; font: 22px/1 sans-serif; cursor: pointer; color: #111; }
-.ws-share-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.ws-share-dialog { box-sizing: border-box; width: min(390px, calc(100vw - 32px)); margin: auto; padding: 18px 16px 14px; border: 1px solid #e5e7eb; border-radius: 14px; background: #ffffff; color: #111827; box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18); font-family: inherit; }
+.ws-share-dialog::backdrop { background: rgba(17, 24, 39, 0.32); }
+.ws-share-dialog #ws-share-title { margin: 0 0 14px; text-align: left; font-size: 17px; line-height: 1.3; font-weight: 700; color: #111827; }
+.ws-share-close { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; background: #f3f4f6; border: 0; border-radius: 8px; font: 22px/1 sans-serif; cursor: pointer; color: #374151; }
+.ws-share-close:hover { background: #e5e7eb; }
+.ws-share-options { display: flex; align-items: stretch; gap: 8px; width: 100%; }
 .ws-share-options[hidden], .ws-share-fallback[hidden] { display: none; }
-.ws-share-dialog .ws-share-action { display: flex; align-items: center; justify-content: center; gap: 7px; box-sizing: border-box; min-width: 0; min-height: 50px; padding: 10px 6px; border: 1px solid #ddd; border-radius: 4px; background: transparent; color: #080808; line-height: 1.4; font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: .5px; text-decoration: none; cursor: pointer; }
-.ws-share-facebook-icon { display: inline-flex; align-items: flex-end; justify-content: center; width: 13px; height: 13px; border-radius: 1px; background: #1877f2; color: #fff; font: bold 14px/12px Arial, sans-serif; }
-.ws-share-dialog :focus-visible { outline: 2px solid #005bd3; outline-offset: 3px; }
-.ws-share-url { display: block; width: 100%; box-sizing: border-box; padding: 10px; }
-.ws-share-fallback { display: block; margin-top: 16px; font-size: 13px; }
-.ws-share-status { margin: 12px 0 0; text-align: center; font-size: 13px; line-height: 1.5; }
+.ws-share-dialog .ws-share-action { display: flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; flex: 1 1 0; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: #f9fafb; color: #111827; line-height: 1.2; font-family: inherit; font-size: 12px; font-weight: 600; text-decoration: none; cursor: pointer; transition: all 0.15s ease; }
+.ws-share-dialog .ws-share-action:hover { background: #f3f4f6; border-color: #d1d5db; }
+.ws-share-dialog .ws-share-copy { background: #111827; border-color: #111827; color: #fff; }
+.ws-share-dialog .ws-share-copy:hover { background: #1f2937; }
+.ws-share-dialog .ws-share-facebook { color: #1877f2; }
+.ws-share-dialog .ws-share-x { color: #111827; }
+.ws-share-facebook-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #1877f2; color: #fff; font-size: 11px; font-weight: 700; }
+.ws-share-dialog .ws-share-x span { font-size: 16px; font-weight: 700; }
+.ws-share-dialog :focus-visible { outline: 2px solid #111827; outline-offset: 3px; }
+.ws-share-url { display: block; width: 100%; box-sizing: border-box; min-height: 42px; margin-top: 8px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; background: #f9fafb; }
+.ws-share-fallback { display: block; margin-top: 12px; font-size: 12px; }
+.ws-share-status { margin: 12px 0 0; min-height: 18px; text-align: center; font-size: 12px; line-height: 1.5; color: #374151; }
 .ws-share-status:empty { display: none; }
 @media (max-width: 360px) { .ws-share-options { gap: 8px; }.ws-share-dialog { padding-inline: 14px; } .ws-share-dialog .ws-share-action { font-size: 11px; letter-spacing: 0; } }
 
@@ -1178,15 +1185,26 @@ a.ws-page-card__image {
 .ws-list-toolbar__selector label { display: grid; gap: 8px; margin: 0; }
 .ws-list-toolbar__selector label > span { font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--ws-text-muted, #64748b); }
 .ws-list-toolbar__selector select { width: 100%; max-width: none; min-height: 44px; box-sizing: border-box; margin: 0; padding: 10px 38px 10px 14px; appearance: none; border: 1px solid #d8dde5; border-radius: 8px; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23475569' stroke-width='1.6'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E") no-repeat right 12px center; color: var(--ws-text, #1a1a1a); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-overflow: ellipsis; }
-.ws-list-toolbar__actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding-top: 24px; }
+.ws-list-toolbar__actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding-top: 24px; margin-left: auto; }
 .ws-list-toolbar__actions .ws-btn { min-height: 42px; margin: 0; padding: 10px 14px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; line-height: 1.3; white-space: nowrap; }
 .ws-list-toolbar__actions .ws-list-action { background: transparent; border-color: transparent; }
 .ws-list-toolbar__actions .ws-list-action:hover { background: #eaeef3; border-color: transparent; }
 .ws-list-toolbar__actions .ws-list-action--danger { color: #b42318; }
 .ws-list-toolbar__actions .ws-list-action--danger:hover { background: #fff0ee; }
+.ws-share-menu { position: relative; display: inline-flex; align-items: center; margin-left: auto; }
+.ws-share-menu-trigger { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; color: #1f2937; font-size: 22px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+.ws-share-menu-trigger:hover { background: #f9fafb; }
+.ws-share-menu-trigger span { display: inline-block; transform: translateY(-2px); }
+.ws-share-menu-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 150px; display: grid; gap: 6px; padding: 8px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12); }
+.ws-share-menu-panel[hidden] { display: none; }
+.ws-share-menu-item { display: inline-flex; width: 100%; justify-content: center; min-height: 36px; border-radius: 8px; font-size: 12px; padding: 8px 10px; }
+.ws-share-menu-item.ws-btn { background: #fff; border-color: #eceef2; color: #111827; }
+.ws-share-menu-item.ws-btn:hover { background: #f5f7fa; }
+.ws-share-menu-item.ws-btn:focus-visible { outline: 2px solid #111827; outline-offset: 2px; }
 .ws-list-toolbar select:focus-visible, .ws-list-toolbar button:focus-visible, .ws-feature-dialog button:focus-visible, .ws-feature-dialog input:focus-visible, .ws-feature-dialog select:focus-visible { outline: 2px solid var(--ws-primary, #222); outline-offset: 3px; }
 #ws-wishlist-page .ws-page__section-head { margin-bottom: 18px; align-items: center; }
 #ws-wishlist-page .ws-page__section-head h2 { font-size: 20px; font-weight: 650; overflow-wrap: anywhere; }
+#ws-wishlist-page .ws-page__share-trigger { margin-left: 8px; min-height: 32px; padding: 7px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 #ws-wishlist-page #ws-page-count { flex-shrink: 0; padding: 5px 10px; border-radius: 20px; background: #f3f4f6; font-size: 12px; font-weight: 500; color: var(--ws-text-muted, #64748b); }
 #ws-wishlist-page #ws-page-count:empty { display: none; }
 #ws-wishlist-page .ws-page-card--row { animation: none; gap: 22px; padding: 20px; border-radius: 12px; box-shadow: 0 2px 5px #00000003; }
@@ -1261,3 +1279,37 @@ a.ws-page-card__image {
   .ws-page-skeleton-toolbar { min-height: 206px; }
   .ws-page-skeleton-card > span { flex-basis: 76px; height: 100px; }
 }
+
+/* One action-button size and shape across wishlist views and dialogs. */
+#ws-wishlist-page .ws-btn,
+#ws-drawer .ws-btn,
+.ws-feature-dialog .ws-btn,
+.ws-share-dialog .ws-share-action {
+  box-sizing: border-box;
+  min-height: 42px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: normal;
+  text-align: center;
+}
+#ws-wishlist-page .ws-list-toolbar__actions .ws-btn,
+#ws-wishlist-page .ws-page__share-trigger,
+#ws-drawer .ws-list-toolbar__actions .ws-btn {
+  background: var(--ws-button-bg, var(--ws-primary, #000));
+  border: 1px solid var(--ws-button-bg, var(--ws-primary, #000));
+  color: var(--ws-button-text, #fff);
+  box-shadow: none;
+}
+#ws-wishlist-page .ws-list-toolbar__actions .ws-btn:hover,
+#ws-wishlist-page .ws-page__share-trigger:hover,
+#ws-drawer .ws-list-toolbar__actions .ws-btn:hover {
+  background: var(--ws-button-bg, var(--ws-primary, #000));
+  border-color: var(--ws-button-bg, var(--ws-primary, #000));
+  color: var(--ws-button-text, #fff);
+  opacity: .9;
+}
+.ws-share-menu-trigger { width: 42px; height: 42px; box-sizing: border-box; }

@@ -1416,8 +1416,6 @@ export default function Settings() {
     if (fetcher.data?.kind === "wishlistConfig") {
       if (fetcher.data.saved) {
         setSaved(cfg);
-        setIsOpen(false);
-        setSmartSaveOpen(false);
         shopify.toast.show("Settings saved");
       } else {
         shopify.toast.show(("error" in fetcher.data && fetcher.data.error) || "Could not save settings", { isError: true });

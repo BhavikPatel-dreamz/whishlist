@@ -22,8 +22,19 @@
     return fallback;
   };
 
+  // Restore only navigation preferences while fresh product settings load.
+  try {
+    const cached = JSON.parse(sessionStorage.getItem('ws-launcher-config:v1') || 'null');
+    if (cached && cached.settings && typeof cached.settings === 'object') {
+      CFG().launcherConfig = cached.settings;
+      if (!CFG().settings?.pageSelected && typeof cached.pageUrl === 'string' && cached.pageUrl.startsWith('/') && !cached.pageUrl.startsWith('//')) {
+        CFG().settings.wishlistPageUrl = cached.pageUrl;
+      }
+    }
+  } catch { /* Storage may be unavailable; fresh settings still load normally. */ }
+
   const savedSettings = () => {
-    const saved = CFG().uiConfig?.productCardConfig || {};
+    const saved = CFG().uiConfig?.productCardConfig || CFG().launcherConfig || {};
     const s = CFG().settings || {};
     if (!s.advancedSettings) return saved;
     return {
@@ -560,7 +571,7 @@
         link.insertAdjacentHTML('afterbegin', wishlistIconMarkup(20));
         link.__wsIcon = iconSignature;
       }
-      if (link === header || CFG().uiConfig) link.setAttribute('data-ws-ready', '');
+      if (link === header || CFG().uiConfig || CFG().launcherConfig) link.setAttribute('data-ws-ready', '');
     });
 
     if (toggle && c.showCount === true && !document.getElementById('ws-floating-count')) {
@@ -572,7 +583,8 @@
     }
 
     document.querySelectorAll('#ws-header-count, #ws-floating-count, [data-ws-menu-count]').forEach((count) => {
-      count.hidden = c.showCount === false || showMenu;
+      // A menu launch point must not hide the badge on the enabled header icon.
+      count.hidden = c.showCount === false;
       count.style.display = count.hidden ? 'none' : '';
     });
 
@@ -675,6 +687,7 @@
   }
 
   function refreshConfiguredUI() {
+    if (!CFG().uiConfig && !CFG().configSettled) return;
     const c = savedSettings();
     let style = document.getElementById('ws-saved-button-styles');
     if (!style) {
@@ -698,7 +711,7 @@
   function resolvedIconType() {
     const cfg = CFG();
     const savedTheme = (cfg.uiConfig && (cfg.uiConfig.themeSettings || {})) || {};
-    const savedProduct = (cfg.uiConfig && (cfg.uiConfig.productCardConfig || {})) || {};
+    const savedProduct = cfg.uiConfig?.productCardConfig || cfg.launcherConfig || {};
     const themeIcon = savedProduct.icon || savedProduct.iconType || savedTheme.iconType || savedTheme.icon;
     const blockIcon = cfg.settings && cfg.settings.iconType;
     const iconType = cfg.settings?.advancedSettings ? blockIcon || 'heart' : themeIcon || blockIcon || 'heart';
@@ -708,7 +721,7 @@
   function wishlistIconMarkup(size) {
     const s = CFG().settings || {};
     const uiConfig = CFG().uiConfig || {};
-    const productCfg = (uiConfig.productCardConfig && typeof uiConfig.productCardConfig === 'object') ? uiConfig.productCardConfig : {};
+    const productCfg = (uiConfig.productCardConfig && typeof uiConfig.productCardConfig === 'object') ? uiConfig.productCardConfig : CFG().launcherConfig || {};
     const themeCfg = (uiConfig.themeSettings && typeof uiConfig.themeSettings === 'object') ? uiConfig.themeSettings : {};
     const iconType = resolvedIconType();
     const imageUrl = s.advancedSettings ? s.iconImage || '' : productCfg.iconImage || themeCfg.iconImage || s.iconImage || '';
@@ -1063,6 +1076,7 @@
 
   /* ---------- Enhance: inject + bind + refresh ---------- */
   function enhance() {
+    if (!CFG().uiConfig && !CFG().configSettled) return;
     applyThemeFromConfig();
     injectHeaderLink();
     applyLaunchSettings();
@@ -1088,13 +1102,24 @@
   function boot() {
     const start = () => {
       document.addEventListener('wishlist:config-updated', refreshConfiguredUI);
-      document.addEventListener('wishlist:launcher-ready', applyLaunchSettings);
+      document.addEventListener('wishlist:config-ready', refreshConfiguredUI);
+      document.addEventListener('wishlist:launcher-ready', () => {
+        if (CFG().uiConfig || CFG().launcherConfig || CFG().configSettled) applyLaunchSettings();
+      });
       installCardClickGuard();
+      injectHeaderLink();
+      if (CFG().uiConfig || CFG().launcherConfig) applyLaunchSettings();
+      else document.getElementById('ws-header-link')?.setAttribute('data-ws-ready', '');
+      const count = cachedCount();
+      if (count !== null) setCount(count);
+      // Count requests do not depend on appearance settings.
+      refreshHeartStates();
       refreshConfiguredUI();
 
       document.addEventListener('shopify:section:load', scheduleEnhance);
       let headerFrame = null;
       const updateHeaderPlacement = () => {
+        if (!CFG().uiConfig && !CFG().launcherConfig && !CFG().configSettled) return;
         if (headerFrame !== null) return;
         headerFrame = requestAnimationFrame(() => {
           headerFrame = null;

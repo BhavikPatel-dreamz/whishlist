@@ -16,13 +16,17 @@
   function fetchConfig() {
     if (configRequest) return configRequest;
     const cfg = CFG();
-    configRequest = fetch(`${cfg.proxyBase}/ui-config`, { cache: 'no-store' })
+    document.documentElement.setAttribute('data-ws-config-pending', '');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    configRequest = fetch(`${cfg.proxyBase}/ui-config`, { cache: 'no-store', signal: controller.signal })
       .then((r) => r.json())
-      .then((data) => {
+      .then(async (data) => {
         if (data && data.ok && data.config) {
           const changed = JSON.stringify(uiConfig) !== JSON.stringify(data.config);
           uiConfig = data.config;
           window.__wishlist_stock.uiConfig = uiConfig;
+          window.__wishlist_stock.configSettled = true;
           const pageUrl = uiConfig.themeSettings && uiConfig.themeSettings.wishlistPageUrl;
           if (!CFG().settings?.pageSelected && !CFG().settings?.pageUrlConfigured && typeof pageUrl === 'string' && /^\/pages\/[a-zA-Z0-9][a-zA-Z0-9_-]*\/?$/.test(pageUrl)) {
             window.__wishlist_stock.settings = window.__wishlist_stock.settings || {};
@@ -31,6 +35,15 @@
             const headerLink = document.getElementById('ws-header-link');
             if (headerLink) headerLink.setAttribute('href', window.__wishlist_stock.settings.wishlistPageUrl);
           }
+          const launcher = {};
+          for (const key of ['launchFrom', 'floatingPosition', 'pageType', 'showCount', 'icon', 'iconType', 'iconImage']) {
+            const value = uiConfig.productCardConfig?.[key];
+            if (value !== undefined) launcher[key] = value;
+          }
+          cfg.launcherConfig = launcher;
+          try {
+            sessionStorage.setItem('ws-launcher-config:v1', JSON.stringify({ settings: launcher, pageUrl: cfg.settings?.wishlistPageUrl }));
+          } catch { /* Navigation still works when storage is disabled. */ }
           applyThemeFromConfig();
           applyPageSettings();
           if (changed) {
@@ -38,14 +51,22 @@
             if (initialized) {
               autoMountPage();
               ensureSavedLaterPanel();
-              if (document.getElementById('ws-wishlist-page')) renderPage();
-              if (document.getElementById('ws-drawer')?.classList.contains('is-open')) renderDrawer();
+              await Promise.all([
+                document.getElementById('ws-wishlist-page') ? renderPage() : null,
+                document.getElementById('ws-drawer')?.classList.contains('is-open') ? renderDrawer() : null,
+              ]);
             }
           }
         }
       })
       .catch(() => null)
-      .finally(() => { configRequest = null; });
+      .finally(() => {
+        clearTimeout(timeout);
+        cfg.configSettled = true;
+        document.dispatchEvent(new CustomEvent('wishlist:config-ready'));
+        document.documentElement.removeAttribute('data-ws-config-pending');
+        configRequest = null;
+      });
     return configRequest;
   }
 
@@ -844,11 +865,9 @@
       else init();
     };
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => fetchConfig().then(start));
-    } else {
-      fetchConfig().then(start);
-    }
+    // Start the request immediately; start() waits for the DOM if needed.
+    fetchConfig().then(start);
+    window.addEventListener('pageshow', (event) => { if (event.persisted) fetchConfig(); });
   }
 
   boot();
