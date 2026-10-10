@@ -86,7 +86,14 @@
     }
     const drawer = document.getElementById('ws-drawer');
     if (drawer) {
-      drawer.dataset.position = CFG().settings?.drawerPosition || 'right';
+      // Theme-embed settings are an explicit override only while Advanced
+      // Wishlist Settings is enabled. Otherwise keep using the saved app
+      // configuration (the same source as the rest of the embedded UI).
+      const embed = CFG().settings || {};
+      const savedPosition = c.drawerPosition || uiConfig?.themeSettings?.drawerPosition;
+      drawer.dataset.position = embed.advancedSettings
+        ? (embed.drawerPosition || 'right')
+        : (savedPosition || 'right');
       drawer.classList.toggle('ws-drawer--modal', c.pageType === 'modal');
       if (c.pageTitle) drawer.setAttribute('aria-label', c.pageTitle);
     }
@@ -120,9 +127,13 @@
     if (!merged || typeof merged !== 'object') return;
 
     // Advanced embed styling is an explicit override of saved app styling.
+    const root = document.documentElement;
     if (CFG().settings?.advancedSettings) return;
 
-    const root = document.documentElement;
+    // Clear values previously injected by the embed when the theme editor
+    // toggles Advanced Wishlist Settings off without a full page reload.
+    ['--ws-primary', '--ws-bg', '--ws-text', '--ws-border', '--ws-radius'].forEach((name) => root.style.removeProperty(name));
+
     if (merged.primaryColor) root.style.setProperty('--ws-primary', merged.primaryColor);
     if (merged.backgroundColor) root.style.setProperty('--ws-bg', merged.backgroundColor);
     if (merged.textColor) root.style.setProperty('--ws-text', merged.textColor);

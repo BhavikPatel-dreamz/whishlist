@@ -195,6 +195,7 @@
     if (button.disabled || moved.has(item.id)) return;
     const originalText = button.textContent;
     button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
     button.innerHTML = '<span class="ws-spinner" aria-hidden="true"></span><span>Moving...</span>';
     if (status) status.textContent = '';
     try {
@@ -221,8 +222,10 @@
           ? 'Added to cart. Could not clear this saved item; refresh to update the list.'
           : message(error);
       }
-      button.innerHTML = originalText;
+      button.textContent = originalText;
       button.disabled = false;
+    } finally {
+      button.removeAttribute('aria-busy');
     }
   }
   function renderSavedItems() {

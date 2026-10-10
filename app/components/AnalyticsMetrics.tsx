@@ -143,9 +143,9 @@ export function AnalyticsMetrics({ data }: { data: MetricsData }) {
         Currently saved items added between {data.from} and {data.to} (UTC).
         Showing up to 20 entries per column; reports include all results.
         Running out soon shows active, inventory-tracked products with zero or
-        fewer units across all locations, regardless of wishlist saves or
-        selected dates. Values estimate one unit per product at its current
-        minimum price; inventory is current.
+        fewer units across all locations that were also saved during the selected
+        date range. Values estimate one unit per product at its current minimum
+        price; inventory is current.
       </p>
     </section>
   );

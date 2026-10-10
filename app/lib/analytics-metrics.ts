@@ -84,8 +84,12 @@ export function summarizeMetrics(
         b.saves - a.saves ||
         a.productId.localeCompare(b.productId),
     );
+  const activeProductIds = new Set(demand.keys());
   const runningLow = [...inventoryProducts]
-    .filter(([, product]) => product.totalInventory <= 0)
+    .filter(
+      ([productId, product]) =>
+        activeProductIds.has(productId) && product.totalInventory <= 0,
+    )
     .map(([productId, product]) => ({
       productId,
       title: product.title,

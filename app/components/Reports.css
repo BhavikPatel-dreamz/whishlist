@@ -41,6 +41,8 @@
 .ws-reports-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
   gap: 8px;
 }
 .ws-reports-button,
@@ -64,19 +66,80 @@
 }
 .ws-reports-dates {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.ws-reports-export,
+.ws-reports-dates summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 3px 8px;
+  border-color: #e3e3e3;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.ws-reports-dates summary {
+  list-style: none;
+  min-width: 180px;
+  justify-content: space-between;
+  padding-inline: 10px 8px;
+}
+.ws-reports-dates summary::-webkit-details-marker {
+  display: none;
+}
+.ws-reports-export svg,
+.ws-reports-dates summary svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: #4a4a4a;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ws-reports-export:not(:disabled):hover,
+.ws-reports-dates summary:hover {
+  background: #f7f7f7;
+}
+.ws-reports-dates[open] .ws-reports-date-chevron {
+  transform: rotate(180deg);
 }
 .ws-reports-dates form {
   position: absolute;
   right: 0;
-  top: 36px;
-  z-index: 2;
+  top: calc(100% + 6px);
+  width: min(420px, calc(100vw - 24px));
+  box-sizing: border-box;
+  z-index: 20;
   display: grid;
   gap: 12px;
-  padding: 16px;
-  border: 1px solid #ddd;
+  padding: 14px 14px 12px;
+  border: 1px solid #d9d9d9;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.1);
+}
+.ws-reports-dates .Polaris-DatePicker {
   background: white;
   border-radius: 10px;
-  box-shadow: 0 8px 20px #00000015;
+  overflow: hidden;
+}
+.ws-reports-dates .Polaris-DatePicker__MonthLayout {
+  margin-top: 0;
+  margin-left: 0;
+  gap: 8px;
+}
+.ws-reports-dates .Polaris-DatePicker__MonthContainer {
+  margin: 0;
+  min-width: 0;
+  max-width: none;
+  flex: 1 1 0;
 }
 .ws-reports-dates label {
   display: grid;
@@ -123,13 +186,13 @@
 .ws-reports-table-scroll {
   overflow-x: auto;
 }
-.ws-reports table {
+.ws-reports-table-scroll table {
   width: 100%;
   border-collapse: collapse;
   text-align: center;
   font-size: 12px;
 }
-.ws-reports th {
+.ws-reports-table-scroll th {
   padding: 10px 16px;
   background: #f7f7f7;
   font-weight: 400;
@@ -137,16 +200,16 @@
   font-size: 11px;
   white-space: nowrap;
 }
-.ws-reports td {
+.ws-reports-table-scroll td {
   padding: 8px 16px;
   height: 52px;
   border-top: 1px solid #e5e5e5;
   min-width: 100px;
 }
-.ws-reports tbody tr:hover {
+.ws-reports-table-scroll tbody tr:hover {
   background: #fafafa;
 }
-.ws-reports td img {
+.ws-reports-table-scroll td img {
   object-fit: contain;
   border: 1px solid #eee;
   border-radius: 7px;
@@ -220,8 +283,22 @@
   }
   .ws-reports-actions {
     flex-wrap: wrap;
+    align-self: flex-end;
   }
   .ws-reports {
     padding: 12px;
   }
+}
+
+.ws-reports-date-hint {
+  margin: 8px 0 0;
+  color: #616161;
+  font-size: 11px;
+}
+.ws-reports-date-hint[role="alert"] {
+  color: #b42318;
+}
+.ws-reports-date-footer {
+  display: flex;
+  gap: 8px;
 }

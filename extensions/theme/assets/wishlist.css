@@ -1133,7 +1133,10 @@ a.ws-page-card__image {
 .ws-saved-image { width: 100%; aspect-ratio: 1.3; object-fit: contain; background: #f6f6f6; border-radius: 6px; margin-bottom: 18px; }
 .ws-saved-title { color: inherit; text-decoration: none; font-weight: 600; font-size: 16px; }
 .ws-saved-details { color: #666; font-size: 13px; margin: 12px 0; }
-.ws-saved-move { width: 100%; min-height: 46px; margin-top: auto; font-weight: 600; }
+.ws-saved-move { display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; width: 100%; min-height: 46px; margin-top: auto; font-weight: 600; line-height: 20px; }
+.ws-saved-move > .ws-spinner { box-sizing: border-box; flex: 0 0 16px; width: 16px; height: 16px; margin: 0; }
+.ws-saved-move[aria-busy="true"] { cursor: wait; }
+@media (prefers-reduced-motion: reduce) { .ws-saved-move > .ws-spinner { animation: none; } }
 .ws-save-dialog :focus-visible, .ws-saved-card :focus-visible, .ws-save-inline:focus-visible { outline: 2px solid #005bd3; outline-offset: 3px; }
 @media (max-width: 500px) { .ws-save-dialog { padding: 28px 16px 16px; } .ws-save-dialog-content { grid-template-columns: 1fr; gap: 12px; } .ws-save-dialog-image { width: 80px; height: 80px; } .ws-save-dialog-actions > button { flex: 1; } }
 
