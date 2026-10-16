@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C . rev-parse --is-inside-work-tree)",
+      "Bash(node --check extensions/theme/assets/back-in-stock.js)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('polaris:', \\(p.dependencies&&p.dependencies['@shopify/polaris']\\)||'n/a'\\); console.log\\('scripts:', JSON.stringify\\(p.scripts,null,2\\)\\);\")"
+    ]
+  }
+}

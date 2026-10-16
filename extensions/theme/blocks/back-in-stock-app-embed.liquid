@@ -1,0 +1,174 @@
+{% comment %}Independent Back-in-Stock settings and subscription modal.{% endcomment %}
+{% render 'control-centre-stock', block: block %}
+
+{% schema %}
+{
+  "name": "Back-in-Stock",
+  "target": "body",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "advanced_settings",
+      "label": "Advanced Wishlist Settings",
+      "default": false,
+      "info": "Enable the settings below to customize the Back-in-Stock button on your storefront."
+    },
+    {
+      "type": "select",
+      "id": "bis_launch_type",
+      "label": "Launch Point Type",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "options": [
+        { "label": "In-Line form", "value": "inline" },
+        { "label": "Modal/Pop-up", "value": "modal" }
+      ],
+      "default": "modal"
+    },
+    {
+      "type": "select",
+      "id": "bis_placement",
+      "label": "Button Placement",
+      "visible_if": "{{ block.settings.advanced_settings and block.settings.bis_launch_type == 'modal' }}",
+      "options": [
+        { "label": "Next to Sold out button", "value": "next" },
+        { "label": "Right side button", "value": "right" },
+        { "label": "Left side button", "value": "left" }
+      ],
+      "default": "next"
+    },
+    {
+      "type": "select",
+      "id": "bis_button_type",
+      "label": "Button Type",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "options": [
+        { "label": "Text", "value": "text" },
+        { "label": "Icon with text", "value": "iconText" },
+        { "label": "Icon only", "value": "icon" }
+      ],
+      "default": "iconText"
+    },
+    {
+      "type": "color",
+      "id": "bis_button_color",
+      "label": "Button Color",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "default": "#080707"
+    },
+    {
+      "type": "color",
+      "id": "bis_text_color",
+      "label": "Button Text Color",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "default": "#ffffff"
+    },
+    {
+      "type": "range",
+      "id": "bis_button_size",
+      "label": "Button Text Size",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "min": 8,
+      "max": 40,
+      "step": 1,
+      "unit": "px",
+      "default": 14
+    },
+    {
+      "type": "select",
+      "id": "bis_button_style",
+      "label": "Button Style",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "options": [
+        { "label": "Outlined (border only)", "value": "outlined" },
+        { "label": "Filled (solid background)", "value": "filled" }
+      ],
+      "default": "filled"
+    },
+    {
+      "type": "select",
+      "id": "bis_icon_type",
+      "label": "Notify button icon",
+      "visible_if": "{{ block.settings.advanced_settings and block.settings.bis_button_type != 'text' }}",
+      "options": [
+        { "label": "Bell", "value": "bell" },
+        { "label": "Clock", "value": "clock" },
+        { "label": "Custom image", "value": "image" },
+        { "label": "No icon", "value": "none" }
+      ],
+      "default": "bell"
+    },
+    {
+      "type": "image_picker",
+      "id": "bis_icon_image",
+      "label": "Custom notify icon image",
+      "visible_if": "{{ block.settings.advanced_settings and block.settings.bis_button_type != 'text' and block.settings.bis_icon_type == 'image' }}",
+      "info": "Used when Notify button icon is set to Custom image."
+    },
+    {
+      "type": "range",
+      "id": "bis_border_radius",
+      "label": "Button Edge Radius",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "px",
+      "default": 0
+    },
+    {
+      "type": "text",
+      "id": "notify_button_text",
+      "label": "Button Text",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "default": "Email me when available"
+    },
+    {
+      "type": "text",
+      "id": "notify_modal_title",
+      "label": "Modal Title",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "default": "Get notified when this is back"
+    },
+    {
+      "type": "header",
+      "content": "Form Customisation",
+      "visible_if": "{{ block.settings.advanced_settings }}"
+    },
+    {
+      "type": "text",
+      "id": "bis_email_placeholder",
+      "label": "Email Placeholder",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "default": "Enter your email address"
+    },
+    {
+      "type": "text",
+      "id": "bis_email_button",
+      "label": "Email Submit Button",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "default": "Email Me"
+    },
+    {
+      "type": "text",
+      "id": "bis_sms_placeholder",
+      "label": "SMS Phone Placeholder",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "default": "Enter your phone number"
+    },
+    {
+      "type": "text",
+      "id": "bis_confirmation",
+      "label": "Confirmation Message",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "default": "Awesome! We will send you an alert once the product becomes available for purchase"
+    },
+    {
+      "type": "checkbox",
+      "id": "product_button",
+      "label": "Show notify me button on product pages",
+      "info": "Automatically adds the back-in-stock \"Notify me\" button to out-of-stock product pages.",
+      "default": true
+    }
+  ]
+}
+{% endschema %}

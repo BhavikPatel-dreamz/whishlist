@@ -1,0 +1,451 @@
+/* ============================================================
+   Back-in-Stock – Theme Extension Stylesheet
+   (Back-in-stock only: notify button + subscription modal.)
+   ============================================================ */
+
+/* ---------- CSS Custom Properties ---------- */
+.back-in-stock,
+#ws-bis-modal {
+  --ws-bg: #ffffff;
+  --ws-text: #1a1a1a;
+  --ws-text-muted: #6b7280;
+  --ws-border: #e5e7eb;
+  --ws-radius: 8px;
+  --ws-transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: var(--ws-font-family, inherit);
+  font-size: var(--ws-font-size, inherit);
+}
+
+.back-in-stock :is(button, input, select, textarea),
+#ws-bis-modal :is(button, input, select, textarea) { font-family: inherit; }
+
+html[data-ws-bis-disabled] :is(.back-in-stock, #ws-bis-modal) {
+  display: none !important;
+}
+
+/* ---------- Notify (Back-in-Stock) Button ---------- */
+.back-in-stock {
+  margin-top: 12px;
+}
+
+.back-in-stock .notify-me {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: var(--ws-bis-button-bg, var(--ws-bis-primary));
+  border: 1px solid var(--ws-bis-primary);
+  color: var(--ws-bis-button-text, #ffffff);
+  border-radius: var(--ws-bis-radius, 8px);
+  font-size: var(--ws-bis-font-size, 14px);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--ws-transition), color var(--ws-transition);
+  width: 100%;
+  justify-content: center;
+}
+
+.back-in-stock .notify-me:hover {
+  filter: brightness(0.94);
+}
+
+.back-in-stock .notify-me svg {
+  flex-shrink: 0;
+}
+
+.back-in-stock:not(.ws-bis-inline).back-in-stock--left,
+.back-in-stock:not(.ws-bis-inline).back-in-stock--right {
+  position: fixed;
+  top: 50%;
+  z-index: 9998;
+  width: auto;
+  margin: 0;
+  transform: translateY(-50%);
+}
+.back-in-stock:not(.ws-bis-inline).back-in-stock--left { left: 0; right: auto; }
+.back-in-stock:not(.ws-bis-inline).back-in-stock--right { right: 0; left: auto; }
+.back-in-stock:not(.ws-bis-inline).back-in-stock--left .notify-me,
+.back-in-stock:not(.ws-bis-inline).back-in-stock--right .notify-me {
+  width: auto;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 10px;
+  white-space: nowrap;
+}
+.back-in-stock:not(.ws-bis-inline).back-in-stock--left .ws-bis-button-label,
+.back-in-stock:not(.ws-bis-inline).back-in-stock--right .ws-bis-button-label { writing-mode: vertical-rl; }
+.back-in-stock:not(.ws-bis-inline).back-in-stock--left .notify-me {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.back-in-stock:not(.ws-bis-inline).back-in-stock--right .notify-me {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.ws-bis-button-icon.is-hidden,
+.ws-bis-button-label.is-hidden { display: none; }
+
+.ws-bis-inline { margin-top: 12px; }
+.ws-bis-inline-form { display: grid; gap: 10px; }
+.ws-bis-inline-label { display: grid; gap: 5px; font-size: 13px; }
+.ws-bis-inline-label input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-bis-radius, 8px);
+  font: inherit;
+}
+.ws-bis-inline-submit {
+  min-height: 42px;
+  padding: 9px 16px;
+  border: 1px solid var(--ws-bis-primary);
+  border-radius: var(--ws-bis-radius, 8px);
+  background: var(--ws-bis-button-bg, var(--ws-bis-primary));
+  color: var(--ws-bis-button-text, #fff);
+  font-size: var(--ws-bis-font-size, 14px);
+  cursor: pointer;
+}
+.ws-bis-inline-feedback { margin: 0; color: #b42318; font-size: 13px; }
+.ws-bis-inline-feedback.is-success {
+  color: var(--ws-bis-confirm-text, #187a60);
+  background: var(--ws-bis-confirm-bg, transparent);
+  border-radius: var(--ws-bis-radius, 8px);
+  padding: 8px 10px;
+}
+
+/* PDP injection wrapper (when the block isn't manually placed) */
+.ws-pdp {
+  margin-top: 14px;
+}
+
+/* ---------- Modal ---------- */
+.ws-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--ws-transition), visibility var(--ws-transition);
+  padding: 20px;
+}
+
+.ws-modal-overlay.is-open {
+  display: flex;
+  opacity: 1;
+  visibility: visible;
+}
+
+.ws-modal {
+  background: var(--ws-bg);
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 392px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16);
+  transform: scale(0.92) translateY(12px);
+  transition: transform var(--ws-transition);
+}
+
+.ws-modal-overlay.is-open .ws-modal {
+  transform: scale(1) translateY(0);
+}
+
+.ws-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 27px 0;
+}
+
+.ws-modal__title {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.ws-modal__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: #111111;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ws-modal__close:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.ws-modal__body {
+  padding: 14px 27px 27px;
+}
+
+.ws-modal__tabs {
+  display: grid;
+  grid-template-columns: 1fr;
+  border-bottom: 1px solid #d8d8d8;
+  margin-bottom: 18px;
+}
+
+.ws-modal__tabs.has-sms { grid-template-columns: 1fr 1fr; }
+.ws-modal__tab[hidden] { display: none !important; }
+
+.ws-modal__tab {
+  position: relative;
+  min-height: 34px;
+  padding: 5px 8px 10px;
+  border: 0;
+  background: transparent;
+  color: #111111;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ws-modal__tab::after {
+  position: absolute;
+  right: 8px;
+  bottom: -1px;
+  left: 8px;
+  height: 2px;
+  background: transparent;
+  content: '';
+}
+
+.ws-modal__tab.is-active::after { background: #111111; }
+
+.ws-modal__body .ws-modal__intro,
+.ws-modal__body .ws-modal__disclaimer {
+  font-size: 14px;
+  color: #111111;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.ws-modal__body .ws-modal__intro {
+  margin: 0 0 18px;
+}
+
+.ws-modal__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0;
+}
+
+.ws-modal__form.is-sms {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.ws-modal__field {
+  min-width: 0;
+}
+
+.ws-modal__field[hidden] { display: none; }
+
+.ws-modal__field input {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1px solid #888888;
+  border-radius: 3px 0 0 3px;
+  font-size: 12px;
+  font-family: inherit;
+  transition: border-color var(--ws-transition);
+}
+
+.ws-modal__field input:focus {
+  outline: none;
+  border-color: var(--ws-bis-primary);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+}
+
+#ws-bis-modal .ws-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 0 3px 3px 0;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--ws-border);
+  background: var(--ws-bg);
+  color: var(--ws-text);
+  transition: background var(--ws-transition), border-color var(--ws-transition);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+#ws-bis-modal .ws-btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+#ws-bis-modal .ws-btn--primary {
+  background: var(--ws-bis-primary);
+  color: #fff;
+  border-color: var(--ws-bis-primary);
+}
+
+#ws-bis-modal .ws-btn--primary:hover,
+#ws-bis-modal .ws-btn--primary:active,
+#ws-bis-modal .ws-btn--primary:disabled:hover {
+  background: var(--ws-bis-primary);
+  color: #fff;
+  border-color: var(--ws-bis-primary);
+  opacity: 1;
+  filter: none;
+}
+
+#ws-bis-modal .ws-btn--danger {
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+#ws-bis-modal .ws-btn--danger:hover {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
+#ws-bis-modal .ws-btn--small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.ws-modal__submit {
+  min-height: 34px;
+  padding: 6px 9px !important;
+  border-color: #000000 !important;
+  border-radius: 0 3px 3px 0 !important;
+  background: #000000 !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+
+.ws-modal__phone-field {
+  grid-column: 1 / -1;
+  margin-bottom: 10px;
+}
+
+.ws-modal__form.is-sms .ws-modal__phone-field { margin-bottom: 0; }
+
+.ws-modal__form.is-sms .ws-modal__submit {
+  width: 100%;
+  border-radius: 3px !important;
+}
+
+.ws-modal__phone-field input {
+  border-radius: 3px;
+}
+
+.ws-modal__body .ws-modal__disclaimer {
+  margin: 18px 0 0;
+}
+
+.ws-modal__success {
+  text-align: center;
+  padding: 32px 24px;
+  border-radius: var(--ws-bis-radius, 8px);
+  background: var(--ws-bis-confirm-bg, transparent);
+  color: var(--ws-bis-confirm-text, inherit);
+}
+
+.ws-modal__success svg {
+  margin-bottom: 12px;
+  color: var(--ws-bis-confirm-text, #16a34a);
+}
+
+.ws-modal__success h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: inherit;
+}
+
+.ws-modal__success p {
+  font-size: 14px;
+  color: var(--ws-bis-confirm-text, var(--ws-text-muted));
+  margin: 0;
+}
+
+/* Honeypot – hidden from humans */
+.ws-hp { position: absolute; left: -9999px; opacity: 0; height: 0; }
+
+/* Inline modal message (replaces blocking alert() popups in the notify form) */
+.ws-modal__msg {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ws-bis-primary);
+  background: rgba(231, 76, 60, 0.08);
+  border: 1px solid rgba(231, 76, 60, 0.25);
+  border-radius: var(--ws-bis-radius, 8px);
+  padding: 8px 12px;
+  margin: 0 0 12px;
+}
+
+/* Spacing for the Unsubscribe button inside the success view */
+.ws-modal__success .ws-btn {
+  margin-top: 14px;
+}
+
+/* ---------- Loading Spinner ---------- */
+.ws-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ws-spin 0.6s linear infinite;
+}
+
+@keyframes ws-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Visually Hidden (a11y) ---------- */
+.ws-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Empty-block placeholder in the theme editor */
+.ws-product-block--empty {
+  padding: 14px;
+  border: 1px dashed var(--ws-border);
+  border-radius: var(--ws-bis-radius, 8px);
+  color: var(--ws-text-muted);
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-modal-overlay .ws-modal {
+    transform: scale(1) translateY(0);
+  }
+
+  .ws-spinner {
+    animation: none;
+  }
+}

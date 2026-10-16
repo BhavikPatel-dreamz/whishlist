@@ -1,0 +1,113 @@
+(function () {
+  let dialog;
+  let shareContext;
+  let activeTrigger;
+  const sharing = () => Boolean(window.__wishlist_stock?.uiConfig) && window.__wishlist_stock.uiConfig.productCardConfig?.allowShare !== false;
+  const shareBody = () => ({ guestToken: window.__wishlistFeatures?.guest(), listName: window.__wishlistFeatures?.selectedList() || undefined });
+  function trackShare(mode) {
+    const cfg = window.__wishlist_stock || {};
+    return fetch(`${cfg.proxyBase}/wishlist-share`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...shareContext, mode }), keepalive: true,
+    }).then((response) => { if (!response.ok) throw new Error('Share tracking failed'); });
+  }
+
+  function mount() {
+    const cfg = window.__wishlist_stock || {};
+    document.querySelectorAll('[data-ws-share-trigger]').forEach((node) => { node.hidden = !sharing(); });
+    if (!sharing()) { if (dialog?.open) dialog.close(); return; }
+    [document.getElementById('ws-wishlist-page'), document.getElementById('ws-drawer-body')].filter(Boolean).forEach((page) => {
+      if (page.querySelector('[data-ws-share-trigger]')) return;
+      // Multi-list sharing belongs in the final toolbar, never a temporary row.
+      if (cfg.uiConfig?.productCardConfig?.wishlistMode === 'multi' && !page.querySelector('.ws-list-toolbar__actions')) return;
+      const trigger = document.createElement('button');
+      trigger.dataset.wsShareTrigger = 'true';
+      trigger.type = 'button';
+      trigger.className = 'ws-btn ws-page__share-trigger';
+      trigger.textContent = 'Share Wishlist';
+      const slot = page.querySelector('.ws-list-toolbar__actions');
+      const sectionHead = page.querySelector('.ws-page__section-head');
+      const panel = page.querySelector('[data-panel="wishlist"]') || page;
+      if (slot) {
+        slot.appendChild(trigger);
+        trigger.style.marginLeft = 'auto';
+        trigger.hidden = true;
+      } else if (sectionHead) {
+        sectionHead.appendChild(trigger);
+        trigger.style.marginLeft = '8px';
+        trigger.style.display = 'inline-flex';
+      } else {
+        panel.appendChild(trigger);
+        trigger.style.marginLeft = 'auto';
+        trigger.style.display = 'inline-flex';
+      }
+      trigger.addEventListener('click', async () => {
+        if (!sharing()) return;
+        activeTrigger = trigger;
+        shareContext = shareBody();
+        if (!dialog) {
+          dialog = document.createElement('dialog');
+          dialog.className = 'ws-share-dialog';
+          dialog.setAttribute('aria-labelledby', 'ws-share-title');
+          dialog.setAttribute('aria-describedby', 'ws-share-description');
+          dialog.innerHTML = `
+            <form method="dialog" class="ws-share-close-form"><button class="ws-share-close" aria-label="Close share dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></form>
+            <h2 id="ws-share-title">Share your wishlist</h2>
+            <p id="ws-share-description">Send your favorites to friends and family.</p>
+            <div class="ws-share-options" hidden>
+              <button type="button" class="ws-share-action ws-share-copy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg><span>Copy link</span></button>
+              <a class="ws-share-action ws-share-email"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/></svg><span>Email</span></a>
+              <a class="ws-share-action ws-share-facebook" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 21v-8h3l.5-4H14V7c0-1 .5-2 2-2h2V1h-3c-4 0-6 2-6 6v2H6v4h3v8"/></svg><span>Facebook</span></a>
+              <a class="ws-share-action ws-share-x" aria-label="Share on X" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 3 16 18h-5L4 3h5l11 18M20 3 4 21"/></svg><span>X</span></a>
+            </div>
+            <p role="status" class="ws-share-status"></p>
+            <label class="ws-share-fallback" hidden>Share link<input class="ws-share-url" readonly /></label>`;
+          document.body.appendChild(dialog);
+          dialog.addEventListener('close', () => activeTrigger?.focus());
+          ['facebook', 'x', 'email'].forEach((mode) => {
+            dialog.querySelector(`.ws-share-${mode}`).addEventListener('click', () => {
+              void trackShare(mode).catch(() => { dialog.querySelector('.ws-share-status').textContent = 'Share opened, but the report could not be updated.'; });
+            });
+          });
+          dialog.querySelector('.ws-share-copy').addEventListener('click', async () => {
+            const input = dialog.querySelector('.ws-share-url');
+            try {
+              await navigator.clipboard.writeText(input.value);
+              dialog.querySelector('.ws-share-status').textContent = 'Wishlist link copied.';
+              void trackShare('copylink').catch(() => { dialog.querySelector('.ws-share-status').textContent = 'Link copied, but the report could not be updated.'; });
+            } catch {
+              dialog.querySelector('.ws-share-fallback').hidden = false;
+              input.focus(); input.select();
+              dialog.querySelector('.ws-share-status').textContent = 'Copy the selected link to share your wishlist.';
+            }
+          });
+        }
+        dialog.querySelector('.ws-share-options').hidden = true;
+        dialog.querySelector('.ws-share-fallback').hidden = true;
+        const status = dialog.querySelector('.ws-share-status');
+        status.textContent = 'Creating share link…';
+        dialog.showModal();
+        trigger.disabled = true;
+        try {
+          const response = await fetch(`${cfg.proxyBase}/wishlist-share`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(shareContext) });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.code === 'login_required' ? 'Please log in to share your wishlist.' : 'Could not create a share link. Please try again.');
+          const url = new URL(`${cfg.proxyBase.replace(/\/api\/?$/, '')}/share/${encodeURIComponent(result.token)}`, location.origin).href;
+          dialog.querySelector('.ws-share-url').value = url;
+          dialog.querySelector('.ws-share-email').href = `mailto:?subject=${encodeURIComponent('My wishlist')}&body=${encodeURIComponent(url)}`;
+          dialog.querySelector('.ws-share-facebook').href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+          dialog.querySelector('.ws-share-x').href = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}`;
+          dialog.querySelector('.ws-share-options').hidden = false;
+          status.textContent = '';
+        } catch (error) { status.textContent = error.message; }
+        finally { trigger.disabled = false; }
+      });
+    });
+  }
+  document.addEventListener('wishlist:toolbar-ready', mount);
+  document.addEventListener('wishlist:config-updated', mount);
+  document.addEventListener('wishlist:page-ready', mount);
+  document.addEventListener('wishlist:ready', mount);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
+  else mount();
+})();

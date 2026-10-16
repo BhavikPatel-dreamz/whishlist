@@ -1,0 +1,91 @@
+/* Use the dashboard's content width and gutters for every admin route. */
+.ws-top-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 20px 8px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #ddd;
+  box-sizing: border-box;
+}
+
+.ws-top-nav__link {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: #3a3a3a;
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.ws-top-nav__link:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.ws-top-nav__link--active {
+  background: #e3e3e3;
+  font-weight: 600;
+}
+
+.ws-admin-pages {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: 32px;
+  min-height: 420px;
+}
+
+.ws-admin-pages > .ws-home-page,
+.ws-admin-pages > .ws-reports,
+.ws-admin-pages > .Polaris-Page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+  padding-inline: 0;
+}
+
+/* Cover the embedded app viewport while Remix loads the next admin page. */
+.ws-admin-page-loader {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f1f1;
+  z-index: 10000;
+  cursor: progress;
+}
+
+.ws-admin-page-loader__spinner {
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid #3a3a3a;
+  border-top-color: transparent;
+  animation: ws-admin-page-loader-spin 0.8s linear infinite;
+}
+
+@keyframes ws-admin-page-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 800px) {
+  .ws-admin-pages {
+    padding-inline: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-admin-page-loader__spinner {
+    animation: none;
+  }
+}

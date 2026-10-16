@@ -1,0 +1,34 @@
+{% comment %}Wishlist product options, configured independently from App Control Centre.{% endcomment %}
+{% render 'control-centre-variants', block: block %}
+
+{% schema %}
+{
+  "name": "Storefront UI Elements",
+  "target": "body",
+  "stylesheet": "storefront-ui.css",
+  "javascript": "storefront-ui.js",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Adds the wishlist variant selector. Enable App Control Centre and Show wishlist UI to use this feature. Header icons, collection buttons, and the drawer are managed in App Control Centre."
+    },
+    { "type": "header", "content": "Variant Selector" },
+    {
+      "type": "paragraph",
+      "content": "Let shoppers choose their preferred size, color, or style before adding a product to their wishlist. Items are saved to their existing wishlist."
+    },
+    { "type": "checkbox", "id": "variant_selector_enabled", "label": "Enable variant popup", "default": true },
+    { "type": "color", "id": "title_color", "label": "Variant Selector Popup Title Color", "default": "#333333" },
+    { "type": "range", "id": "primary_font_size", "label": "Primary Font Size", "min": 12, "max": 24, "step": 1, "unit": "px", "default": 14 },
+    { "type": "color", "id": "popup_background", "label": "Popup Background Color", "default": "#FFFFFF" },
+    { "type": "color", "id": "heading_color", "label": "Variant Selector Section Headings Color", "default": "#000000" },
+    { "type": "range", "id": "secondary_font_size", "label": "Secondary Font Size", "min": 10, "max": 20, "step": 1, "unit": "px", "default": 12 },
+    { "type": "text", "id": "choose_action_text", "label": "Choose Options Action Text", "default": "Choose product options" },
+    { "type": "color", "id": "button_background", "label": "Add to Wishlist Button Background Color", "default": "#292929" },
+    { "type": "color", "id": "button_text", "label": "Add to Wishlist Button Font Color", "default": "#FFFFFF" },
+    { "type": "color", "id": "product_detail_color", "label": "Product Detail Font Color", "default": "#FFFFFF" },
+    { "type": "text", "id": "popup_title", "label": "Popup Title", "default": "Choose your favorites" },
+    { "type": "text", "id": "add_button_text", "label": "Add to Wishlist Button Text", "default": "Add to wishlist" }
+  ]
+}
+{% endschema %}

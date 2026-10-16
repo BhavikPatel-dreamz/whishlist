@@ -1,0 +1,246 @@
+{% comment %}
+  App Control Centre: wishlist UI and appearance controls.
+{% endcomment %}
+
+{% if block.settings.show_wishlist_ui == false %}
+  <style>
+    .wishlist-heart, .ws-product-block, .ws-page-block, .ws-page, #ws-wishlist-page,
+    #ws-header-link, #ws-drawer-toggle, #ws-drawer, #ws-drawer-overlay,
+    [data-ws-menu-item], [data-ws-menu-managed], .ws-save-inline, .ws-save-dialog { display: none !important; }
+  </style>
+{% else %}
+<script>
+  document.documentElement.setAttribute('data-ws-config-pending', '');
+</script>
+<style>
+  /* Keep old/default controls out of the first paint while settings load. */
+  html[data-ws-config-pending] :is(.wishlist-heart, .ws-pdp, .ws-product-block, #ws-drawer, #ws-wishlist-page, .ws-feature-notice),
+  #ws-wishlist-page:not([data-ws-page-ready]) { visibility: hidden !important; }
+  /* Prevent launcher/drawer flashes before assets and saved settings load. */
+  #ws-header-link:not([data-ws-ready]),
+  #ws-drawer-toggle:not([data-ws-ready]),
+  #ws-drawer[aria-hidden="true"],
+  #ws-drawer-overlay:not(.is-open) { display: none !important; }
+</style>
+{{ 'wishlist.css' | asset_url | stylesheet_tag }}
+<style>
+  .wishlist-heart svg, .wishlist-heart img,
+  #ws-header-link svg, #ws-header-link img,
+  #ws-drawer-toggle svg, #ws-drawer-toggle img {
+    width: 20px !important;
+    height: 20px !important;
+  }
+</style>
+
+<script>
+  window.__wishlist_stock = window.__wishlist_stock || {};
+  window.__wishlist_stock.proxyBase = window.__wishlist_stock.proxyBase || '/apps/wishlist-stock/api';
+  window.__wishlist_stock.customerEmail = {{ customer.email | default: nil | json }};
+  window.__wishlist_stock.customerId = {{ customer.id | default: nil | json }};
+  window.__wishlist_stock.customerLoggedIn = {% if customer %}true{% else %}false{% endif %};
+  window.__wishlist_stock.settings = {
+    advancedSettings: {% if block.settings.advanced_settings == false %}false{% else %}true{% endif %},
+    isNotFoundPage: {% if template.name == '404' %}true{% else %}false{% endif %},
+    pageUrlConfigured: false,
+    pageSelected: {% if block.settings.wishlist_page != blank %}true{% else %}false{% endif %},
+    buttonBackground: {{ block.settings.button_background | default: "#000000" | json }},
+    buttonText: {{ block.settings.button_text | default: "#FFFFFF" | json }},
+    notificationAlignment: {{ block.settings.notification_alignment | default: "center" | json }},
+    buttonColor: {{ block.settings.icon_color | default: "#000000" | json }},
+    iconThickness: {{ block.settings.icon_thickness | default: 1.5 }},
+    buttonSize: 20,
+    iconType: {{ block.settings.icon_type | default: "heart" | json }},
+    iconImage: null,
+    drawerPosition: {{ block.settings.drawer_position | default: "right" | json }},
+    headerLink: {% if block.settings.show_header_wishlist_icon == false %}false{% else %}true{% endif %},
+    wishlistPageUrl: {{ block.settings.wishlist_page.url | default: "/pages/wishlist" | default: '/pages/wishlist' | json }},
+    allProductsCollectionUrl: {{ routes.all_products_collection_url | json }},
+    cardHearts: true,
+    productButton: true,
+    drawerBg: {{ block.settings.drawer_bg_color | default: "#F4F8FE" | json }},
+    drawerText: {{ block.settings.drawer_text_color | default: "#333333" | json }},
+    borderColor: "#e5e7eb",
+    borderRadius: {{ block.settings.border_radius | default: 6 }},
+  };
+
+  if (!window.__wishlist_stock.settings.pageSelected && window.__wishlist_stock.settings.wishlistPageUrl === '/pages/wishlist') {
+    window.__wishlist_stock.settings.wishlistPageUrl = window.__wishlist_stock.proxyBase.replace(/\/api\/?$/, '') + '/wishlist';
+  }
+
+  /* Inject Wishlist theme CSS custom properties */
+  (function() {
+    var s = window.__wishlist_stock.settings;
+    var root = document.documentElement;
+    root.style.setProperty('--ws-icon-size', s.buttonSize + 'px');
+    if (!s.advancedSettings) return;
+    root.style.setProperty('--ws-button-bg', s.buttonBackground);
+    root.style.setProperty('--ws-button-text', s.buttonText);
+    root.style.setProperty('--ws-toast-left', s.notificationAlignment === 'right' ? 'auto' : s.notificationAlignment === 'left' ? '24px' : '50%');
+    root.style.setProperty('--ws-toast-right', s.notificationAlignment === 'right' ? '24px' : 'auto');
+    root.style.setProperty('--ws-toast-x', s.notificationAlignment === 'center' ? '-50%' : '0%');
+    root.style.setProperty('--ws-primary', s.buttonColor || '#e74c3c');
+    root.style.setProperty('--ws-bg', s.drawerBg || '#ffffff');
+    root.style.setProperty('--ws-text', s.drawerText || '#1a1a1a');
+    root.style.setProperty('--ws-border', s.borderColor || '#e5e7eb');
+    root.style.setProperty('--ws-radius', (s.borderRadius == null ? 8 : s.borderRadius) + 'px');
+  })();
+</script>
+
+{%- comment -%} Wishlist Drawer – off-canvas panel {%- endcomment -%}
+<div class="ws-drawer-overlay" id="ws-drawer-overlay" aria-hidden="true"></div>
+
+<aside
+  class="ws-drawer"
+  id="ws-drawer"
+  data-position="{{ block.settings.drawer_position | default: 'right' }}"
+  role="dialog"
+  aria-label="Your Wishlist"
+  aria-hidden="true"
+>
+  <div class="ws-drawer__header">
+    <h2 class="ws-drawer__title">
+      My Wishlist
+      <span class="ws-drawer__count" id="ws-drawer-count"></span>
+    </h2>
+    <button class="ws-drawer__close" id="ws-drawer-close" aria-label="Close wishlist">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+  </div>
+
+  <div class="ws-drawer__body" id="ws-drawer-body">
+    <div class="ws-drawer__empty" id="ws-drawer-empty" style="display:none;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M12 21s-6.716-4.434-9.333-7.14C-1.333 10.9 1.333 6 6 6c2.76 0 4 2 6 2s3.24-2 6-2c4.667 0 7.333 4.9 3.333 7.86C18.716 16.566 12 21 12 21z"/>
+      </svg>
+      <p>Your wishlist is empty</p>
+    </div>
+    <div id="ws-drawer-items"></div>
+  </div>
+</aside>
+
+{%- comment -%} Header wishlist counter (hidden – used by JS to track count) {%- endcomment -%}
+<span id="ws-header-count" class="ws-sr-only" data-count="0"></span>
+
+<script src="{{ 'wishlist-features.js' | asset_url }}" defer></script>
+<script src="{{ 'wishlist-button.js' | asset_url }}" defer></script>
+<script src="{{ 'wishlist-page.js' | asset_url }}" defer></script>
+<script src="{{ 'wishlist-toggle.js' | asset_url }}" defer></script>
+<script src="{{ 'save-for-later.js' | asset_url }}" defer></script>
+<script src="{{ 'wishlist-share.js' | asset_url }}" defer></script>
+
+{% if request.design_mode %}
+  <div id="ws-editor-preview-config" hidden data-block-id="{{ block.id }}" data-settings="{{ block.settings | json | escape }}"></div>
+  <script src="{{ 'wishlist-editor-preview.js' | asset_url }}" defer></script>
+{% endif %}
+
+{% endif %}
+
+
+
+{% schema %}
+{
+  "name": "App Control Centre",
+  "target": "body",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "show_wishlist_ui",
+      "label": "Show wishlist UI",
+      "default": true,
+      "info": "Show wishlist buttons, the header icon, wishlist page, and drawer on your storefront."
+    },
+    {
+      "type": "checkbox",
+      "id": "show_header_wishlist_icon",
+      "label": "Show header wishlist icon",
+      "default": true,
+      "info": "Show or hide the wishlist icon in your store header."
+    },
+    {
+      "type": "checkbox",
+      "id": "advanced_settings",
+      "label": "Advanced Wishlist Settings",
+      "default": false,
+      "info": "Show the settings below and apply custom colors and corner radius. These visual settings override app styling when enabled. Turn off to use styling saved in the app."
+    },
+    {
+      "type": "select",
+      "id": "icon_type",
+      "label": "Wishlist icon type",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "options": [
+        { "value": "heart", "label": "Heart" },
+        { "value": "star", "label": "Star" },
+        { "value": "bookmark", "label": "Bookmark" }
+      ],
+      "default": "heart"
+    },
+    {
+      "type": "color",
+      "id": "icon_color",
+      "label": "Wishlist icon color",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "default": "#000000"
+    },
+    {
+      "type": "range",
+      "id": "icon_thickness",
+      "label": "Wishlist icon thickness",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "min": 1,
+      "max": 3,
+      "step": 0.1,
+      "unit": "px",
+      "default": 1.5
+    },
+    {
+      "type": "color",
+      "id": "button_background",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "label": "Button background color (in wishlist)",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "button_text",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "label": "Button text color (in wishlist)",
+      "default": "#FFFFFF"
+    },
+    {
+      "type": "color",
+      "id": "drawer_bg_color",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "label": "Background color (wishlist header, footer and pop-ups)",
+      "default": "#F4F8FE"
+    },
+    {
+      "type": "color",
+      "id": "drawer_text_color",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "label": "Text color (wishlist header, footer and pop-ups)",
+      "default": "#333333"
+    },
+    {
+      "type": "range",
+      "id": "border_radius",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "label": "Corner radius",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "unit": "px",
+      "default": 6
+    },
+    {
+      "type": "page",
+      "id": "wishlist_page",
+      "label": "Wishlist Page",
+      "info": "Select the page shoppers visit to view their wishlist."
+    }
+  ]
+}
+{% endschema %}
