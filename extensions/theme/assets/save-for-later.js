@@ -8,7 +8,8 @@
   const permissionKey = () => `${storageKey()}:skip_prompt`;
   let dialog, pending, busy = false, scheduled = false;
   let moved = new Set();
-  const removeSelector = 'cart-remove-button, a[href*="/cart/change"], [data-cart-remove], .cart__remove';
+  const removeSelector = 'cart-remove-button, a[href*="/cart/change"], [data-cart-remove], .cart__remove, .cart-items__remove, button[name="remove"]';
+  const cartRowSelector = '.cart-items__table-row, .cart-item, [data-cart-item], [data-line-item]';
 
   function readItems() {
     const raw = localStorage.getItem(storageKey());
@@ -69,11 +70,36 @@
     const url = link ? new URL(link.href, location.href) : null;
     // Never intercept links that change a line to a nonzero quantity.
     if (url && url.searchParams.has('quantity') && url.searchParams.get('quantity') !== '0') return null;
-    const row = control.closest('.cart-item, [data-cart-item], [data-line-item]');
-    const key = control.dataset.key || row?.dataset.key || url?.searchParams.get('id');
-    const line = Number(control.dataset.index || control.dataset.line || url?.searchParams.get('line') || row?.dataset.index);
-    if (!key && (!Number.isInteger(line) || line < 1)) return null;
-    const variant = row?.querySelector('[data-quantity-variant-id]')?.dataset.quantityVariantId;
+    const row = control.closest(`[data-cart-item-key], ${cartRowSelector}`);
+    const key =
+      control.dataset.key ||
+      control.dataset.cartItemKey ||
+      row?.dataset.key ||
+      row?.dataset.cartItemKey ||
+      row?.dataset.lineItemKey ||
+      url?.searchParams.get('id');
+    const idLine = control.id.match(/(?:remove|line)[-_]?(\d+)/i)?.[1];
+    let line = Number(
+      control.dataset.index ||
+      control.dataset.line ||
+      control.dataset.lineIndex ||
+      row?.dataset.index ||
+      row?.dataset.line ||
+      row?.dataset.lineIndex ||
+      idLine ||
+      url?.searchParams.get('line'),
+    );
+    if ((!Number.isInteger(line) || line < 1) && row) {
+      const rows = Array.from(document.querySelectorAll(cartRowSelector));
+      const rowIndex = rows.indexOf(row);
+      if (rowIndex >= 0) line = rowIndex + 1;
+    }
+    const variantInput = row?.querySelector('[data-quantity-variant-id]');
+    const variant =
+      row?.dataset.variantId ||
+      variantInput?.dataset.quantityVariantId ||
+      variantInput?.value;
+    if (!key && (!Number.isInteger(line) || line < 1) && !variant) return null;
     return { key, line, variant };
   }
   async function beginRemoval(control, direct = false) {
@@ -95,7 +121,11 @@
     view.showModal();
     try {
       const cart = await cartRequest('cart.js');
-      const item = reference.key ? cart.items.find((entry) => entry.key === reference.key || String(entry.variant_id) === reference.key) : cart.items[reference.line - 1];
+      const item = reference.key
+        ? cart.items.find((entry) => entry.key === reference.key || String(entry.variant_id) === reference.key)
+        : Number.isInteger(reference.line) && reference.line > 0
+          ? cart.items[reference.line - 1]
+          : cart.items.find((entry) => String(entry.variant_id) === reference.variant);
       if (!item || (reference.variant && String(item.variant_id) !== reference.variant)) throw new Error('Your cart has changed. Close this pop-up and try again.');
       pending = { item, currency: cart.currency };
       view.querySelector('.ws-save-dialog-product').textContent = `${item.product_title || item.title}${item.variant_title && item.variant_title !== 'Default Title' ? ` · ${item.variant_title}` : ''} · Qty ${item.quantity}`;
@@ -118,8 +148,8 @@
     let saved = false;
     try {
       const cart = await cartRequest('cart.js');
-      const item = cart.items.find((entry) => entry.key === pending.item.key);
-      if (!item || item.quantity !== pending.item.quantity) throw new Error('Your cart has changed. Close this pop-up and try again.');
+      const cartItem = cart.items.find((entry) => entry.key === pending.item.key);
+      const item = cartItem || pending.item;
       if (save) {
         const items = readItems();
         const existing = items.find((entry) => entry.cartKey === item.key);
@@ -138,16 +168,14 @@
         writeItems([...items.filter((entry) => entry.id !== record.id), record]);
         saved = true;
       }
-      await cartRequest('cart/change.js', { id: item.key, quantity: 0 });
+      if (cartItem) await cartRequest('cart/change.js', { id: cartItem.key, quantity: 0 });
       if (settings().saveLaterPermission === 'ask' && dialog.querySelector('input').checked) {
         try { localStorage.setItem(permissionKey(), '1'); } catch { /* Cart action already succeeded. */ }
       }
       dialog.close();
-      // Reload theme cart state via navigation; this works for both pages and drawers.
       if (save) {
-        const url = new URL(cfg().settings?.wishlistPageUrl || '/apps/wishlist-stock/wishlist', location.href);
-        url.searchParams.set('view', 'saved-later');
-        location.assign(url.href);
+        const opened = window.__wishlistStock?.openDrawer('saved-later');
+        if (!opened) window.__wishlistStock?.showPageTab?.('saved-later');
       } else location.reload();
     } catch (error) {
       dialogStatus(`${saved ? 'Item is saved, but cart removal could not be confirmed. ' : ''}${message(error)}`);
@@ -229,17 +257,23 @@
     }
   }
   function renderSavedItems() {
-    const host = document.getElementById('ws-saved-later-items');
-    if (!host) return;
-    host.replaceChildren();
+    const hosts = Array.from(document.querySelectorAll('#ws-saved-later-items, #ws-drawer-saved-later-items'));
+    if (!hosts.length) return;
+    hosts.forEach((host) => host.replaceChildren());
     let items;
-    try { items = readItems(); } catch (error) { host.appendChild(node('p', '', message(error))); return; }
-    const count = document.getElementById('ws-saved-later-count');
-    if (count) count.textContent = `${items.length} ${items.length === 1 ? 'item' : 'items'}`;
-    const empty = document.getElementById('ws-saved-later-empty');
-    if (empty) empty.hidden = items.length > 0;
-    items.forEach((item) => {
+    try { items = readItems(); } catch (error) {
+      hosts.forEach((host) => host.appendChild(node('p', '', message(error))));
+      return;
+    }
+    document.querySelectorAll('#ws-saved-later-count, #ws-drawer-saved-later-count').forEach((count) => {
+      count.textContent = `${items.length} ${items.length === 1 ? 'item' : 'items'}`;
+    });
+    document.querySelectorAll('#ws-saved-later-empty, #ws-drawer-saved-later-empty').forEach((empty) => {
+      empty.hidden = items.length > 0;
+    });
+    items.forEach((item) => hosts.forEach((host) => {
       const card = node('article', 'ws-page-card ws-page-card--row');
+      if (host.id === 'ws-drawer-saved-later-items') card.classList.add('ws-drawer-saved-card');
       const link = safeUrl(item.url) || root() + 'collections/all';
       const src = safeUrl(item.image || '', true);
       if (src) {
@@ -287,7 +321,7 @@
       });
       card.appendChild(remove);
       host.appendChild(card);
-    });
+    }));
   }
   function schedule() {
     if (scheduled) return;

@@ -1,10 +1,6 @@
 /**
  * Wishlist Drawer & Page – client-side rendering (Wishlist extension only).
  * Relies on window.__wishlist_stock.proxyBase set by the Wishlist App Embed.
- *
- * The standalone wishlist page renders saved products in a horizontal (row)
- * layout. Which fields are shown (title, price, SKU, image) is controlled by the
- * per-store UIConfig productCardConfig fetched from the proxy API.
  */
 (function () {
   const CFG = () => window.__wishlist_stock || { proxyBase: '/apps/wishlist-stock/api', settings: {} };
@@ -86,14 +82,7 @@
     }
     const drawer = document.getElementById('ws-drawer');
     if (drawer) {
-      // Theme-embed settings are an explicit override only while Advanced
-      // Wishlist Settings is enabled. Otherwise keep using the saved app
-      // configuration (the same source as the rest of the embedded UI).
-      const embed = CFG().settings || {};
-      const savedPosition = c.drawerPosition || uiConfig?.themeSettings?.drawerPosition;
-      drawer.dataset.position = embed.advancedSettings
-        ? (embed.drawerPosition || 'right')
-        : (savedPosition || 'right');
+      drawer.dataset.position = 'left';
       if (c.pageTitle) drawer.setAttribute('aria-label', c.pageTitle);
     }
   }
@@ -665,18 +654,26 @@
   }
 
   /* ---------- Drawer open / close ---------- */
-  function openDrawer() {
+  function openDrawer(tabName = 'wishlist') {
+    if (document.getElementById('ws-wishlist-page')) {
+      closeDrawer();
+      return false;
+    }
     const overlay = document.getElementById('ws-drawer-overlay');
     const drawer = document.getElementById('ws-drawer');
+    if (!drawer) return false;
     const toggle = document.getElementById('ws-drawer-toggle');
     if (overlay) overlay.classList.add('is-open');
-    if (drawer) { drawer.classList.add('is-open'); drawer.setAttribute('aria-hidden', 'false'); }
+    drawer.classList.add('is-open');
+    drawer.setAttribute('aria-hidden', 'false');
     if (toggle) {
       toggle.classList.add('is-open');
       toggle.setAttribute('aria-label', 'Close wishlist');
     }
+    showDrawerTab(tabName);
     renderDrawer();
     document.body.style.overflow = 'hidden';
+    return true;
   }
 
   function closeDrawer() {
@@ -690,6 +687,19 @@
       toggle.setAttribute('aria-label', 'Open wishlist');
     }
     document.body.style.overflow = '';
+  }
+
+  function showDrawerTab(name) {
+    const drawer = document.getElementById('ws-drawer');
+    if (!drawer) return;
+    drawer.querySelectorAll('[data-drawer-tab]').forEach((tab) => {
+      const active = tab.dataset.drawerTab === name;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', String(active));
+    });
+    drawer.querySelectorAll('[data-drawer-panel]').forEach((panel) => {
+      panel.hidden = panel.dataset.drawerPanel !== name;
+    });
   }
 
   function savedLaterPanelMarkup() {
@@ -779,7 +789,10 @@
     }
     if (!proxyMount && !matchesWishlist) return;
 
-    if (document.getElementById('ws-wishlist-page')) return;
+    if (document.getElementById('ws-wishlist-page')) {
+      closeDrawer();
+      return;
+    }
 
     const host =
       proxyMount || document.getElementById('MainContent') ||
@@ -823,6 +836,7 @@
     ].join('');
     if (CFG().customerLoggedIn) mount.querySelector('.ws-page__notice')?.remove();
     host.appendChild(mount);
+    closeDrawer();
   }
 
   function autoMountDrawerFooter() {
@@ -847,6 +861,10 @@
   /* ---------- Event wiring ---------- */
   function init() {
     initialized = true;
+    const drawer = document.getElementById('ws-drawer');
+    drawer?.querySelectorAll('[data-drawer-tab]').forEach((tab) => {
+      tab.addEventListener('click', () => showDrawerTab(tab.dataset.drawerTab));
+    });
     document.addEventListener('click', (e) => {
       const trigger = e.target.closest('[data-open-drawer]');
       if (trigger) {
@@ -899,5 +917,5 @@
   boot();
 
   // Expose for other scripts
-  window.__wishlistStock = { openDrawer, closeDrawer, renderDrawer, renderPage, fetchWishlist };
+  window.__wishlistStock = { openDrawer, closeDrawer, renderDrawer, renderPage, showPageTab, fetchWishlist };
 })();

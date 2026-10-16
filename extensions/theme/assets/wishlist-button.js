@@ -507,10 +507,74 @@
     }
   }
 
+  // Resolve the product media/image host across themes. Dawn uses
+  // `.product__media-wrapper` / `.product__media`; Shopify Horizon renders
+  // `.product-media-container` inside `.product-information__media`.
+  // FIX: Horizon ma gallery form ni baju ma (alag section/container ma) hoy che,
+  // etle ahiya multiple root ma shodhiye ane outer visible container pasand kariye.
+  function mediaTarget(scope, form) {
+    const isVisible = (el) => !!el && el.getClientRects().length > 0;
+    const roots = [
+      scope,
+      form.closest('product-information, .product-information, .product, #MainContent, main'),
+      document.querySelector('#MainContent, main') || document.body,
+    ].filter(Boolean);
+
+    // Outer container pehla: Horizon ma poori gallery par overlay aave
+    const selectors = [
+      '.product-information__media',
+      'media-gallery',
+      '.media-gallery',
+      'product-gallery, .product-gallery, .product-media-gallery',
+      '.product__media-wrapper, .product__media-gallery, .product__media-list',
+      '.product-media-container',
+      '.product__media',
+    ];
+    const validTarget = (t) =>
+      t && t !== form && !t.contains(form) &&
+      !t.matches('img, picture, source') &&
+      !t.closest('.card, .card-wrapper, product-card, [data-product-card]') &&
+      isVisible(t);
+
+    for (const root of roots) {
+      for (const selector of selectors) {
+        let found = null;
+        try {
+          found = Array.from(root.querySelectorAll(selector)).find(validTarget);
+        } catch { /* ignore invalid selector */ }
+        if (found) return found;
+      }
+    }
+
+    // Fallback: sauthi moti visible image
+    for (const root of roots) {
+      const mainImage = Array.from(root.querySelectorAll('img'))
+        .filter((img) => {
+          if (form.contains(img) || !isVisible(img)) return false;
+          const r = img.getBoundingClientRect();
+          return r.width >= 100 && r.height >= 100;
+        })
+        .sort((a, b) => {
+          const ar = a.getBoundingClientRect();
+          const br = b.getBoundingClientRect();
+          return br.width * br.height - ar.width * ar.height;
+        })[0];
+      if (!mainImage) continue;
+      const host =
+        mainImage.closest('media-gallery, product-gallery, figure, [class*="product-media"], [class*="product__media"], [class*="gallery"]') ||
+        mainImage.parentElement;
+      if (validTarget(host)) return host;
+    }
+    return null;
+  }
+
   function placeProductButton(wrap, form) {
     const c = savedSettings();
     const scope = productPageScope(form);
-    const anchor = form.closest('product-form') || form;
+    const anchor = form.closest('product-form, product-form-component') || form;
+    const imageOverlay =
+      (c.activeMode === 'advanced' && c.advPosition === 'overlay') ||
+      (c.activeMode === 'basic' && c.basicPlacement === 'on-image');
     let target = anchor;
     let position = 'afterend';
     wrap.classList.remove('ws-pdp--inline');
@@ -520,29 +584,42 @@
         if (!target) return; // Wait for a matching section instead of using the wrong location.
         position = 'beforeend';
       } else if (c.advPosition === 'title') {
-        target = query(scope, '.product__title, h1') || anchor;
+        target = query(scope, '.product__title, .product-title, h1') || anchor;
       } else if (c.advPosition === 'overlay') {
-        target = query(scope, '.product__media-wrapper, .product__media') || anchor;
+        target = mediaTarget(scope, form);
+        if (!target) {
+          wrap.remove();
+          return;
+        }
         position = 'beforeend';
       }
     } else if (c.basicPlacement === 'on-image') {
-      target = query(scope, '.product__media-wrapper, .product__media') || anchor;
+      target = mediaTarget(scope, form);
+      if (!target) {
+        wrap.remove();
+        return;
+      }
       position = 'beforeend';
     } else if (c.basicPosition === 'above') {
       position = 'beforebegin';
     } else if (c.basicPosition === 'left' || c.basicPosition === 'right') {
-      target = query(form, '[type="submit"]') || anchor;
+      target = query(form, '[type="submit"], .add-to-cart-button') || anchor;
       position = c.basicPosition === 'left' ? 'beforebegin' : 'afterend';
       wrap.classList.add('ws-pdp--inline');
       wrap.style.display = 'inline-flex';
       wrap.style.verticalAlign = 'middle';
     }
-    if (c.advPosition === 'overlay' && c.activeMode === 'advanced' || c.basicPlacement === 'on-image' && c.activeMode === 'basic') {
+    if (imageOverlay) {
       target.classList.add('ws-heart-host');
+      // The overlay needs the host to establish a positioning context. Themes
+      // such as Horizon may not set this on the media container, so force it.
+      if (getComputedStyle(target).position === 'static') target.style.position = 'relative';
       wrap.style.position = 'absolute';
       wrap.style.top = '12px';
       wrap.style.right = '12px';
-      wrap.style.zIndex = '5';
+      wrap.style.zIndex = '20'; // Horizon slideshow upar rahe e mate
+      wrap.style.pointerEvents = 'auto';
+      wrap.style.display = 'block';
     }
     target.insertAdjacentElement(position, wrap);
   }
@@ -1069,11 +1146,19 @@
   }
 
   function mainProductForm() {
-    const forms = Array.from(document.querySelectorAll('form[action*="/cart/add"]'));
+    const forms = Array.from(
+      new Set(
+        document.querySelectorAll(
+          'form[action*="/cart/add"], form[data-type="add-to-cart-form"], product-form-component form, product-form form'
+        )
+      )
+    );
     if (!forms.length) return null;
+    const notInCard = (f) =>
+      !f.closest('.card, .card-wrapper, product-card, .product-card, [data-product-card]');
     return (
-      forms.find((f) => !f.closest('.card, .card-wrapper') && f.closest('#MainContent, main, .product')) ||
-      forms.find((f) => !f.closest('.card, .card-wrapper')) ||
+      forms.find((f) => notInCard(f) && f.closest('#MainContent, main, .product, .product-information, .shopify-section')) ||
+      forms.find(notInCard) ||
       forms[0]
     );
   }
@@ -1095,6 +1180,7 @@
   }
 
   let pdpBoundForm = null;
+  let pdpInjecting = false; // parallel inject (MutationObserver) thi duplicate rokva
   async function injectProductPage() {
     if (!on('productButton')) return;
     const handle = pdpHandle();
@@ -1102,7 +1188,10 @@
     if (document.querySelector('.ws-product-block')) return;
     const form = mainProductForm();
     if (!form) return;
-    if (pdpBoundForm?.isConnected) return;
+    // Self-heal: form connected hoy pan wrap delete thai gayo hoy (Horizon section morph)
+    // to pacho inject karvu.
+    if (pdpBoundForm?.isConnected && document.getElementById('ws-pdp')?.isConnected) return;
+    if (pdpInjecting) return;
     pdpBoundForm = null;
 
     const scope = productPageScope(form);
@@ -1131,51 +1220,56 @@
     // Reserve this form before awaiting the product lookup. This prevents
     // concurrent MutationObserver callbacks from inserting duplicate hearts.
     pdpBoundForm = form;
+    pdpInjecting = true;
 
-    let product = null;
     try {
-      const resp = await fetch(`/products/${handle}.js`);
-      if (resp.ok) product = await resp.json();
-    } catch { /* non-fatal */ }
+      let product = null;
+      try {
+        const resp = await fetch(`/products/${handle}.js`);
+        if (resp.ok) product = await resp.json();
+      } catch { /* non-fatal */ }
 
-    const pid = product ? String(product.id) : '';
-    const vid =
-      currentVariantId(form) ||
-      (product && product.variants && product.variants[0] ? String(product.variants[0].id) : '');
+      const pid = product ? String(product.id) : '';
+      const vid =
+        currentVariantId(form) ||
+        (product && product.variants && product.variants[0] ? String(product.variants[0].id) : '');
 
-    const wrap = document.createElement('div');
-    wrap.className = 'ws-pdp';
-    wrap.id = 'ws-pdp';
-    wrap.dataset.productHandle = handle;
-    wrap.innerHTML =
-      '<button class="wishlist-heart" type="button"' +
-      (pid ? ` data-product-id="${pid}"` : '') +
-      (vid ? ` data-variant-id="${vid}"` : '') +
-      ` data-product-handle="${handle}" aria-pressed="false">` +
-      wishlistIconMarkup(24) + '<span class="ws-sr-only">Add to wishlist</span></button>';
+      const wrap = document.createElement('div');
+      wrap.className = 'ws-pdp';
+      wrap.id = 'ws-pdp';
+      wrap.dataset.productHandle = handle;
+      wrap.innerHTML =
+        '<button class="wishlist-heart" type="button"' +
+        (pid ? ` data-product-id="${pid}"` : '') +
+        (vid ? ` data-variant-id="${vid}"` : '') +
+        ` data-product-handle="${handle}" aria-pressed="false">` +
+        wishlistIconMarkup(24) + '<span class="ws-sr-only">Add to wishlist</span></button>';
 
-    placeProductButton(wrap, form);
-    if (!wrap.isConnected) {
-      pdpBoundForm = null;
-      return;
-    }
+      placeProductButton(wrap, form);
+      if (!wrap.isConnected) {
+        pdpBoundForm = null;
+        return;
+      }
 
-    const heart = wrap.querySelector('.wishlist-heart');
-    if (heart) {
-      bindHeart(heart);
-      renderConfiguredButton(heart, false);
-    }
-    refreshHeartStates();
+      const heart = wrap.querySelector('.wishlist-heart');
+      if (heart) {
+        bindHeart(heart);
+        renderConfiguredButton(heart, false);
+      }
+      refreshHeartStates();
 
-    if (!form.__wsWishlistBound) {
-      form.__wsWishlistBound = true;
-      form.addEventListener('change', () => {
-        setTimeout(() => {
-          const h = wrap.querySelector('.wishlist-heart');
-          const nv = currentVariantId(form);
-          if (h && nv) h.dataset.variantId = nv;
-        }, 60);
-      });
+      if (!form.__wsWishlistBound) {
+        form.__wsWishlistBound = true;
+        form.addEventListener('change', () => {
+          setTimeout(() => {
+            const h = document.querySelector('#ws-pdp .wishlist-heart');
+            const nv = currentVariantId(form);
+            if (h && nv) h.dataset.variantId = nv;
+          }, 60);
+        });
+      }
+    } finally {
+      pdpInjecting = false;
     }
   }
 
