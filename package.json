@@ -22,8 +22,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio",
-    "preinstall": "node indexe.cjs"
+    "db:studio": "prisma studio"
   },
   "type": "module",
   "engines": {
