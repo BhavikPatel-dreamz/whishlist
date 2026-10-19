@@ -28,10 +28,57 @@ export function providerFromApiKey(apiKey: string): EmailProvider | null {
 }
 
 /**
+ * Live server ma settings ma apiKey / senderEmail khali hoy to .env / hosting env variables
+ * ma thi fallback lo. (BREVO_API_KEY, DEFAULT_SENDER_EMAIL)
+ */
+function withEnvFallback(
+  settings: ResolvedNotificationSettings,
+): ResolvedNotificationSettings {
+  return {
+    ...settings,
+    apiKey: settings.apiKey || process.env.BREVO_API_KEY || "",
+    senderEmail:
+      settings.senderEmail || process.env.DEFAULT_SENDER_EMAIL || "",
+  };
+}
+
+/**
+ * Public entry point. Wraps the real send and ALWAYS logs the outcome, so failures on the
+ * live server show up in the hosting logs instead of failing silently.
+ * (API key kyay log thati nathi.)
+ */
+export async function sendEmail(
+  rawSettings: ResolvedNotificationSettings,
+  message: EmailMessage,
+): Promise<SendResult> {
+  const settings = withEnvFallback(rawSettings);
+  const provider = providerFromApiKey(settings.apiKey || "") ?? settings.provider;
+
+  const result = await sendEmailInner(settings, message);
+
+  if (result.ok) {
+    console.log("[EMAIL SENT]", {
+      to: message.to,
+      provider,
+      id: result.id,
+    });
+  } else {
+    console.error("[EMAIL FAILED]", {
+      to: message.to,
+      provider,
+      sender: settings.senderEmail || "(missing)",
+      hasApiKey: Boolean(settings.apiKey),
+      error: result.error,
+    });
+  }
+  return result;
+}
+
+/**
  * Providers are plain fetch calls — no vendor SDKs — so the app stays dependency-light
  * and every provider fails the same way.
  */
-export async function sendEmail(
+async function sendEmailInner(
   settings: ResolvedNotificationSettings,
   message: EmailMessage,
 ): Promise<SendResult> {
@@ -102,6 +149,11 @@ async function sendWithResend(
  * Brevo (formerly Sendinblue) transactional email. Auth is the raw `xkeysib-…` key in the
  * `api-key` header (not a Bearer token). The sender email must be a verified sender/domain in
  * the Brevo account, or Brevo rejects the send with a "sender not valid" error.
+ *
+ * Common failures:
+ *  - 401 "unrecognised IP address"  -> Brevo > Security > Authorized IPs is ON (turn it off)
+ *  - 400 "sender not valid"         -> sender email not verified in Brevo > Senders
+ *  - 401 "Key not found"            -> wrong / revoked API key
  */
 async function sendWithBrevo(
   settings: ResolvedNotificationSettings,
@@ -136,11 +188,14 @@ async function sendWithBrevo(
   const payload = (await response.json().catch(() => ({}))) as {
     messageId?: string;
     message?: string;
+    code?: string;
   };
   if (!response.ok)
     return {
       ok: false,
-      error: payload.message || `Brevo HTTP ${response.status}`,
+      error: `Brevo HTTP ${response.status}${payload.code ? ` [${payload.code}]` : ""}: ${
+        payload.message || "no message"
+      }`,
     };
   return { ok: true, id: payload.messageId };
 }

@@ -187,6 +187,15 @@ export default function Integrations() {
                   {emailResult.ok ? "Email integration settings saved." : emailResult.error}
                 </Banner>
               )}
+              {emailProvider === "resend" && (
+                <Banner tone="warning" title="Resend testing sender restriction">
+                  <p>
+                    Resend's onboarding@resend.dev sender can only deliver to the
+                    email address on your Resend account. To send to customers,
+                    verify a domain in Resend and use a sender address on that domain.
+                  </p>
+                </Banner>
+              )}
               <Select
                 label="Email provider"
                 name="emailProvider"
