@@ -3,6 +3,61 @@ import { decryptSecret } from "./crypto.server";
 import { ProxyError } from "./proxy.server";
 import type { Shop } from "@prisma/client";
 
+export const EMAIL_PROVIDERS = [
+  "brevo",
+  "mailgun",
+  "klaviyo",
+  "resend",
+  "sendgrid",
+] as const;
+
+export type EmailProvider = (typeof EMAIL_PROVIDERS)[number];
+
+export function isEmailProvider(value: string): value is EmailProvider {
+  return EMAIL_PROVIDERS.includes(value as EmailProvider);
+}
+
+export function getEmailProviderApiKeys(
+  shop: Shop,
+): Record<EmailProvider, string> {
+  const keys: Record<EmailProvider, string> = {
+    brevo: "",
+    mailgun: "",
+    klaviyo: "",
+    resend: "",
+    sendgrid: "",
+  };
+  const storedApiKey = decryptSecret(shop.apiKey);
+  let isKeyMap = false;
+
+  try {
+    const parsed: unknown = JSON.parse(storedApiKey);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      isKeyMap = true;
+      const parsedKeys = parsed as Record<string, unknown>;
+      for (const provider of EMAIL_PROVIDERS) {
+        const key = parsedKeys[provider];
+        if (typeof key === "string") keys[provider] = key;
+      }
+    }
+  } catch {
+    // Older versions stored a single provider key instead of a JSON map.
+  }
+
+  if (!isKeyMap && storedApiKey && isEmailProvider(shop.emailProvider)) {
+    keys[shop.emailProvider] = storedApiKey;
+  }
+
+  return keys;
+}
+
+export function getEmailProviderApiKey(
+  shop: Shop,
+  provider: EmailProvider,
+): string {
+  return getEmailProviderApiKeys(shop)[provider];
+}
+
 /** Fetches the Shop row, creating it on first touch (install, webhook, or proxy call). */
 export async function getOrCreateShop(
   shop: string,
@@ -41,13 +96,12 @@ export type ResolvedNotificationSettings = {
 
 /** Merges shop settings with the platform-level fallback credentials from env. */
 export function resolveSettings(shop: Shop): ResolvedNotificationSettings {
+  const provider = (shop.emailProvider || "brevo") as EmailProvider;
   const apiKey =
-    decryptSecret(shop.apiKey) ||
-    process.env.BREVO_API_KEY ||
-    "";
+    getEmailProviderApiKey(shop, provider) ||
+    (provider === "brevo" ? process.env.BREVO_API_KEY || "" : "");
   return {
-    provider:
-      shop.emailProvider ||  "brevo",
+    provider,
     apiKey,
     senderEmail: shop.senderEmail || process.env.DEFAULT_SENDER_EMAIL || "",
     senderName: shop.senderName || shop.shop.replace(".myshopify.com", ""),

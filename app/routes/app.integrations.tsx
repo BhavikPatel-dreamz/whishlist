@@ -13,29 +13,34 @@ import {
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
-import { encryptSecret, decryptSecret, maskSecret } from "../lib/crypto.server";
-import { requireShop } from "../lib/shop.server";
+import { encryptSecret, maskSecret } from "../lib/crypto.server";
+import {
+  EMAIL_PROVIDERS,
+  getEmailProviderApiKey,
+  getEmailProviderApiKeys,
+  isEmailProvider,
+  requireShop,
+  type EmailProvider,
+} from "../lib/shop.server";
 import { providerFromApiKey } from "../lib/notifications/providers.server";
 import db from "../db.server";
-
-const EMAIL_PROVIDERS = [
-  "brevo",
-  "mailgun",
-  "klaviyo",
-  "resend",
-  "sendgrid",
-] as const;
-type EmailProvider = (typeof EMAIL_PROVIDERS)[number];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = await requireShop(session.shop);
+  const providerKeys = Object.fromEntries(
+    EMAIL_PROVIDERS.map((provider) => [
+      provider,
+      getEmailProviderApiKey(shop, provider)
+        ? maskSecret(getEmailProviderApiKey(shop, provider))
+        : "",
+    ]),
+  ) as Record<EmailProvider, string>;
   return {
     emailProvider: EMAIL_PROVIDERS.includes(shop.emailProvider as EmailProvider)
       ? shop.emailProvider
       : "brevo",
-    hasEmailApiKey: Boolean(shop.apiKey),
-    maskedEmailApiKey: shop.apiKey ? maskSecret(decryptSecret(shop.apiKey)) : "",
+    providerKeys,
     senderEmail: shop.senderEmail || "",
     senderName: shop.senderName || "",
     smsEnabled: shop.smsEnabled,
@@ -57,13 +62,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const senderEmail = String(formData.get("senderEmail") || "").trim();
     const senderName = String(formData.get("senderName") || "").trim();
 
-    if (!EMAIL_PROVIDERS.includes(provider as EmailProvider)) {
+    if (!isEmailProvider(provider)) {
       return { ok: false as const, intent, error: "Choose a supported email provider." };
     }
     if (senderEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(senderEmail)) {
       return { ok: false as const, intent, error: "Enter a valid sender email address." };
     }
-    const hasSavedProviderKey = provider === shop.emailProvider && Boolean(shop.apiKey);
+    const selectedProvider = provider;
+    const hasSavedProviderKey = Boolean(getEmailProviderApiKey(shop, selectedProvider));
     if (!apiKey && !hasSavedProviderKey) {
       return { ok: false as const, intent, error: "Enter an API key for the selected provider before switching." };
     }
@@ -89,7 +95,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         emailProvider: provider,
         senderEmail: senderEmail || null,
         senderName: senderName || null,
-        ...(apiKey ? { apiKey: encryptSecret(apiKey) } : {}),
+        ...(apiKey
+          ? {
+              apiKey: encryptSecret(
+                JSON.stringify({
+                  ...getEmailProviderApiKeys(shop),
+                  [selectedProvider]: apiKey,
+                }),
+              ),
+            }
+          : {}),
       },
     });
     return { ok: true as const, intent };
@@ -177,7 +192,10 @@ export default function Integrations() {
                 name="emailProvider"
                 options={EMAIL_PROVIDER_OPTIONS}
                 value={emailProvider}
-                onChange={setEmailProvider}
+                onChange={(value) => {
+                  setEmailProvider(value);
+                  setEmailApiKey("");
+                }}
               />
               <TextField
                 label="Provider API key"
@@ -185,9 +203,9 @@ export default function Integrations() {
                 type="password"
                 value={emailApiKey}
                 onChange={setEmailApiKey}
-                placeholder={data.maskedEmailApiKey || "Enter provider API key"}
+                placeholder={data.providerKeys[emailProvider as EmailProvider] || "Enter provider API key"}
                 autoComplete="new-password"
-                helpText={data.hasEmailApiKey ? "A key is already saved. Leave blank to keep it; enter a new key to replace it." : "The key is encrypted before it is stored."}
+                helpText={data.providerKeys[emailProvider as EmailProvider] ? "A key is already saved for this provider. Leave blank to keep it; enter a new key to replace it." : "This provider's key is encrypted before it is stored."}
               />
               <TextField
                 label="Sender email"

@@ -821,8 +821,14 @@ import { EditIcon } from "@shopify/polaris-icons";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
-import { requireShop } from "../lib/shop.server";
-import { encryptSecret, decryptSecret, maskSecret } from "../lib/crypto.server";
+import {
+  getEmailProviderApiKey,
+  getEmailProviderApiKeys,
+  isEmailProvider,
+  requireShop,
+  type EmailProvider,
+} from "../lib/shop.server";
+import { encryptSecret, maskSecret } from "../lib/crypto.server";
 import db from "../db.server";
 import { upsertUIConfigForShopDomain } from "../models/ui-config.server";
 import { ProxyError } from "../lib/proxy.server";
@@ -1062,6 +1068,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const backInStockEditor = apiKey
     ? `${editor}&activateAppId=${encodeURIComponent(`${apiKey}/back-in-stock-app-embed`)}`
     : editor;
+  const emailProvider = isEmailProvider(shop.emailProvider)
+    ? shop.emailProvider
+    : "brevo";
+  const providerApiKey = getEmailProviderApiKey(shop, emailProvider);
 
   return {
     shopDomain: session.shop,
@@ -1070,8 +1080,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     backInStockSettings: (storedProductConfig?.backInStockSettings as Partial<BackInStockSettings> | undefined) ?? null,
     shop: {
       emailProvider: shop.emailProvider,
-      hasApiKey: Boolean(shop.apiKey),
-      apiKeyMasked: shop.apiKey ? maskSecret(decryptSecret(shop.apiKey)) : "",
+      hasApiKey: Boolean(providerApiKey),
+      apiKeyMasked: providerApiKey ? maskSecret(providerApiKey) : "",
       senderEmail: shop.senderEmail || "",
       senderName: shop.senderName || "",
       emailSubject: shop.emailSubject,
@@ -1205,7 +1215,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { saved: true, kind: "wishlistConfig" as const };
   }
 
-  const emailProvider = String(formData.get("emailProvider") || shop.emailProvider || "brevo");
+  const requestedEmailProvider = String(formData.get("emailProvider") || shop.emailProvider || "brevo");
+  const emailProvider = isEmailProvider(requestedEmailProvider)
+    ? requestedEmailProvider
+    : "brevo";
   const apiKeyRaw = String(formData.get("apiKey") || "").trim();
   const senderEmail = String(formData.get("senderEmail") || "").trim();
   const senderName = String(formData.get("senderName") || "").trim();
@@ -1241,7 +1254,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     alertsPerVariantCap: isNaN(alertsPerVariantCap) ? 0 : alertsPerVariantCap,
   };
 
-  if (apiKeyRaw && apiKeyRaw !== shop.apiKey) updateData.apiKey = encryptSecret(apiKeyRaw);
+  if (apiKeyRaw) {
+    updateData.apiKey = encryptSecret(
+      JSON.stringify({
+        ...getEmailProviderApiKeys(shop),
+        [emailProvider]: apiKeyRaw,
+      }),
+    );
+  }
   if (twilioAuthTokenRaw && twilioAuthTokenRaw !== shop.twilioAuthToken) {
     updateData.twilioAuthToken = encryptSecret(twilioAuthTokenRaw);
   }
