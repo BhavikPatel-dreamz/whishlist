@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
 import db from "../db.server";
-import { verifyPayloadSignature } from "../lib/crypto.server";
+import { requireSignedAlertLink } from "../lib/stock-alert-links.server";
 import { unauthenticated } from "../shopify.server";
 import { cartPermalink } from "../lib/notifications/dispatch.server";
 import { getShopContext } from "../lib/shopify-data.server";
@@ -14,9 +14,7 @@ import { markAlertConverted } from "../models/stock-alert.server";
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const id = params.id as string;
   const signature = new URL(request.url).searchParams.get("sig") || "";
-  if (!verifyPayloadSignature(id, signature)) {
-    throw new Response("Invalid link", { status: 400 });
-  }
+  requireSignedAlertLink(id, signature, "Invalid link");
 
   const alert = await db.stockAlert.findUnique({
     where: { id },

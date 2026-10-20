@@ -41,24 +41,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const totals = { shops: 0, variantsChecked: 0, variantsDispatched: 0, sent: 0, failed: 0 };
   const perShop: Array<{ shop: string; sent: number; failed: number; error?: string }> = [];
 
-  for (const shop of shops) {
-    try {
-      const { admin } = await unauthenticated.admin(shop.shop);
-      const shopContext = await getShopContext(admin);
-      const result = await retryStuckAlerts({ shop, admin, shopContext, includeFailed: false });
-      totals.shops += 1;
-      totals.variantsChecked += result.variantsChecked;
-      totals.variantsDispatched += result.variantsDispatched;
-      totals.sent += result.sent;
-      totals.failed += result.failed;
-      perShop.push({ shop: shop.shop, sent: result.sent, failed: result.failed });
-    } catch (error) {
-      // One uninstalled or misconfigured shop must not abort the sweep for the rest.
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`[cron.retry-alerts] ${shop.shop} failed: ${message}`);
-      perShop.push({ shop: shop.shop, sent: 0, failed: 0, error: message.slice(0, 200) });
+  // Bounded pool: one misconfigured shop must not abort the sweep, and shops are
+  // independent — running four at a time keeps the sweep fast without hammering
+  // the Admin API.
+  let nextShop = 0;
+  const workers = Array.from({ length: Math.min(4, shops.length) }, async () => {
+    while (nextShop < shops.length) {
+      const shop = shops[nextShop++];
+      try {
+        const { admin } = await unauthenticated.admin(shop.shop);
+        const shopContext = await getShopContext(admin);
+        const result = await retryStuckAlerts({ shop, admin, shopContext, includeFailed: false });
+        totals.shops += 1;
+        totals.variantsChecked += result.variantsChecked;
+        totals.variantsDispatched += result.variantsDispatched;
+        totals.sent += result.sent;
+        totals.failed += result.failed;
+        perShop.push({ shop: shop.shop, sent: result.sent, failed: result.failed });
+      } catch (error) {
+        // One uninstalled or misconfigured shop must not abort the sweep for the rest.
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[cron.retry-alerts] ${shop.shop} failed: ${message}`);
+        perShop.push({ shop: shop.shop, sent: 0, failed: 0, error: message.slice(0, 200) });
+      }
     }
-  }
+  });
+  await Promise.all(workers);
 
   console.log(
     `[cron.retry-alerts] swept ${totals.shops}/${shops.length} shops: sent=${totals.sent} failed=${totals.failed}`,

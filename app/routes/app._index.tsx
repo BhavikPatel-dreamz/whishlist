@@ -2,29 +2,22 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect, useState } from "react";
-import { authenticate } from "../shopify.server";
 import { AnalyticsMetrics } from "../components/AnalyticsMetrics";
 import { loadAnalyticsMetrics } from "../models/analytics-metrics.server";
-import { requireShop } from "../lib/shop.server";
+import { requireAdminShop } from "../lib/admin-auth.server";
 import { DashboardHelp } from "../components/DashboardHelp";
 import { fetchEmbedExtensions, getEmbedStatus, type EmbedStatus } from "../lib/embed-status";
+import { embedEditorUrl, themeEditorUrl } from "../lib/theme-editor";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const { session, admin } = await authenticate.admin(request);
-  const shop = await requireShop(session.shop);
+  const { session, admin, shop } = await requireAdminShop(request);
   const metrics = await loadAnalyticsMetrics(shop.id, admin, new URL(request.url).searchParams);
-  const editor = `https://${session.shop}/admin/themes/current/editor?context=apps&template=index`;
-  const apiKey = process.env.SHOPIFY_API_KEY;
-  const embedUrl = (handle: string) =>
-    apiKey
-      ? `${editor}&activateAppId=${encodeURIComponent(`${apiKey}/${handle}`)}`
-      : editor;
   return {
     metrics,
-    themeEditor: editor,
-    wishlistEditor: embedUrl("wishlist-app-embed"),
-    backInStockEditor: embedUrl("back-in-stock-app-embed"),
-    storefrontUiEditor: embedUrl("storefront-ui-app-embed"),
+    themeEditor: themeEditorUrl(session.shop, { template: "index" }),
+    wishlistEditor: embedEditorUrl(session.shop, "wishlist-app-embed"),
+    backInStockEditor: embedEditorUrl(session.shop, "back-in-stock-app-embed"),
+    storefrontUiEditor: embedEditorUrl(session.shop, "storefront-ui-app-embed"),
   };
 }
 

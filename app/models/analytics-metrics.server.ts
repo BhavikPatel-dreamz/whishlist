@@ -1,6 +1,6 @@
 import db from "../db.server";
 import { loadOutOfStockProducts } from "./out-of-stock.server";
-import { metricsDateRange, summarizeMetrics } from "../lib/analytics-metrics";
+import { metricsDateBounds, metricsDateRange, summarizeMetrics } from "../lib/analytics-metrics";
 import {
   getCustomerNamesByIds,
   getProductsByIds,
@@ -16,10 +16,7 @@ export async function loadAnalyticsMetrics(
   const items = await db.wishlistItem.findMany({
     where: {
       shopId,
-      createdAt: {
-        gte: new Date(`${range.from}T00:00:00Z`),
-        lt: new Date(Date.parse(`${range.to}T00:00:00Z`) + 86400000),
-      },
+      createdAt: metricsDateBounds(range),
     },
     select: { productId: true, customerId: true, guestToken: true },
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],

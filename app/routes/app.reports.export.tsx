@@ -1,12 +1,10 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { authenticate } from "../shopify.server";
-import { requireShop } from "../lib/shop.server";
+import { requireAdminShop } from "../lib/admin-auth.server";
 import { loadReport } from "../models/reports.server";
 import { reportCsv } from "../lib/reports";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const { session, admin } = await authenticate.admin(request);
-  const shop = await requireShop(session.shop);
+  const { admin, shop } = await requireAdminShop(request);
   const params = new URL(request.url).searchParams;
   const data = await loadReport(shop.id, admin, params);
   const kind = params.get("kind");

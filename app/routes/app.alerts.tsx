@@ -17,8 +17,7 @@ import {
   Box,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-import { authenticate } from "../shopify.server";
-import { requireShop } from "../lib/shop.server";
+import { requireAdminShop } from "../lib/admin-auth.server";
 import { listStockAlerts } from "../models/stock-alert.server";
 import { getShopContext } from "../lib/shopify-data.server";
 import { retryStuckAlerts } from "../lib/notifications/dispatch.server";
@@ -43,8 +42,7 @@ function ClientOnly({
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shop = await requireShop(session.shop);
+  const { shop } = await requireAdminShop(request);
   const url = new URL(request.url);
 
   const status = url.searchParams.get("status") || undefined;
@@ -66,8 +64,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
  * in stock actually send, so this is safe to click at any time.
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
-  const shop = await requireShop(session.shop);
+  const { admin, shop } = await requireAdminShop(request);
   const shopContext = await getShopContext(admin);
   const result = await retryStuckAlerts({ shop, admin, shopContext, includeFailed: true });
   return { ok: true as const, result };

@@ -1,13 +1,12 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
-import { authenticateProxyRequest } from "../lib/proxy-auth.server";
 import { errorResponse, json, numericId, readBody } from "../lib/proxy.server";
+import { withProxy } from "../lib/proxy-route.server";
 import { incrementAddToCart } from "../models/wishlist.server";
 import { recordWishlistPageView } from "../models/wishlist-analytics.server";
 
 /** Proxy endpoint to record wishlist-related events from the storefront. */
-export const action = async ({ request }: ActionFunctionArgs) => {
-  try {
-    const ctx = await authenticateProxyRequest(request);
+export const action = async ({ request }: ActionFunctionArgs) =>
+  withProxy(request, null, async (ctx) => {
     const body = await readBody(request);
     const event = body.event;
     if (!event) return errorResponse({ status: 400, message: "missing event" });
@@ -25,7 +24,4 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     return errorResponse({ status: 400, message: "unsupported event" });
-  } catch (error) {
-    return errorResponse(error);
-  }
-};
+  });

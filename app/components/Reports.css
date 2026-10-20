@@ -2,26 +2,6 @@
   padding: 12px 18px 28px;
   color: #303030;
 }
-.ws-reports-overview {
-  max-width: 980px;
-  padding: 12px 20px 32px;
-}
-.ws-overview-heading {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-  margin-bottom: 28px;
-}
-.ws-overview-heading h1 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1.3;
-}
-.ws-overview-dates summary {
-  min-width: 150px;
-}
 .ws-overview-sections {
   display: flex;
   flex-direction: column;
@@ -59,7 +39,7 @@
   box-shadow: 0 3px 7px #00000018;
 }
 .ws-overview-card:focus-visible {
-  outline: 2px solid #005bd3;
+  outline: 2px solid var(--wl-accent);
   outline-offset: 2px;
 }
 .ws-overview-card-label {
@@ -98,10 +78,6 @@
 }
 
 @media (max-width: 600px) {
-  .ws-reports-overview {
-    padding-right: 12px;
-    padding-left: 12px;
-  }
 
   .ws-overview-grid {
     grid-template-columns: 1fr;
@@ -176,7 +152,6 @@
   display: inline-flex;
   align-items: center;
 }
-.ws-reports-export,
 .ws-reports-dates summary {
   display: inline-flex;
   align-items: center;
@@ -199,7 +174,6 @@
 .ws-reports-dates summary::-webkit-details-marker {
   display: none;
 }
-.ws-reports-export svg,
 .ws-reports-dates summary svg {
   width: 14px;
   height: 14px;
@@ -210,12 +184,8 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.ws-reports-export:not(:disabled):hover,
 .ws-reports-dates summary:hover {
   background: #f7f7f7;
-}
-.ws-reports-dates[open] .ws-reports-date-chevron {
-  transform: rotate(180deg);
 }
 .ws-reports-dates form {
   position: absolute;
@@ -332,7 +302,7 @@
   border-radius: 7px;
 }
 .ws-reports-image-link:focus-visible {
-  outline: 2px solid #005bd3;
+  outline: 2px solid var(--wl-accent);
   outline-offset: 2px;
 }
 .ws-reports-image-link:hover img {
@@ -514,7 +484,7 @@
   margin-top: 14px;
 }
 .ws-reports :focus-visible {
-  outline: 2px solid #005bd3;
+  outline: 2px solid var(--wl-accent);
   outline-offset: 3px;
 }
 @media (max-width: 800px) {
@@ -533,17 +503,4 @@
   .ws-reports {
     padding: 12px;
   }
-}
-
-.ws-reports-date-hint {
-  margin: 8px 0 0;
-  color: #616161;
-  font-size: 11px;
-}
-.ws-reports-date-hint[role="alert"] {
-  color: #b42318;
-}
-.ws-reports-date-footer {
-  display: flex;
-  gap: 8px;
 }

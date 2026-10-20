@@ -1,10 +1,21 @@
 import db from "../db.server";
-import { ensureList, listName } from "../models/wishlist-lists.server";
+import { listName } from "../models/wishlist-lists.server";
 import type { GraphqlClient } from "./shopify-data.server";
+import { gqlRequest } from "./graphql.server";
+
+type MetafieldItem = {
+  productId?: unknown;
+  variantId?: unknown;
+  handle?: unknown;
+  listName?: unknown;
+  addedAt?: unknown;
+};
 
 /**
  * On app install/reinstall, restore customer wishlists from metafields.
  * This ensures customers don't lose their wishlist items even after app uninstall.
+ * Batched: one lookup for which customers already have rows, then one transaction
+ * per customer (lists + items) instead of per-item queries.
  */
 export async function restoreWishlistsFromMetafields(
   shopId: string,
@@ -35,90 +46,102 @@ export async function restoreWishlistsFromMetafields(
       }
     `;
 
-    const response = await admin.graphql(query);
-    const payload = (await response.json()) as {
-      data?: {
-        customers?: {
-          edges?: Array<{
-            node: {
-              id: string;
-              email?: string | null;
-              metafield?: { value?: string | null } | null;
-            };
-          }>;
-        };
+    const data = await gqlRequest<{
+      customers?: {
+        edges?: Array<{
+          node: {
+            id: string;
+            email?: string | null;
+            metafield?: { value?: string | null } | null;
+          };
+        }>;
       };
-      errors?: Array<{ message: string }>;
-    };
+    }>(admin, query, { errorPrefix: "", requireData: false });
 
-    if (payload.errors?.length) {
-      throw new Error(payload.errors.map((error) => error.message).join("; "));
-    }
+    const customers = data?.customers?.edges || [];
 
-    const customers = payload.data?.customers?.edges || [];
-
+    const parsed: Array<{ customerId: string; items: MetafieldItem[] }> = [];
     for (const { node: customer } of customers) {
       if (!customer.metafield?.value) continue;
-
       try {
         const items = JSON.parse(customer.metafield.value);
         if (!Array.isArray(items) || items.length === 0) continue;
-
-        const customerId = customer.id.replace(/^gid:\/\/shopify\/Customer\//, "");
-
-        // Check if customer already has wishlist items in the database
-        const existing = await db.wishlistItem.count({
-          where: { shopId, customerId },
+        parsed.push({
+          customerId: customer.id.replace(/^gid:\/\/shopify\/Customer\//, ""),
+          items,
         });
+      } catch (e) {
+        console.warn(`Failed to parse metafield for customer ${customer.id}:`, e);
+        errors++;
+      }
+    }
+    if (!parsed.length) return { restored, errors };
 
-        if (existing > 0) {
-          // Customer already has items; don't overwrite
-          continue;
-        }
+    // One query answers "who already has items?" for every customer at once.
+    const customersWithItems = new Set(
+      (
+        await db.wishlistItem.findMany({
+          where: { shopId, customerId: { in: parsed.map((entry) => entry.customerId) } },
+          select: { customerId: true },
+        })
+      ).map((row) => row.customerId),
+    );
 
-        // Restore items from metafield
-        for (const item of items) {
-          try {
-            // Check if item already exists
-            const existing = await db.wishlistItem.findFirst({
-              where: {
-                shopId,
-                customerId,
-                productId: item.productId,
-                variantId: item.variantId || null,
-              },
-            });
+    for (const { customerId, items } of parsed) {
+      if (customersWithItems.has(customerId)) {
+        // Customer already has items; don't overwrite
+        continue;
+      }
 
-            if (!existing) {
-              const restoredList = listName(item.listName);
-              await ensureList(shopId, { customerId, guestToken: null }, restoredList);
-              await db.wishlistItem.create({
-                data: {
-                  shopId,
-                  customerId,
-                  productId: item.productId,
-                  variantId: item.variantId || null,
-                  handle: item.handle,
-                  listName: restoredList,
-                  createdAt: item.addedAt ? new Date(item.addedAt) : new Date(),
-                },
-              });
-            }
-          } catch (e) {
-            console.warn(
-              `Failed to restore wishlist item for customer ${customerId}:`,
-              e,
-            );
-            errors++;
+      const rows: Array<{
+        shopId: string;
+        customerId: string;
+        productId: string;
+        variantId: string | null;
+        handle: string | null;
+        listName: string;
+        createdAt: Date;
+      }> = [];
+      const listNames = new Set<string>();
+      for (const item of items) {
+        try {
+          if (typeof item.productId !== "string" || !item.productId) {
+            throw new Error("missing productId");
           }
+          const restoredList = listName(item.listName);
+          listNames.add(restoredList);
+          rows.push({
+            shopId,
+            customerId,
+            productId: item.productId,
+            variantId: typeof item.variantId === "string" && item.variantId ? item.variantId : null,
+            handle: typeof item.handle === "string" ? item.handle : null,
+            listName: restoredList,
+            createdAt: item.addedAt ? new Date(item.addedAt as string | number) : new Date(),
+          });
+        } catch (e) {
+          console.warn(`Failed to restore wishlist item for customer ${customerId}:`, e);
+          errors++;
         }
+      }
+      if (!rows.length) continue;
 
+      try {
+        await db.$transaction(async (tx) => {
+          await tx.wishlistList.createMany({
+            data: [...listNames].map((name) => ({
+              shopId,
+              owner: `customer:${customerId}`,
+              name,
+            })),
+            skipDuplicates: true,
+          });
+          // Unique (shopId, customerId, productId, variantId) absorbs duplicates.
+          await tx.wishlistItem.createMany({ data: rows, skipDuplicates: true });
+        });
         restored++;
       } catch (e) {
-        console.warn(
-          `Failed to parse metafield for customer ${customer.id}:`,
-          e,
-        );
+        console.warn(`Failed to restore wishlist for customer ${customerId}:`, e);
         errors++;
       }
     }

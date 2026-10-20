@@ -1,6 +1,7 @@
 import db from "../db.server";
 import { ProxyError } from "../lib/proxy.server";
 import { identityWhere, type Identity } from "./wishlist.server";
+import { getUIConfigRow } from "./ui-config.server";
 
 export const DEFAULT_LIST = "My Wishlist";
 export function listName(value: unknown): string {
@@ -14,7 +15,7 @@ export function listOwner(identity: Identity) {
   return identity.customerId ? `customer:${identity.customerId}` : `guest:${identity.guestToken}`;
 }
 export async function wishlistFeatures(shopId: string) {
-  const config = await db.uIConfig.findUnique({ where: { shopId } });
+  const config = await getUIConfigRow(shopId);
   return (config?.productCardConfig || {}) as Record<string, unknown>;
 }
 export async function ensureList(shopId: string, identity: Identity, name: string) {

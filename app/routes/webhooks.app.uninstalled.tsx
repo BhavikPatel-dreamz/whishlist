@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { invalidateShopCache } from "../lib/shop.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, session, topic } = await authenticate.webhook(request);
@@ -15,6 +16,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Keep wishlists and waitlists so a reinstall restores them, but drop the stored token.
   await db.shop.updateMany({ where: { shop }, data: { accessToken: null } });
+  invalidateShopCache(shop);
 
   return new Response();
 };

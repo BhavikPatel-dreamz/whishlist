@@ -1,5 +1,6 @@
 import type { Shop, StockAlert } from "@prisma/client";
 import { resolveSettings } from "../shop.server";
+import { appOrigin } from "../app-url.server";
 import { signPayload } from "../crypto.server";
 import {
   formatMoney,
@@ -10,7 +11,7 @@ import {
 } from "../shopify-data.server";
 import { sendEmail, sendSms } from "./providers.server";
 import { backInStockHtml, backInStockText, render } from "./template.server";
-import db from "../../db.server";
+import { getUIConfigRow } from "../../models/ui-config.server";
 import type { BackInStockSettings } from "../ui-config.shared";
 import {
   claimPendingAlerts,
@@ -31,12 +32,17 @@ export type DispatchResult = {
 };
 
 export function alertTrackingUrl(alertId: string): string {
-  const base = (process.env.SHOPIFY_APP_URL || "").replace(/\/$/, "");
+  const base = appOrigin();
   return `${base}/r/alert/${alertId}?sig=${signPayload(alertId)}`;
 }
 
+export function alertConfirmUrl(alertId: string): string {
+  const base = appOrigin();
+  return `${base}/r/confirm/${alertId}?sig=${signPayload(alertId)}`;
+}
+
 export function alertUnsubscribeUrl(alertId: string): string {
-  const base = (process.env.SHOPIFY_APP_URL || "").replace(/\/$/, "");
+  const base = appOrigin();
   return `${base}/alerts/unsubscribe?id=${alertId}&sig=${signPayload(alertId)}`;
 }
 
@@ -50,7 +56,7 @@ export function emailLogoUrl(
 ): string | null {
   if (!rawLogo) return null;
   if (rawLogo.startsWith("data:")) {
-    const base = (process.env.SHOPIFY_APP_URL || "").replace(/\/$/, "");
+    const base = appOrigin();
     return base ? `${base}/logo/${shopId}` : rawLogo;
   }
   return rawLogo;
@@ -97,10 +103,7 @@ export async function dispatchRestockAlerts(params: {
     return { ...base, skippedReason: "product not active" };
   }
 
-  const uiConfig = await db.uIConfig.findUnique({
-    where: { shopId: shop.id },
-    select: { productCardConfig: true },
-  });
+  const uiConfig = await getUIConfigRow(shop.id);
   const rawProductConfig = uiConfig?.productCardConfig;
   const productConfig =
     rawProductConfig &&
@@ -308,22 +311,29 @@ export async function retryStuckAlerts(params: {
   }
 
   // `nodes()` accepts up to 250 ids; chunk to stay comfortably under that.
-  for (let i = 0; i < variantIds.length; i += 100) {
-    const chunk = variantIds.slice(i, i + 100);
-    const variants = await getVariantsByIds(admin, chunk);
-    for (const variant of variants) {
-      const dispatched = await dispatchRestockAlerts({
-        shop,
-        variant,
-        shopContext,
-      });
-      if (dispatched.claimed) {
-        result.variantsDispatched += 1;
-        result.sent += dispatched.sent;
-        result.failed += dispatched.failed;
+  // Chunks run concurrently (bounded) so a large sweep doesn't crawl.
+  const chunks: string[][] = [];
+  for (let i = 0; i < variantIds.length; i += 100) chunks.push(variantIds.slice(i, i + 100));
+  let nextChunk = 0;
+  const workers = Array.from({ length: Math.min(3, chunks.length) }, async () => {
+    while (nextChunk < chunks.length) {
+      const chunk = chunks[nextChunk++];
+      const variants = await getVariantsByIds(admin, chunk);
+      for (const variant of variants) {
+        const dispatched = await dispatchRestockAlerts({
+          shop,
+          variant,
+          shopContext,
+        });
+        if (dispatched.claimed) {
+          result.variantsDispatched += 1;
+          result.sent += dispatched.sent;
+          result.failed += dispatched.failed;
+        }
       }
     }
-  }
+  });
+  await Promise.all(workers);
 
   return result;
 }

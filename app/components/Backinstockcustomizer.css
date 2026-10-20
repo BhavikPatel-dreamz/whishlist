@@ -67,7 +67,7 @@
 }
 .swc-radio input:checked + .swc-radio-dot { border-color: #202223; }
 .swc-radio input:checked + .swc-radio-dot::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #202223; }
-.swc-radio input:focus-visible + .swc-radio-dot { outline: 2px solid #005bd3; outline-offset: 2px; }
+.swc-radio input:focus-visible + .swc-radio-dot { outline: 2px solid var(--wl-accent); outline-offset: 2px; }
 .swc-radio-body { display: grid; gap: 7px; flex: 1; min-width: 0; }
 .swc-radio-label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .swc-radio-hint { color: var(--swc-muted); font-size: 13px; }
@@ -94,7 +94,7 @@
   width: 100%; height: 32px; padding: 0 12px; border: 1px solid #8c9196; border-radius: 4px;
   background: #fff; color: var(--swc-text); font: inherit;
 }
-.swc-input:focus { outline: 2px solid #005bd3; outline-offset: 0; border-color: #005bd3; }
+.swc-input:focus { outline: 2px solid var(--wl-accent); outline-offset: 0; border-color: var(--wl-accent); }
 .swc-input-wrap { position: relative; }
 .swc-input-wrap .swc-input { padding-right: 56px; }
 .swc-count, .swc-unit { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--swc-muted); font-size: 12px; pointer-events: none; }
@@ -155,9 +155,6 @@
 }
 
 /* Email extras */
-.swc-joined { display: flex; }
-.swc-joined .swc-input { border-radius: 4px 0 0 4px; }
-.swc-joined button { flex: 0 0 auto; padding: 0 14px; border: 1px solid #8c9196; border-left: 0; border-radius: 0 4px 4px 0; background: #fff; font-size: 13px; font-weight: 500; }
 .swc-chip { width: fit-content; padding: 3px 9px; border: 0; border-radius: 4px; background: #e4e5e7; color: #4a4f55; font-size: 11px; font-weight: 500; }
 .swc-chip-blue { background: #e0effe; color: #0b5cad; font-weight: 700; }
 button.swc-chip { cursor: pointer; }
@@ -266,7 +263,7 @@ button.swc-chip:hover { background: #cfe4fd; }
 .swc-email-foot u { color: #222; }
 
 /* Focus */
-.swc button:focus-visible, .swc a:focus-visible { outline: 2px solid #005bd3; outline-offset: 2px; }
+.swc button:focus-visible, .swc a:focus-visible { outline: 2px solid var(--wl-accent); outline-offset: 2px; }
 
 @media (max-width: 900px) {
   .swc-body { flex-direction: column; overflow: auto; }

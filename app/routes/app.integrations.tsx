@@ -1,3 +1,4 @@
+import { requireAdminShop } from "../lib/admin-auth.server";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { useState } from "react";
 import { Link, useFetcher, useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
@@ -12,22 +13,20 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-import { authenticate } from "../shopify.server";
 import { encryptSecret, maskSecret } from "../lib/crypto.server";
 import {
   EMAIL_PROVIDERS,
   getEmailProviderApiKey,
   getEmailProviderApiKeys,
   isEmailProvider,
-  requireShop,
   type EmailProvider,
+  invalidateShopCache,
 } from "../lib/shop.server";
 import { providerFromApiKey } from "../lib/notifications/providers.server";
 import db from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shop = await requireShop(session.shop);
+  const { shop } = await requireAdminShop(request);
   const providerKeys = Object.fromEntries(
     EMAIL_PROVIDERS.map((provider) => [
       provider,
@@ -51,8 +50,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shop = await requireShop(session.shop);
+  const { shop } = await requireAdminShop(request);
   const formData = await request.formData();
   const intent = String(formData.get("intent") || "");
   const requestedReturnTo = new URL(request.url).searchParams.get("returnTo");
@@ -112,6 +110,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           : {}),
       },
     });
+    invalidateShopCache(shop.shop);
     return { ok: true as const, intent };
   }
 
@@ -138,6 +137,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         ...(twilioAuthToken ? { twilioAuthToken: encryptSecret(twilioAuthToken) } : {}),
       },
     });
+    invalidateShopCache(shop.shop);
     return { ok: true as const, intent, returnTo };
   }
 

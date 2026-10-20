@@ -1,7 +1,10 @@
 import db from "../db.server";
 import { decryptSecret } from "./crypto.server";
 import { ProxyError } from "./proxy.server";
+import { ttlDelete, ttlGet, ttlSet } from "./ttl-cache.server";
 import type { Shop } from "@prisma/client";
+
+const shopCacheKey = (shop: string) => `shop:${shop}`;
 
 export const EMAIL_PROVIDERS = [
   "brevo",
@@ -63,20 +66,35 @@ export async function getOrCreateShop(
   shop: string,
   accessToken?: string,
 ): Promise<Shop> {
-  return db.shop.upsert({
+  const record = await db.shop.upsert({
     where: { shop },
     create: { shop, accessToken },
     update: accessToken ? { accessToken } : {},
   });
+  ttlSet(shopCacheKey(shop), record);
+  return record;
+}
+
+export async function findShop(shop: string): Promise<Shop | null> {
+  const cached = ttlGet<Shop>(shopCacheKey(shop));
+  if (cached) return cached;
+  const record = await db.shop.findUnique({ where: { shop } });
+  if (record) ttlSet(shopCacheKey(shop), record);
+  return record;
 }
 
 export async function requireShop(
   shop: string | undefined | null,
 ): Promise<Shop> {
   if (!shop) throw new ProxyError(400, "Missing shop", "missing_shop");
-  const record = await db.shop.findUnique({ where: { shop } });
+  const record = await findShop(shop);
   if (!record) throw new ProxyError(404, "Shop not installed", "not_installed");
   return record;
+}
+
+/** Drops the cached Shop row (call after direct `db.shop.update` writes). */
+export function invalidateShopCache(shop: string): void {
+  ttlDelete(shopCacheKey(shop));
 }
 
 export type ResolvedNotificationSettings = {

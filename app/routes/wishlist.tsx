@@ -1,11 +1,9 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { authenticateProxyRequest } from "../lib/proxy-auth.server";
-import { errorResponse } from "../lib/proxy.server";
+import { withProxy } from "../lib/proxy-route.server";
 
 /** Shopify renders this proxy response inside the storefront theme. */
 export async function loader({ request }: LoaderFunctionArgs) {
-  try {
-    await authenticateProxyRequest(request);
+  return withProxy(request, null, () => {
     return new Response(
       '<div id="ws-wishlist-page-root"><noscript>Please enable JavaScript to view your wishlist.</noscript></div>',
       {
@@ -15,7 +13,5 @@ export async function loader({ request }: LoaderFunctionArgs) {
         },
       },
     );
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

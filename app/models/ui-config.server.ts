@@ -1,6 +1,8 @@
 import { enforceWishlistMode } from "../lib/wishlist-mode.server";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, UIConfig } from "@prisma/client";
 import prisma from "app/db.server";
+import { findShop } from "../lib/shop.server";
+import { ttlDelete, ttlGet, ttlSet } from "../lib/ttl-cache.server";
 import {
   defaultProductCardConfig,
   defaultThemeSettings,
@@ -18,14 +20,24 @@ export type UIConfigView = {
   themeSettings: ThemeSettings;
 };
 
-export async function getUIConfigByShopDomain(
-  shopDomain: string,
-): Promise<UIConfigView | null> {
-  const shop = await prisma.shop.findUnique({ where: { shop: shopDomain } });
-  if (!shop) return null;
-  const config = await prisma.uIConfig.findUnique({
-    where: { shopId: shop.id },
-  });
+const rowCacheKey = (shopId: string) => `uiconfig-row:${shopId}`;
+const viewCacheKey = (shopDomain: string) => `uiconfig-view:${shopDomain}`;
+
+/** Raw UIConfig row behind a short TTL — config changes only via the settings save. */
+export async function getUIConfigRow(shopId: string): Promise<UIConfig | null> {
+  const cached = ttlGet<UIConfig | null>(rowCacheKey(shopId));
+  if (cached !== undefined) return cached;
+  const row = await prisma.uIConfig.findUnique({ where: { shopId } });
+  ttlSet(rowCacheKey(shopId), row);
+  return row;
+}
+
+export function invalidateUIConfigCache(shopId: string, shopDomain?: string): void {
+  ttlDelete(rowCacheKey(shopId));
+  if (shopDomain) ttlDelete(viewCacheKey(shopDomain));
+}
+
+function toView(config: UIConfig | null): UIConfigView {
   if (!config) {
     return {
       extensionActive: "none",
@@ -33,21 +45,32 @@ export async function getUIConfigByShopDomain(
       themeSettings: defaultThemeSettings(),
     };
   }
-  const themeSettings = resolveWishlistTheme(
-    config.productCardConfig,
-    config.themeSettings,
-  );
-  const productCardConfig = effectiveProductCardConfig(
-    config.productCardConfig,
-  );
+  const themeSettings = resolveWishlistTheme(config.productCardConfig, config.themeSettings);
+  const productCardConfig = effectiveProductCardConfig(config.productCardConfig);
   if (themeSettings) productCardConfig.theme = themeSettings;
   return {
-    extensionActive: isExtensionActive(config.extensionActive)
-      ? config.extensionActive
-      : "none",
+    extensionActive: isExtensionActive(config.extensionActive) ? config.extensionActive : "none",
     productCardConfig,
     themeSettings,
   };
+}
+
+export async function getUIConfigByShopId(shopId: string): Promise<UIConfigView | null> {
+  const shop = await prisma.shop.findUnique({ where: { id: shopId }, select: { id: true } });
+  if (!shop) return null;
+  return toView(await getUIConfigRow(shopId));
+}
+
+export async function getUIConfigByShopDomain(
+  shopDomain: string,
+): Promise<UIConfigView | null> {
+  const shop = await findShop(shopDomain);
+  if (!shop) return null;
+  const cached = ttlGet<UIConfigView>(viewCacheKey(shopDomain));
+  if (cached) return cached;
+  const view = toView(await getUIConfigRow(shop.id));
+  ttlSet(viewCacheKey(shopDomain), view);
+  return view;
 }
 
 export async function upsertUIConfigForShopDomain(
@@ -59,10 +82,10 @@ export async function upsertUIConfigForShopDomain(
     themeSettings?: Partial<ThemeSettings>;
   },
 ): Promise<UIConfigView> {
-  const shop = await prisma.shop.findUnique({ where: { shop: shopDomain } });
+  const shop = await findShop(shopDomain);
   if (!shop) throw new Error("Shop not found");
 
-  return prisma.$transaction(async (tx) => {
+  const view = await prisma.$transaction(async (tx) => {
     // Serialize settings writes so a stale save cannot undo activation.
     await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtext(${shop.id}))`;
     const existing = await tx.uIConfig.findUnique({
@@ -122,6 +145,8 @@ export async function upsertUIConfigForShopDomain(
       themeSettings: resultTheme,
     };
   }, { timeout: 15000 });
+  invalidateUIConfigCache(shop.id, shopDomain);
+  return view;
 }
 
 export function effectiveThemeSettings(stored: unknown): ThemeSettings {

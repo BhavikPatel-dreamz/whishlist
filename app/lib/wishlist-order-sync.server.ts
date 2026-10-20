@@ -1,4 +1,5 @@
 import type { GraphqlClient } from "./shopify-data.server";
+import { gqlRequest } from "./graphql.server";
 import { recordWishlistDrivenOrder } from "../models/wishlist.server";
 
 type PageInfo = { hasNextPage: boolean; endCursor: string | null };
@@ -11,12 +12,10 @@ const lineFields = `nodes { product { id } customAttributes { key value } }
   pageInfo { hasNextPage endCursor }`;
 
 async function request<T>(admin: GraphqlClient, query: string, variables: Record<string, unknown>): Promise<T> {
-  const response = await admin.graphql(query, { variables });
-  const result = await response.json();
-  if (!response.ok || result.errors?.length || !result.data) {
-    throw new Error("Could not sync wishlist orders from Shopify");
-  }
-  return result.data as T;
+  return gqlRequest<T>(admin, query, {
+    variables,
+    errorMessage: "Could not sync wishlist orders from Shopify",
+  });
 }
 
 /** Recover missed webhooks using explicit cart markers, never merely a current wishlist match. */

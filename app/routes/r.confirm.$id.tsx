@@ -1,8 +1,9 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import db from "../db.server";
-import { verifyPayloadSignature } from "../lib/crypto.server";
+import { requireSignedAlertLink } from "../lib/stock-alert-links.server";
 import { confirmStockAlert } from "../models/stock-alert.server";
+import { AlertLandingBody, AlertLandingHeading, AlertLandingShell } from "../components/AlertLanding";
 
 /** Confirmation link sent in the double opt-in email. */
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
@@ -11,9 +12,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const id = params.id || "";
   const signature = new URL(request.url).searchParams.get("sig") || "";
 
-  if (!id || !verifyPayloadSignature(id, signature)) {
-    throw new Response("Invalid confirmation link", { status: 400 });
-  }
+  requireSignedAlertLink(id, signature, "Invalid confirmation link");
 
   const alert = await db.stockAlert.findUnique({
     where: { id },
@@ -51,35 +50,26 @@ export default function ConfirmAlert() {
   const { contact, channel, productTitle, variantTitle, confirmed } = useLoaderData<typeof loader>();
 
   return (
-    <main
-      style={{
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
-        maxWidth: "32rem",
-        margin: "10vh auto",
-        padding: "0 1.5rem",
-        textAlign: "center",
-        color: "#1a1a1a",
-      }}
-    >
+    <AlertLandingShell>
       {confirmed ? (
         <>
-          <h1 style={{ fontSize: "1.5rem", marginBottom: "0.75rem" }}>You're confirmed!</h1>
-          <p style={{ color: "#4a4f54", lineHeight: 1.6 }}>
+          <AlertLandingHeading>You're confirmed!</AlertLandingHeading>
+          <AlertLandingBody>
             {contact} will be notified by {channel === "sms" ? "text" : "email"} when{" "}
             <strong>{productTitle}</strong>
             {variantTitle && variantTitle !== "Default Title" ? ` (${variantTitle})` : ""} is
             back in stock.
-          </p>
+          </AlertLandingBody>
         </>
       ) : (
         <>
-          <h1 style={{ fontSize: "1.5rem", marginBottom: "0.75rem" }}>Unable to confirm</h1>
-          <p style={{ color: "#4a4f54", lineHeight: 1.6 }}>
+          <AlertLandingHeading>Unable to confirm</AlertLandingHeading>
+          <AlertLandingBody>
             This alert may have been cancelled or already fulfilled. Please sign up again on the
             product page.
-          </p>
+          </AlertLandingBody>
         </>
       )}
-    </main>
+    </AlertLandingShell>
   );
 }

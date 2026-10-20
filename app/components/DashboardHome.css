@@ -100,7 +100,7 @@
 }
 .ws-home-page a:focus-visible,
 .ws-home-refresh:focus-visible {
-  outline: 2px solid #005bd3;
+  outline: 2px solid var(--wl-accent);
   outline-offset: 4px;
 }
 .ws-home-statusNote {

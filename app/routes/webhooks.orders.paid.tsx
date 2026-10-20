@@ -1,19 +1,8 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
-import { authenticate } from "../shopify.server";
-import { recordWishlistDrivenOrder, customerHasSavedProduct } from "../models/wishlist.server";
 import { getOrCreateShop } from "../lib/shop.server";
 import { verifyPayloadSignature } from "../lib/crypto.server";
 import { recordStockAlertPurchase } from "../models/stock-alert.server";
-
-function isWishlistLineItem(lineItem: any) {
-  const properties = lineItem?.properties;
-  if (Array.isArray(properties)) {
-    return properties.some(
-      (property) => property?.name === "_wishlist_stock" && property?.value === "true",
-    );
-  }
-  return properties?._wishlist_stock === "true";
-}
+import { attributeWishlistOrders, handleOrderWebhook } from "../lib/order-webhook.server";
 
 function stockAlertToken(lineItem: any): string | null {
   const properties = lineItem?.properties;
@@ -23,86 +12,55 @@ function stockAlertToken(lineItem: any): string | null {
   return typeof value === "string" ? value : null;
 }
 
-/** Acknowledge `orders/paid` webhooks. */
-export const action = async ({ request }: ActionFunctionArgs) => {
-  let stage = "authentication";
-  try {
-    const { shop, topic, payload } = await authenticate.webhook(request);
-    stage = "order-processing";
-    console.log(`[webhook:${topic}] received for ${shop}`);
-    try {
-      const shopRecord = await getOrCreateShop(shop);
-      const order = payload as any;
-      const orderId = order?.id ? String(order.id) : null;
-      if (!orderId) return new Response();
-      const items = order?.line_items || [];
-      const customerId = order?.customer?.id ? String(order.customer.id) : null;
-      for (const li of items) {
-        const productId = li.product_id || li.productId;
-        if (!productId) continue;
+async function recordAlertPurchase(
+  lineItem: any,
+  order: Record<string, any>,
+  orderId: string,
+): Promise<void> {
+  const token = stockAlertToken(lineItem);
+  const separator = token?.lastIndexOf(".") ?? -1;
+  if (!token || separator <= 0) return;
 
-        const token = stockAlertToken(li);
-        const separator = token?.lastIndexOf(".") ?? -1;
-        if (token && separator > 0) {
-          const alertId = token.slice(0, separator);
-          const signature = token.slice(separator + 1);
-          const variantId = li.variant_id || li.variantId;
-          const unitPrice = Number(li.price);
-          const quantity = Number(li.quantity);
-          const discount = Number(li.total_discount || 0);
-          if (
-            variantId &&
-            verifyPayloadSignature(alertId, signature) &&
-            Number.isFinite(unitPrice) &&
-            Number.isFinite(quantity)
-          ) {
-            await recordStockAlertPurchase({
-              alertId,
-              variantId: String(variantId),
-              orderId,
-              revenue: Math.max(0, unitPrice * quantity - discount).toFixed(2),
-              currency: String(order.currency || order.presentment_currency || ""),
-              purchasedAt: new Date(order.processed_at || order.created_at || Date.now()),
-            });
-          }
-        }
-
-        if (isWishlistLineItem(li)) {
-          await recordWishlistDrivenOrder(shopRecord.id, orderId, String(productId));
-          continue;
-        }
-
-        if (customerId) {
-          try {
-            const saved = await customerHasSavedProduct(shopRecord.id, customerId, String(productId));
-            if (saved) {
-              await recordWishlistDrivenOrder(shopRecord.id, orderId, String(productId));
-            }
-          } catch (err) {
-            console.warn('Failed to check customer wishlist for attribution', err);
-            throw err;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("Failed processing order items for metrics", err);
-      throw err;
-    }
-    return new Response();
-  } catch (err) {
-    if (err instanceof Response) {
-      console.warn("/webhooks/orders/paid rejected", {
-        stage,
-        status: err.status,
-        webhookId: request.headers.get("X-Shopify-Webhook-Id"),
-      });
-      return err;
-    }
-    console.error("/webhooks/orders/paid handler error", {
-      stage,
-      webhookId: request.headers.get("X-Shopify-Webhook-Id"),
-      error: err,
-    });
-    return new Response(null, { status: 500 });
+  const alertId = token.slice(0, separator);
+  const signature = token.slice(separator + 1);
+  const variantId = lineItem.variant_id || lineItem.variantId;
+  const unitPrice = Number(lineItem.price);
+  const quantity = Number(lineItem.quantity);
+  const discount = Number(lineItem.total_discount || 0);
+  if (
+    !variantId ||
+    !verifyPayloadSignature(alertId, signature) ||
+    !Number.isFinite(unitPrice) ||
+    !Number.isFinite(quantity)
+  ) {
+    return;
   }
-};
+
+  await recordStockAlertPurchase({
+    alertId,
+    variantId: String(variantId),
+    orderId,
+    revenue: Math.max(0, unitPrice * quantity - discount).toFixed(2),
+    currency: String(order.currency || order.presentment_currency || ""),
+    purchasedAt: new Date(order.processed_at || order.created_at || Date.now()),
+  });
+}
+
+/** Acknowledge `orders/paid` webhooks. */
+export const action = async ({ request }: ActionFunctionArgs) =>
+  handleOrderWebhook(request, "/webhooks/orders/paid", async ({ shop, payload }) => {
+    const shopRecord = await getOrCreateShop(shop);
+    const order = payload;
+    const orderId = order?.id ? String(order.id) : null;
+    if (!orderId) return;
+
+    const items = order?.line_items || [];
+    const customerId = order?.customer?.id ? String(order.customer.id) : null;
+    await attributeWishlistOrders({
+      shopRecordId: shopRecord.id,
+      orderId,
+      items,
+      customerId,
+      onLineItem: (lineItem) => recordAlertPurchase(lineItem, order, orderId),
+    });
+  });

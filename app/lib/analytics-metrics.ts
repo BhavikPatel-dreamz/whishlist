@@ -152,3 +152,11 @@ export function shopperValue(row: MetricsData["shoppers"][number]) {
     ? `${values.join(" + ")}${row.unpriced ? " (partial)" : ""}`
     : "Unavailable";
 }
+
+/** Inclusive day bounds for a `from`/`to` range: from 00:00Z through end of `to`. */
+export function metricsDateBounds(range: { from: string; to: string }) {
+  return {
+    gte: new Date(`${range.from}T00:00:00Z`),
+    lt: new Date(Date.parse(`${range.to}T00:00:00Z`) + 86400000),
+  };
+}

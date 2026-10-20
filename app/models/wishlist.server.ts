@@ -42,6 +42,10 @@ export async function listWishlist(
   });
 }
 
+export async function countWishlist(shopId: string, identity: Identity): Promise<number> {
+  return db.wishlistItem.count({ where: identityWhere(shopId, identity) });
+}
+
 export async function addToWishlist(
   shopId: string,
   identity: Identity,
@@ -103,25 +107,25 @@ export async function removeFromWishlist(
 
 /**
  * Called when a guest signs in: re-keys their saved items onto the customer record and
- * drops rows the customer already had.
+ * drops rows the customer already had. Batched — the hot read path calls this on every
+ * authenticated request, so an empty guest wishlist must cost two indexed reads.
  */
 export async function mergeGuestWishlist(
   shopId: string,
   guestToken: string,
   customerId: string,
 ): Promise<number> {
-  const guestItems = await db.wishlistItem.findMany({
-    where: { shopId, guestToken, customerId: null },
-  });
-  const guestLists = await db.wishlistList.findMany({ where: { shopId, owner: `guest:${guestToken}` } });
-  for (const list of guestLists) {
-    await db.wishlistList.upsert({
-      where: { shopId_owner_name: { shopId, owner: `customer:${customerId}`, name: list.name } },
-      create: { shopId, owner: `customer:${customerId}`, name: list.name }, update: {},
-    });
-  }
-  await db.wishlistList.deleteMany({ where: { shopId, owner: `guest:${guestToken}` } });
-  if (!guestItems.length) return 0;
+  const [guestItems, guestLists] = await Promise.all([
+    db.wishlistItem.findMany({
+      where: { shopId, guestToken, customerId: null },
+      select: { id: true, productId: true, variantId: true },
+    }),
+    db.wishlistList.findMany({
+      where: { shopId, owner: `guest:${guestToken}` },
+      select: { name: true },
+    }),
+  ]);
+  if (!guestItems.length && !guestLists.length) return 0;
 
   const owned = await db.wishlistItem.findMany({
     where: { shopId, customerId },
@@ -131,23 +135,41 @@ export async function mergeGuestWishlist(
     owned.map((row) => `${row.productId}:${row.variantId ?? ""}`),
   );
 
-  let merged = 0;
+  const moveIds: string[] = [];
+  const dropIds: string[] = [];
+  for (const item of guestItems) {
+    const key = `${item.productId}:${item.variantId ?? ""}`;
+    if (ownedKeys.has(key)) {
+      dropIds.push(item.id);
+      continue;
+    }
+    ownedKeys.add(key);
+    moveIds.push(item.id);
+  }
+
   await db.$transaction(async (tx) => {
-    for (const item of guestItems) {
-      const key = `${item.productId}:${item.variantId ?? ""}`;
-      if (ownedKeys.has(key)) {
-        await tx.wishlistItem.delete({ where: { id: item.id } });
-        continue;
-      }
-      await tx.wishlistItem.update({
-        where: { id: item.id },
+    if (guestLists.length) {
+      await tx.wishlistList.createMany({
+        data: guestLists.map((list) => ({
+          shopId,
+          owner: `customer:${customerId}`,
+          name: list.name,
+        })),
+        skipDuplicates: true,
+      });
+      await tx.wishlistList.deleteMany({ where: { shopId, owner: `guest:${guestToken}` } });
+    }
+    if (moveIds.length) {
+      await tx.wishlistItem.updateMany({
+        where: { id: { in: moveIds } },
         data: { customerId, guestToken: null },
       });
-      ownedKeys.add(key);
-      merged += 1;
+    }
+    if (dropIds.length) {
+      await tx.wishlistItem.deleteMany({ where: { id: { in: dropIds } } });
     }
   });
-  return merged;
+  return moveIds.length;
 }
 
 export type TopWishlistedRow = {
@@ -336,4 +358,54 @@ export async function customerHasSavedProduct(
     select: { id: true },
   });
   return !!found;
+}
+
+/** Batched version of the attribution fallback: one query for every product on the order. */
+export async function customerSavedProductIds(
+  shopId: string,
+  customerId: string | null,
+  productIds: string[],
+): Promise<Set<string>> {
+  if (!customerId || !productIds.length) return new Set();
+  const rows = await db.wishlistItem.findMany({
+    where: { shopId, customerId, productId: { in: productIds } },
+    select: { productId: true },
+  });
+  return new Set(rows.map((row) => row.productId));
+}
+
+/**
+ * Batched `recordWishlistDrivenOrder`: pre-filters against already-recorded pairs so
+ * webhook retries only pay for the genuinely new ones, then writes the order rows and
+ * bumps the purchase metrics.
+ */
+export async function recordWishlistDrivenOrders(
+  shopId: string,
+  orderId: string,
+  productIds: string[],
+): Promise<void> {
+  const unique = [...new Set(productIds)];
+  if (!unique.length) return;
+
+  const existing = await db.wishlistOrder.findMany({
+    where: { shopId, orderId, productId: { in: unique } },
+    select: { productId: true },
+  });
+  const recorded = new Set(existing.map((row) => row.productId));
+  const fresh = unique.filter((productId) => !recorded.has(productId));
+  if (!fresh.length) return;
+
+  await db.$transaction(async (tx) => {
+    await tx.wishlistOrder.createMany({
+      data: fresh.map((productId) => ({ shopId, orderId, productId })),
+      skipDuplicates: true,
+    });
+    for (const productId of fresh) {
+      await tx.wishlistMetric.upsert({
+        where: { shopId_productId: { shopId, productId } },
+        create: { shopId, productId, purchases: 1 },
+        update: { purchases: { increment: 1 } },
+      });
+    }
+  });
 }

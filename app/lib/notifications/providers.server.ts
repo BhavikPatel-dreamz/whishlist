@@ -114,35 +114,79 @@ async function sendEmailInner(
 const from = (s: ResolvedNotificationSettings) =>
   s.senderName ? `${s.senderName} <${s.senderEmail}>` : s.senderEmail;
 
+/**
+ * Every provider is a POST that yields the same success/failure shape, so the
+ * transport (fetch + status/JSON/text error handling) lives here once.
+ */
+async function postProviderRequest(
+  url: string,
+  init: RequestInit,
+  {
+    label,
+    idField,
+    idHeader,
+    textError = false,
+    formatError,
+  }: {
+    label: string;
+    /** Payload field carrying the provider message id. */
+    idField?: string;
+    /** Response header carrying the provider message id. */
+    idHeader?: string;
+    /** Read the failure body as text (SendGrid/Klaviyo style). */
+    textError?: boolean;
+    formatError?: (payload: Record<string, any>, status: number) => string;
+  },
+): Promise<SendResult> {
+  const response = await fetch(url, init);
+
+  if (!response.ok) {
+    if (textError) {
+      const body = await response.text().catch(() => "");
+      return { ok: false, error: `${label} HTTP ${response.status} ${body.slice(0, 200)}` };
+    }
+    const payload = (await response.json().catch(() => ({}))) as Record<string, any>;
+    return {
+      ok: false,
+      error: formatError
+        ? formatError(payload, response.status)
+        : payload.message || `${label} HTTP ${response.status}`,
+    };
+  }
+
+  if (idHeader) {
+    return { ok: true, id: response.headers.get(idHeader) || undefined };
+  }
+  if (idField) {
+    const payload = (await response.json().catch(() => ({}))) as Record<string, any>;
+    return { ok: true, id: payload[idField] };
+  }
+  return { ok: true };
+}
+
 async function sendWithResend(
   settings: ResolvedNotificationSettings,
   message: EmailMessage,
 ): Promise<SendResult> {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${settings.apiKey}`,
-      "Content-Type": "application/json",
+  return postProviderRequest(
+    "https://api.resend.com/emails",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${settings.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: from(settings),
+        to: [message.to],
+        subject: message.subject,
+        html: message.html,
+        text: message.text,
+        reply_to: message.replyTo,
+      }),
     },
-    body: JSON.stringify({
-      from: from(settings),
-      to: [message.to],
-      subject: message.subject,
-      html: message.html,
-      text: message.text,
-      reply_to: message.replyTo,
-    }),
-  });
-  const payload = (await response.json().catch(() => ({}))) as {
-    id?: string;
-    message?: string;
-  };
-  if (!response.ok)
-    return {
-      ok: false,
-      error: payload.message || `Resend HTTP ${response.status}`,
-    };
-  return { ok: true, id: payload.id };
+    { label: "Resend", idField: "id" },
+  );
 }
 
 /**
@@ -166,38 +210,36 @@ async function sendWithBrevo(
     };
   }
 
-  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      "api-key": settings.apiKey,
-      "Content-Type": "application/json",
-      accept: "application/json",
-    },
-    body: JSON.stringify({
-      sender: {
-        email: settings.senderEmail,
-        name: settings.senderName || undefined,
+  return postProviderRequest(
+    "https://api.brevo.com/v3/smtp/email",
+    {
+      method: "POST",
+      headers: {
+        "api-key": settings.apiKey,
+        "Content-Type": "application/json",
+        accept: "application/json",
       },
-      to: [{ email: message.to }],
-      subject: message.subject,
-      htmlContent: message.html,
-      textContent: message.text,
-      replyTo: message.replyTo ? { email: message.replyTo } : undefined,
-    }),
-  });
-  const payload = (await response.json().catch(() => ({}))) as {
-    messageId?: string;
-    message?: string;
-    code?: string;
-  };
-  if (!response.ok)
-    return {
-      ok: false,
-      error: `Brevo HTTP ${response.status}${payload.code ? ` [${payload.code}]` : ""}: ${
-        payload.message || "no message"
-      }`,
-    };
-  return { ok: true, id: payload.messageId };
+      body: JSON.stringify({
+        sender: {
+          email: settings.senderEmail,
+          name: settings.senderName || undefined,
+        },
+        to: [{ email: message.to }],
+        subject: message.subject,
+        htmlContent: message.html,
+        textContent: message.text,
+        replyTo: message.replyTo ? { email: message.replyTo } : undefined,
+      }),
+    },
+    {
+      label: "Brevo",
+      idField: "messageId",
+      formatError: (payload, status) =>
+        `Brevo HTTP ${status}${payload.code ? ` [${payload.code}]` : ""}: ${
+          payload.message || "no message"
+        }`,
+    },
+  );
 }
 
 /**
@@ -231,7 +273,7 @@ async function sendWithMailgun(
   });
   if (message.replyTo) form.set("h:Reply-To", message.replyTo);
 
-  const response = await fetch(
+  return postProviderRequest(
     `https://api.mailgun.net/v3/${encodeURIComponent(domain)}/messages`,
     {
       method: "POST",
@@ -241,51 +283,38 @@ async function sendWithMailgun(
       },
       body: form.toString(),
     },
+    { label: "Mailgun", idField: "id" },
   );
-  const payload = (await response.json().catch(() => ({}))) as {
-    id?: string;
-    message?: string;
-  };
-  if (!response.ok)
-    return {
-      ok: false,
-      error: payload.message || `Mailgun HTTP ${response.status}`,
-    };
-  return { ok: true, id: payload.id };
 }
 
 async function sendWithSendgrid(
   settings: ResolvedNotificationSettings,
   message: EmailMessage,
 ): Promise<SendResult> {
-  const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${settings.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      personalizations: [{ to: [{ email: message.to }] }],
-      from: {
-        email: settings.senderEmail,
-        name: settings.senderName || undefined,
+  return postProviderRequest(
+    "https://api.sendgrid.com/v3/mail/send",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${settings.apiKey}`,
+        "Content-Type": "application/json",
       },
-      reply_to: message.replyTo ? { email: message.replyTo } : undefined,
-      subject: message.subject,
-      content: [
-        { type: "text/plain", value: message.text },
-        { type: "text/html", value: message.html },
-      ],
-    }),
-  });
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    return {
-      ok: false,
-      error: `SendGrid HTTP ${response.status} ${body.slice(0, 200)}`,
-    };
-  }
-  return { ok: true, id: response.headers.get("x-message-id") || undefined };
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: message.to }] }],
+        from: {
+          email: settings.senderEmail,
+          name: settings.senderName || undefined,
+        },
+        reply_to: message.replyTo ? { email: message.replyTo } : undefined,
+        subject: message.subject,
+        content: [
+          { type: "text/plain", value: message.text },
+          { type: "text/html", value: message.html },
+        ],
+      }),
+    },
+    { label: "SendGrid", idHeader: "x-message-id", textError: true },
+  );
 }
 
 /**
@@ -297,42 +326,38 @@ async function sendWithKlaviyo(
   settings: ResolvedNotificationSettings,
   message: EmailMessage & { properties?: Record<string, unknown> },
 ): Promise<SendResult> {
-  const response = await fetch("https://a.klaviyo.com/api/events/", {
-    method: "POST",
-    headers: {
-      Authorization: `Klaviyo-API-Key ${settings.apiKey}`,
-      "Content-Type": "application/json",
-      accept: "application/json",
-      revision: "2024-10-15",
-    },
-    body: JSON.stringify({
-      data: {
-        type: "event",
-        attributes: {
-          properties: {
-            subject: message.subject,
-            html: message.html,
-            ...(message.replyTo ? { reply_to: message.replyTo } : {}),
-            ...(message.properties || {}),
-          },
-          metric: {
-            data: { type: "metric", attributes: { name: "Back in Stock" } },
-          },
-          profile: {
-            data: { type: "profile", attributes: { email: message.to } },
+  return postProviderRequest(
+    "https://a.klaviyo.com/api/events/",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Klaviyo-API-Key ${settings.apiKey}`,
+        "Content-Type": "application/json",
+        accept: "application/json",
+        revision: "2024-10-15",
+      },
+      body: JSON.stringify({
+        data: {
+          type: "event",
+          attributes: {
+            properties: {
+              subject: message.subject,
+              html: message.html,
+              ...(message.replyTo ? { reply_to: message.replyTo } : {}),
+              ...(message.properties || {}),
+            },
+            metric: {
+              data: { type: "metric", attributes: { name: "Back in Stock" } },
+            },
+            profile: {
+              data: { type: "profile", attributes: { email: message.to } },
+            },
           },
         },
-      },
-    }),
-  });
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    return {
-      ok: false,
-      error: `Klaviyo HTTP ${response.status} ${body.slice(0, 200)}`,
-    };
-  }
-  return { ok: true };
+      }),
+    },
+    { label: "Klaviyo", textError: true },
+  );
 }
 
 /** Optional SMS delivery through Twilio's REST API. */
@@ -366,7 +391,7 @@ async function sendWithTwilio(
   if (!sid || !token || !sender)
     return { ok: false, error: "Twilio credentials incomplete" };
 
-  const response = await fetch(
+  return postProviderRequest(
     `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`,
     {
       method: "POST",
@@ -380,16 +405,7 @@ async function sendWithTwilio(
         Body: body,
       }).toString(),
     },
+    { label: "Twilio", idField: "sid" },
   );
-  const payload = (await response.json().catch(() => ({}))) as {
-    sid?: string;
-    message?: string;
-  };
-  if (!response.ok)
-    return {
-      ok: false,
-      error: payload.message || `Twilio HTTP ${response.status}`,
-    };
-  return { ok: true, id: payload.sid };
 }
 

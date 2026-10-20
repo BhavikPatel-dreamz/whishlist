@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
-import { authenticateProxyRequest } from "../lib/proxy-auth.server";
 import { json, readBody, errorResponse } from "../lib/proxy.server";
+import { withProxy } from "../lib/proxy-route.server";
 import {
   getUIConfigByShopDomain,
   upsertUIConfigForShopDomain,
@@ -21,11 +21,11 @@ import {
  * POST accepts `{ extensionActive, productCardConfig, themeSettings }` — used by the
  * admin though normal admin auth; this proxy path mainly exists so the storefront can read it.
  */
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const ctx = await authenticateProxyRequest(request);
-  const config = await getUIConfigByShopDomain(ctx.shop.shop);
-  return json({ ok: true, config, smsEnabled: ctx.shop.smsEnabled });
-};
+export const loader = async ({ request }: LoaderFunctionArgs) =>
+  withProxy(request, null, async (ctx) => {
+    const config = await getUIConfigByShopDomain(ctx.shop.shop);
+    return json({ ok: true, config, smsEnabled: ctx.shop.smsEnabled });
+  });
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);

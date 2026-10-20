@@ -1,4 +1,5 @@
 import { toCustomerGid, type GraphqlClient } from "./shopify-data.server";
+import { gqlRequest } from "./graphql.server";
 
 /**
  * Syncs wishlist items to Shopify customer metafields so data persists
@@ -54,7 +55,12 @@ export async function syncWishlistToMetafield(
       }
     `;
 
-    const response = await client.graphql(mutation, {
+    const data = await gqlRequest<{
+      customerUpdate?: {
+        customer?: { id: string } | null;
+        userErrors?: Array<{ field?: string[]; message: string }>;
+      };
+    }>(client, mutation, {
       variables: {
         input: {
           id: toCustomerGid(customerId),
@@ -68,31 +74,19 @@ export async function syncWishlistToMetafield(
           ],
         },
       },
+      errorPrefix: "",
+      requireData: false,
     });
 
-    const payload = (await response.json()) as {
-      data?: {
-        customerUpdate?: {
-          customer?: { id: string } | null;
-          userErrors?: Array<{ field?: string[]; message: string }>;
-        };
-      };
-      errors?: Array<{ message: string }>;
-    };
-
-    if (payload.errors?.length) {
-      throw new Error(payload.errors.map((error) => error.message).join("; "));
-    }
-
-    if (payload.data?.customerUpdate?.userErrors?.length) {
+    if (data?.customerUpdate?.userErrors?.length) {
       console.warn(
         `Metafield sync errors for ${customerId}:`,
-        payload.data.customerUpdate.userErrors,
+        data.customerUpdate.userErrors,
       );
       return false;
     }
 
-    return Boolean(payload.data?.customerUpdate?.customer?.id);
+    return Boolean(data?.customerUpdate?.customer?.id);
   } catch (error) {
     console.error(
       `Failed to sync wishlist to metafield for ${customerId}:`,
@@ -121,24 +115,17 @@ export async function getWishlistFromMetafield(
       }
     `;
 
-    const response = await client.graphql(query, {
+    const data = await gqlRequest<{
+      customer?: {
+        metafield?: { value?: string | null } | null;
+      } | null;
+    }>(client, query, {
       variables: { id: toCustomerGid(customerId) },
+      errorPrefix: "",
+      requireData: false,
     });
 
-    const payload = (await response.json()) as {
-      data?: {
-        customer?: {
-          metafield?: { value?: string | null } | null;
-        } | null;
-      };
-      errors?: Array<{ message: string }>;
-    };
-
-    if (payload.errors?.length) {
-      throw new Error(payload.errors.map((error) => error.message).join("; "));
-    }
-
-    const value = payload.data?.customer?.metafield?.value;
+    const value = data?.customer?.metafield?.value;
     if (!value) return [];
 
     return JSON.parse(value);

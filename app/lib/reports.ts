@@ -47,7 +47,7 @@ export function filterReport(rows: ReportRow[], params: URLSearchParams) {
     );
   return filtered;
 }
-export function reportCsv(columns: string[], rows: ReportRow[]) {
+export function toCsv(rows: Array<Array<string | number>>): string {
   const cell = (value: string | number) => {
     let text = String(value);
     if (typeof value === "string" && /^[\s]*[=+\-@\t\r]/.test(text))
@@ -56,8 +56,10 @@ export function reportCsv(columns: string[], rows: ReportRow[]) {
   };
   return (
     "\uFEFF" +
-    [columns, ...rows.map((row) => row.cells)]
-      .map((row) => row.map(cell).join(","))
-      .join("\r\n")
+    rows.map((row) => row.map(cell).join(",")).join("\r\n")
   );
+}
+
+export function reportCsv(columns: string[], rows: ReportRow[]) {
+  return toCsv([columns, ...rows.map((row) => row.cells)]);
 }

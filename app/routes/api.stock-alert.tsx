@@ -1,17 +1,14 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { authenticateProxyRequest } from "../lib/proxy-auth.server";
 import {
   ProxyError,
   assertEmail,
-  clientIp,
-  errorResponse,
   json,
   numericId,
   readBody,
 } from "../lib/proxy.server";
-import { rateLimit } from "../lib/rate-limit.server";
+import { withProxy } from "../lib/proxy-route.server";
 import { getVariantsByIds } from "../lib/shopify-data.server";
-import { signPayload } from "../lib/crypto.server";
+import { alertConfirmUrl, alertUnsubscribeUrl } from "../lib/notifications/dispatch.server";
 import { sendEmail, sendSms } from "../lib/notifications/providers.server";
 import {
   confirmationEmailHtml,
@@ -28,16 +25,11 @@ import {
 } from "../models/stock-alert.server";
 
 /** GET /apps/wishlist-stock/api/stock-alert?variantId=… — is this shopper already waiting? */
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  try {
-    const ctx = await authenticateProxyRequest(request);
-    await rateLimit({
-      key: `alert-read:${ctx.shopDomain}:${clientIp(request)}`,
-      limit: 60,
-      windowSeconds: 60,
-      shopId: ctx.shop.id,
-    });
-
+export const loader = async ({ request }: LoaderFunctionArgs) =>
+  withProxy(
+    request,
+    { limit: { name: "alert-read", limit: 60, windowSeconds: 60 } },
+    async (ctx) => {
     const variantId = numericId(ctx.url.searchParams.get("variantId"));
     const channel: AlertChannel = ctx.url.searchParams.get("channel") === "sms" ? "sms" : "email";
     const email = channel === "email" ? assertEmail(ctx.url.searchParams.get("email") ?? undefined) : null;
@@ -67,35 +59,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         alert?.status === ALERT_STATUS.sending,
       status: alert?.status ?? null,
     });
-  } catch (error) {
-    return errorResponse(error);
-  }
-};
+    },
+  );
 
 /** POST subscribes, DELETE unsubscribes. */
-export const action = async ({ request }: ActionFunctionArgs) => {
-  try {
-    const ctx = await authenticateProxyRequest(request);
-    const ip = clientIp(request);
+export const action = async ({ request }: ActionFunctionArgs) =>
+  withProxy(
+    request,
+    {
+      // Two windows: a burst guard and an hourly cap, so one visitor cannot turn the
+      // waitlist form into an email cannon.
+      limit: { name: "alert-write", limit: 5, windowSeconds: 60, message: "Too many requests. Please wait a minute and try again." },
+      extraLimits: [{ name: "alert-write-hour", limit: 20, windowSeconds: 3600, message: "Too many alert sign-ups from this device today." }],
+    },
+    async (ctx) => {
     const body = await readBody(request);
     const method = (body._method || request.method).toUpperCase();
-
-    // Two windows: a burst guard and an hourly cap, so one visitor cannot turn the
-    // waitlist form into an email cannon.
-    await rateLimit({
-      key: `alert-write:${ctx.shopDomain}:${ip}`,
-      limit: 5,
-      windowSeconds: 60,
-      shopId: ctx.shop.id,
-      message: "Too many requests. Please wait a minute and try again.",
-    });
-    await rateLimit({
-      key: `alert-write-hour:${ctx.shopDomain}:${ip}`,
-      limit: 20,
-      windowSeconds: 3600,
-      shopId: ctx.shop.id,
-      message: "Too many alert sign-ups from this device today.",
-    });
 
     // Honeypot field rendered hidden in the storefront form; only bots fill it in.
     if (body.website) return json({ ok: true, subscribed: true });
@@ -162,8 +141,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // already-CONFIRMED or in-flight SENDING row is not PENDING, so it is never re-sent.
     if (ctx.shop.doubleOptIn && alert.status === ALERT_STATUS.pending) {
       const settings = resolveSettings(ctx.shop);
-      const confirmUrl = `${(process.env.SHOPIFY_APP_URL || "").replace(/\/$/, "")}/r/confirm/${alert.id}?sig=${signPayload(alert.id)}`;
-      const unsubscribeUrl = `${(process.env.SHOPIFY_APP_URL || "").replace(/\/$/, "")}/alerts/unsubscribe?id=${alert.id}&sig=${signPayload(alert.id)}`;
+      const confirmUrl = alertConfirmUrl(alert.id);
+      const unsubscribeUrl = alertUnsubscribeUrl(alert.id);
 
       const confirmationResult = channel === "email"
         ? await sendEmail(settings, {
@@ -198,10 +177,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             ? "You're on the list. We'll email you the moment it's back."
             : "You're already on the list for this item.",
     });
-  } catch (error) {
-    return errorResponse(error);
-  }
-};
+    },
+  );
 
 function sanitisePhone(value: string | undefined): string | null {
   const phone = (value || "").replace(/[^\d+]/g, "");

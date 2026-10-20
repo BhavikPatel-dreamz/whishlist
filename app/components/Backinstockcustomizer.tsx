@@ -1,36 +1,11 @@
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { Link } from "@remix-run/react";
 import "./Backinstockcustomizer.css";
+import { type BackInStockSettings } from "../lib/ui-config.shared";
 
-export type CustomizerSettings = {
-  launchType: "inline" | "modal";
-  minimumQuantity: number;
-  placement: "next" | "right" | "left";
-  buttonType: "text" | "iconText" | "icon";
-  buttonText: string;
-  textSize: number;
-  radius: number;
-  buttonColor: string;
-  textColor: string;
-  formHeading: string;
-  emailPlaceholder: string;
-  emailButton: string;
-  smsPlaceholder: string;
-  confirmation: string;
-  confirmationTextColor: string;
-  confirmationBannerColor: string;
-  from: string;
-  replyTo: string;
-  subject: string;
-  headline: string;
-  emailButtonText: string;
-  footer: string;
-  logoUrl: string;
-  headerText: string;
-};
 
 type Props = {
-  initial?: Partial<CustomizerSettings>;
+  initial?: Partial<BackInStockSettings>;
   smsEnabled?: boolean;
   smsIntegrationsUrl?: string;
   initialSection?: "launch" | "button" | "form" | "email";
@@ -38,12 +13,12 @@ type Props = {
   saved?: boolean;
   saveError?: string;
   onBack: () => void;
-  onSave?: (settings: CustomizerSettings) => void;
+  onSave?: (settings: BackInStockSettings) => void;
 };
 
 type SectionId = "launch" | "button" | "form" | "email";
 
-const DEFAULTS: CustomizerSettings = {
+const DEFAULTS: BackInStockSettings = {
   launchType: "modal",
   minimumQuantity: 1,
   placement: "next",
@@ -145,7 +120,7 @@ function DropRow({ title, heading, value, onChange }: { title: string; heading: 
 }
 
 export function BackInStockCustomizer({ initial, initialSection, smsEnabled = false, smsIntegrationsUrl = "/app/integrations", saving, saved, saveError, onBack, onSave }: Props) {
-  const [s, setS] = useState<CustomizerSettings>({ ...DEFAULTS, ...initial });
+  const [s, setS] = useState<BackInStockSettings>({ ...DEFAULTS, ...initial });
   const [open, setOpen] = useState<SectionId | null>(initialSection ?? "launch");
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [previewChannel, setPreviewChannel] = useState<"email" | "sms">(initialSection === "form" ? "sms" : "email");
@@ -157,7 +132,7 @@ export function BackInStockCustomizer({ initial, initialSection, smsEnabled = fa
   );
   const [logoError, setLogoError] = useState("");
   const logoInputRef = useRef<HTMLInputElement>(null);
-  const set = <K extends keyof CustomizerSettings>(k: K, v: CustomizerSettings[K]) => {
+  const set = <K extends keyof BackInStockSettings>(k: K, v: BackInStockSettings[K]) => {
     setHasChanges(true);
     setS((p) => ({ ...p, [k]: v }));
   };
@@ -209,7 +184,7 @@ export function BackInStockCustomizer({ initial, initialSection, smsEnabled = fa
     fontSize: s.textSize,
   };
 
-  const NotifyButton = ({ type = s.buttonType, className = "" }: { type?: CustomizerSettings["buttonType"]; className?: string }) => (
+  const NotifyButton = ({ type = s.buttonType, className = "" }: { type?: BackInStockSettings["buttonType"]; className?: string }) => (
     <div className={`swc-notify ${type === "icon" ? "is-icon" : ""} ${className}`} style={notifyStyle}>
       {type !== "text" && <Bell />}
       {type !== "icon" && <span>{s.buttonText}</span>}

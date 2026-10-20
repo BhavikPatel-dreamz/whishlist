@@ -4,7 +4,7 @@ import {
   loadOutOfStockProducts,
   loadStockProducts,
 } from "./out-of-stock.server";
-import { metricsDateRange, shopperValue } from "../lib/analytics-metrics";
+import { metricsDateBounds, metricsDateRange, shopperValue } from "../lib/analytics-metrics";
 import { filterReport, reportTab, type ReportTable } from "../lib/reports";
 import { loadAnalyticsMetrics } from "./analytics-metrics.server";
 import {
@@ -19,8 +19,7 @@ export async function loadReportsOverview(
   params: URLSearchParams,
 ) {
   const range = metricsDateRange(params);
-  const start = new Date(`${range.from}T00:00:00Z`);
-  const end = new Date(Date.parse(`${range.to}T00:00:00Z`) + 86400000);
+  const { gte: start, lt: end } = metricsDateBounds(range);
   const alertDate = { gte: start, lt: end };
   const [
     subscribedAlerts,
@@ -79,10 +78,7 @@ export async function loadReport(
   params: URLSearchParams,
 ) {
   const range = metricsDateRange(params);
-  const dates = {
-    gte: new Date(`${range.from}T00:00:00Z`),
-    lt: new Date(Date.parse(`${range.to}T00:00:00Z`) + 86400000),
-  };
+  const dates = metricsDateBounds(range);
   const tab = reportTab(params);
   const date = (value: Date | null) =>
     value

@@ -1,12 +1,7 @@
 import { toGid } from "./proxy.server";
+import { gqlRequest, type GraphqlClient } from "./graphql.server";
 
-/** Minimal shape of the Admin API client returned by `authenticate.*`. */
-export type GraphqlClient = {
-  graphql: (
-    query: string,
-    options?: { variables?: Record<string, unknown> },
-  ) => Promise<Response>;
-};
+export type { GraphqlClient };
 
 export type VariantSummary = {
   variantId: string; // numeric
@@ -37,21 +32,7 @@ async function gql<T>(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<T> {
-  const response = await admin.graphql(
-    query,
-    variables ? { variables } : undefined,
-  );
-  const payload = (await response.json()) as {
-    data?: T;
-    errors?: Array<{ message: string }>;
-  };
-  if (payload.errors?.length) {
-    throw new Error(
-      `Shopify GraphQL: ${payload.errors.map((e) => e.message).join("; ")}`,
-    );
-  }
-  if (!payload.data) throw new Error("Shopify GraphQL returned no data");
-  return payload.data;
+  return gqlRequest<T>(admin, query, { variables });
 }
 
 const VARIANT_FIELDS = `
@@ -263,13 +244,19 @@ export async function getProductsByIds(
   const result = new Map<string, ProductSummary>();
   if (!productIds.length) return result;
 
-  // `nodes` accepts at most 250 ids per call.
+  // `nodes` accepts at most 250 ids per call. Chunks run concurrently (bounded) —
+  // a 250-item wishlist used to take three sequential round trips.
   const chunks: string[][] = [];
   for (let i = 0; i < productIds.length; i += 100)
     chunks.push(productIds.slice(i, i + 100));
 
-  for (const chunk of chunks) {
-    const data = await gql<{
+  let next = 0;
+  const workers = Array.from(
+    { length: Math.min(3, chunks.length) },
+    async () => {
+      while (next < chunks.length) {
+        const chunk = chunks[next++];
+        const data = await gql<{
       nodes: Array<{
         id: string;
         title: string;
@@ -339,10 +326,15 @@ variants(first: $variantLimit) {
         availableForSale: variants.some((variant) => variant.availableForSale),
         variants,
       });
-    }
-  }
+      }
+      }
+    },
+  );
+  await Promise.all(workers);
   return result;
 }
+
+const moneyFormatters = new Map<string, Intl.NumberFormat>();
 
 export function formatMoney(
   amount: string | null,
@@ -351,11 +343,14 @@ export function formatMoney(
   if (!amount) return null;
   const value = Number(amount);
   if (Number.isNaN(value)) return null;
+  const currency = currencyCode || "USD";
   try {
-    return new Intl.NumberFormat("en", {
-      style: "currency",
-      currency: currencyCode || "USD",
-    }).format(value);
+    let formatter = moneyFormatters.get(currency);
+    if (!formatter) {
+      formatter = new Intl.NumberFormat("en", { style: "currency", currency });
+      moneyFormatters.set(currency, formatter);
+    }
+    return formatter.format(value);
   } catch {
     return `${amount} ${currencyCode || ""}`.trim();
   }

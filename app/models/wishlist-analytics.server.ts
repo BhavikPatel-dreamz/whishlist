@@ -1,10 +1,10 @@
 import db from "../db.server";
+import { metricsDateBounds } from "../lib/analytics-metrics";
 import { wishlistChartDays } from "../lib/wishlist-chart.shared";
 
 export async function wishlistDailyAnalytics(shopId: string, today = new Date()) {
   const days = wishlistChartDays(today, [], []);
-  const start = new Date(`${days[0].date}T00:00:00.000Z`);
-  const end = new Date(new Date(`${days[29].date}T00:00:00.000Z`).getTime() + 86400000);
+  const { gte: start, lt: end } = metricsDateBounds({ from: days[0].date, to: days[29].date });
   const [saves, orders, carts] = await Promise.all([
     db.$queryRaw<{ date: string; count: bigint }[]>`
       SELECT to_char("createdAt", 'YYYY-MM-DD') AS date, COUNT(*)::bigint AS count

@@ -1,11 +1,10 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { authenticate } from "../shopify.server";
-import { requireShop } from "../lib/shop.server";
+import { requireAdminShop } from "../lib/admin-auth.server";
 import { allStockAlertsForExport } from "../models/stock-alert.server";
+import { toCsv } from "../lib/reports";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shop = await requireShop(session.shop);
+  const { shop } = await requireAdminShop(request);
   const url = new URL(request.url);
 
   const status = url.searchParams.get("status") || undefined;
@@ -51,11 +50,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     a.purchasedAt ? new Date(a.purchasedAt).toISOString() : "",
   ]);
 
-  const csv = [header, ...csvRows]
-    .map((row) =>
-      row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","),
-    )
-    .join("\n");
+  const csv = toCsv([header, ...csvRows]);
 
   return new Response(csv, {
     headers: {

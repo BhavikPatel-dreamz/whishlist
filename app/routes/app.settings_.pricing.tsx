@@ -1,14 +1,8 @@
-import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs } from "@remix-run/node";
 import { Link } from "@remix-run/react";
 import { Page, InlineStack, Text, Box, Card, BlockStack } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
-// import { PricingPlans } from "../components/PricingPlans";
-import pricingStyles from "../components/PricingPlans.css?url";
-
-export const links: LinksFunction = () => [
-  { rel: "stylesheet", href: pricingStyles },
-];
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await authenticate.admin(request);
@@ -30,7 +24,6 @@ export default function PricingPage() {
           </Text>
         </InlineStack>
       </nav>
-      {/* <PricingPlans /> */}
       <Box paddingBlockStart="600">
         <Card>
           <Box paddingBlock="1200">
