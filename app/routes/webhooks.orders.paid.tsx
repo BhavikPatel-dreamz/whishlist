@@ -2,6 +2,8 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import { recordWishlistDrivenOrder, customerHasSavedProduct } from "../models/wishlist.server";
 import { getOrCreateShop } from "../lib/shop.server";
+import { verifyPayloadSignature } from "../lib/crypto.server";
+import { recordStockAlertPurchase } from "../models/stock-alert.server";
 
 function isWishlistLineItem(lineItem: any) {
   const properties = lineItem?.properties;
@@ -11,6 +13,14 @@ function isWishlistLineItem(lineItem: any) {
     );
   }
   return properties?._wishlist_stock === "true";
+}
+
+function stockAlertToken(lineItem: any): string | null {
+  const properties = lineItem?.properties;
+  const value = Array.isArray(properties)
+    ? properties.find((property) => property?.name === "_back_in_stock_alert")?.value
+    : properties?._back_in_stock_alert;
+  return typeof value === "string" ? value : null;
 }
 
 /** Acknowledge `orders/paid` webhooks. */
@@ -30,6 +40,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       for (const li of items) {
         const productId = li.product_id || li.productId;
         if (!productId) continue;
+
+        const token = stockAlertToken(li);
+        const separator = token?.lastIndexOf(".") ?? -1;
+        if (token && separator > 0) {
+          const alertId = token.slice(0, separator);
+          const signature = token.slice(separator + 1);
+          const variantId = li.variant_id || li.variantId;
+          const unitPrice = Number(li.price);
+          const quantity = Number(li.quantity);
+          const discount = Number(li.total_discount || 0);
+          if (
+            variantId &&
+            verifyPayloadSignature(alertId, signature) &&
+            Number.isFinite(unitPrice) &&
+            Number.isFinite(quantity)
+          ) {
+            await recordStockAlertPurchase({
+              alertId,
+              variantId: String(variantId),
+              orderId,
+              revenue: Math.max(0, unitPrice * quantity - discount).toFixed(2),
+              currency: String(order.currency || order.presentment_currency || ""),
+              purchasedAt: new Date(order.processed_at || order.created_at || Date.now()),
+            });
+          }
+        }
 
         if (isWishlistLineItem(li)) {
           await recordWishlistDrivenOrder(shopRecord.id, orderId, String(productId));

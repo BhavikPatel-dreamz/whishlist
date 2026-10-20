@@ -62,11 +62,12 @@
       <form class="ws-modal__form" id="ws-bis-form">
         <input type="hidden" name="variantId" value="" />
         <input type="hidden" name="productId" value="" />
+        <input type="hidden" name="channel" value="email" />
         <div class="ws-hp" aria-hidden="true">
           <label for="ws-bis-website">Website</label>
           <input type="text" name="website" id="ws-bis-website" tabindex="-1" autocomplete="off" />
         </div>
-        <div class="ws-modal__field">
+        <div class="ws-modal__field" id="ws-bis-email-field">
           <label class="ws-sr-only" for="ws-bis-email">Email address *</label>
           <input type="email" name="email" id="ws-bis-email" placeholder="Enter your email address" required autocomplete="email" />
         </div>

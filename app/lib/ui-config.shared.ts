@@ -45,6 +45,7 @@ export type ThemeSettings = {
 
 export type BackInStockSettings = {
   launchType: "inline" | "modal";
+  minimumQuantity: number;
   placement: "next" | "right" | "left";
   buttonType: "text" | "iconText" | "icon";
   buttonText: string;

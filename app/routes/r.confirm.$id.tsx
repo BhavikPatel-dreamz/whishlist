@@ -17,7 +17,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
 
   const alert = await db.stockAlert.findUnique({
     where: { id },
-    select: { email: true, productTitle: true, variantTitle: true, status: true },
+    select: { email: true, phone: true, channel: true, productTitle: true, variantTitle: true, status: true },
   });
   if (!alert) throw new Response("Not found", { status: 404 });
 
@@ -27,7 +27,8 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     if (!confirmed) {
       // The alert was cancelled or already fulfilled before this link was clicked.
       return {
-        email: alert.email,
+        contact: alert.channel === "sms" ? alert.phone : alert.email,
+        channel: alert.channel,
         productTitle: alert.productTitle,
         variantTitle: alert.variantTitle ?? null,
         status: alert.status,
@@ -37,7 +38,8 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   }
 
   return {
-    email: alert.email,
+    contact: alert.channel === "sms" ? alert.phone : alert.email,
+    channel: alert.channel,
     productTitle: alert.productTitle,
     variantTitle: alert.variantTitle ?? null,
     status: "CONFIRMED",
@@ -46,7 +48,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
 };
 
 export default function ConfirmAlert() {
-  const { email, productTitle, variantTitle, confirmed } = useLoaderData<typeof loader>();
+  const { contact, channel, productTitle, variantTitle, confirmed } = useLoaderData<typeof loader>();
 
   return (
     <main
@@ -63,7 +65,7 @@ export default function ConfirmAlert() {
         <>
           <h1 style={{ fontSize: "1.5rem", marginBottom: "0.75rem" }}>You're confirmed!</h1>
           <p style={{ color: "#4a4f54", lineHeight: 1.6 }}>
-            {email} will be notified when{" "}
+            {contact} will be notified by {channel === "sms" ? "text" : "email"} when{" "}
             <strong>{productTitle}</strong>
             {variantTitle && variantTitle !== "Default Title" ? ` (${variantTitle})` : ""} is
             back in stock.

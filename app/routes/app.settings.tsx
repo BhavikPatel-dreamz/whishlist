@@ -1133,6 +1133,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (typeof settings.logoUrl !== "string" || settings.logoUrl.length > 400000) throw new Error("Invalid logo");
       if (settings.logoUrl && !/^data:image\/(png|jpe?g);base64,/.test(settings.logoUrl)) throw new Error("Invalid logo");
       if (settings.launchType !== "inline" && settings.launchType !== "modal") throw new Error("Invalid launch type");
+      if (!Number.isInteger(settings.minimumQuantity) || Number(settings.minimumQuantity) < 0 || Number(settings.minimumQuantity) > 999999) throw new Error("Invalid minimum quantity");
       if (!["next", "right", "left"].includes(String(settings.placement))) throw new Error("Invalid button placement");
       if (!["text", "iconText", "icon"].includes(String(settings.buttonType))) throw new Error("Invalid button type");
       if (!Number.isInteger(settings.textSize) || Number(settings.textSize) < 8 || Number(settings.textSize) > 40) throw new Error("Invalid text size");
@@ -2091,14 +2092,14 @@ export default function Settings() {
           ]}
         />
       </Section>
-      {cfg.launchFrom === "header" && <>
+      {/* {cfg.launchFrom === "header" && <>
         <Divider />
         <BlockStack gap="400">
           <Text as="h3" variant="headingSm">Header placement</Text>
           <TextField label="CSS Selector — Desktop & Tablet" value={cfg.headerDesktopSelector} onChange={(v) => set("headerDesktopSelector", v)} helpText="Optional. Enter the element the wishlist icon should appear next to. Leave blank to detect your theme header automatically." autoComplete="off" />
           <TextField label="CSS Selector — Mobile" value={cfg.headerMobileSelector} onChange={(v) => set("headerMobileSelector", v)} helpText="Optional. Used on screens smaller than 750px." autoComplete="off" />
         </BlockStack>
-      </>}
+      </>} */}
       {cfg.launchFrom === "floating" && <>
         <Divider />
         <FieldRow label="Position">
@@ -2687,6 +2688,7 @@ export default function Settings() {
         {showingBackInStock && (
           <BackInStockConfiguration
             initialSettings={loaderData.backInStockSettings}
+            smsIntegrationsUrl="/app/integrations?returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
             smsEnabled={
               loaderData.shop.smsEnabled &&
               loaderData.shop.hasTwilioToken &&

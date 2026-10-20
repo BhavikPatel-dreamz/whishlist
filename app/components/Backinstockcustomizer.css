@@ -164,7 +164,7 @@ button.swc-chip { cursor: pointer; }
 button.swc-chip:hover { background: #cfe4fd; }
 .swc-drop-zone { display: grid; place-items: center; gap: 12px; min-height: 100px; padding: 12px; border: 1px dashed #8c9196; border-radius: 6px; }
 .swc-logo-preview { display: grid; place-items: center; gap: 8px; }
-.swc-logo-preview img { display: block; max-width: 100%; max-height: 72px; object-fit: contain; }
+.swc-logo-preview img { display: block; max-width: 100%; max-height: 150px; object-fit: contain; }
 .swc-logo-remove {
   padding: 3px 9px; border: 1px solid #c9cccf; border-radius: 4px; background: #fff;
   color: #4a4f55; font-size: 11px; font-weight: 500; cursor: pointer;
@@ -175,7 +175,7 @@ button.swc-chip:hover { background: #cfe4fd; }
   padding: 0; border: 0; background: none; font: inherit; color: #2c6ecb; cursor: pointer;
   text-decoration: underline;
 }
-.swc-email-logo { display: block; max-width: 100%; max-height: 60px; margin: 0 auto; object-fit: contain; }
+.swc-email-logo { display: block; max-width: 100%; max-height: 150px; margin: 0 auto; object-fit: contain; }
 .swc-email-header-text { display: inline-block; font-size: 14px; font-weight: 700; color: #202223; }
 
 /* Preview tabs */

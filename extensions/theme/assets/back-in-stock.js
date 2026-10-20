@@ -156,11 +156,29 @@
   }
   function clearMsg() { showMsg(''); }
 
+  function configureInlineChannel(form) {
+    const channel = form.querySelector('select[name="channel"]')?.value || 'email';
+    const sms = channel === 'sms';
+    const emailField = form.querySelector('[data-channel-field="email"]');
+    const phoneField = form.querySelector('[data-channel-field="sms"]');
+    const emailInput = form.querySelector('input[name="email"]');
+    const phoneInput = form.querySelector('input[name="phone"]');
+    const submit = form.querySelector('.ws-bis-inline-submit');
+    if (emailField) emailField.hidden = sms;
+    if (phoneField) phoneField.hidden = !sms;
+    if (emailInput) emailInput.required = !sms;
+    if (phoneInput) phoneInput.required = sms;
+    if (submit) submit.textContent = sms ? 'Text Me' : SETTINGS().emailButton;
+  }
+
   function setNotificationChannel(channel) {
     const sms = channel === 'sms';
     const emailTab = document.getElementById('ws-bis-email-tab');
     const smsTab = document.getElementById('ws-bis-sms-tab');
     const tabs = document.querySelector('#ws-bis-modal .ws-modal__tabs');
+    const emailField = document.getElementById('ws-bis-email-field');
+    const emailInput = document.getElementById('ws-bis-email');
+    const channelInput = document.querySelector('#ws-bis-form input[name="channel"]');
     const phoneField = document.getElementById('ws-bis-phone-field');
     const phoneInput = document.getElementById('ws-bis-phone');
     const form = document.getElementById('ws-bis-form');
@@ -178,8 +196,14 @@
       smsTab.setAttribute('aria-selected', String(sms));
     }
     if (tabs) tabs.classList.toggle('has-sms', CFG().smsEnabled === true);
+    if (emailField) emailField.hidden = sms;
     if (phoneField) phoneField.hidden = !sms;
     if (form) form.classList.toggle('is-sms', sms);
+    if (channelInput) channelInput.value = sms ? 'sms' : 'email';
+    if (emailInput) {
+      emailInput.required = !sms;
+      if (sms) emailInput.value = '';
+    }
     if (phoneInput) {
       phoneInput.required = sms;
       if (!sms) phoneInput.value = '';
@@ -188,7 +212,7 @@
       ? 'Get notified by SMS when this product is back in stock'
       : 'Get notified via email when this product is back in stock';
     if (disclaimer) disclaimer.textContent = sms
-      ? 'We will email and text you once the product becomes available. Your email address will not be shared with anyone else.'
+      ? 'We will text you once the product becomes available. Your phone number will not be shared with anyone else.'
       : 'We will send you an email once the product becomes available. Your email address will not be shared with anyone else.';
     if (submit) submit.textContent = sms ? 'Text Me' : SETTINGS().emailButton;
   }
@@ -215,12 +239,6 @@
     if (titleEl && title) titleEl.textContent = title;
     if (msgEl) msgEl.textContent = message || '';
     if (unsub) unsub.style.display = opts && opts.canUnsubscribe ? '' : 'none';
-  }
-
-  function currentEmail(modal) {
-    const cfg = CFG();
-    const input = modal && modal.querySelector('input[name="email"]');
-    return (input && input.value.trim()) || cfg.customerEmail || '';
   }
 
   async function openModal(container) {
@@ -297,6 +315,7 @@
 
     const formData = new FormData(form);
     const body = Object.fromEntries(formData.entries());
+    const selectedChannel = String(body.channel || 'email');
     body.guestToken = getGuestToken();
 
     if (submitBtn) {
@@ -323,7 +342,7 @@
             feedback.style.display = '';
           }
         } else {
-          showSuccess("You're on the list!", message, { canUnsubscribe: Boolean(body.email) });
+          showSuccess("You're on the list!", message, { canUnsubscribe: Boolean(body.email || body.phone) });
         }
       } else if (data.code === 'already_available') {
         if (inline && feedback) {
@@ -345,7 +364,7 @@
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.textContent = document.getElementById('ws-bis-sms-tab')?.getAttribute('aria-selected') === 'true'
+        submitBtn.textContent = selectedChannel === 'sms' || document.getElementById('ws-bis-sms-tab')?.getAttribute('aria-selected') === 'true'
           ? 'Text Me'
           : SETTINGS().emailButton;
       }
@@ -357,8 +376,11 @@
     const modal = document.getElementById('ws-bis-modal');
     if (!modal) return;
     const vid = (modal.querySelector('input[name="variantId"]') || {}).value;
-    const email = currentEmail(modal);
-    if (!vid || !email) { showForm(); return; }
+    const isSms = document.getElementById('ws-bis-sms-tab')?.getAttribute('aria-selected') === 'true';
+    const email = modal.querySelector('input[name="email"]')?.value.trim() || '';
+    const phone = modal.querySelector('input[name="phone"]')?.value.trim() || '';
+    const contact = isSms ? phone : (email || CFG().customerEmail || '');
+    if (!vid || !contact) { showForm(); return; }
 
     const unsubBtn = document.getElementById('ws-bis-unsub');
     if (unsubBtn) { unsubBtn.disabled = true; unsubBtn.innerHTML = '<span class="ws-spinner"></span>'; }
@@ -367,7 +389,7 @@
       await fetch(`${cfg.proxyBase}/stock-alert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ _method: 'delete', variantId: vid, email, guestToken: getGuestToken() }),
+        body: JSON.stringify({ _method: 'delete', variantId: vid, channel: isSms ? 'sms' : 'email', email, phone, guestToken: getGuestToken() }),
       });
     } catch (err) {
       console.error('Unsubscribe error', err);
@@ -417,13 +439,19 @@
     const label = escapeHtml(settings.notifyButtonText);
     const placementClass = `back-in-stock--${settings.placement}`;
     if (settings.launchType === 'inline') {
+      const channelSelector = CFG().smsEnabled === true
+        ? '<label class="ws-bis-inline-label">Notification method<select name="channel"><option value="email">Email</option><option value="sms">SMS</option></select></label>'
+        : '<input type="hidden" name="channel" value="email" />';
       return (
         `<div class="back-in-stock ${placementClass} ws-bis-inline" data-variant-id="${vid}" data-product-id="${pid}">` +
         '<form class="ws-bis-inline-form">' +
         `<input type="hidden" name="variantId" value="${vid}" /><input type="hidden" name="productId" value="${pid}" />` +
+        channelSelector +
         '<div class="ws-hp" aria-hidden="true"><label>Website</label><input type="text" name="website" tabindex="-1" autocomplete="off" /></div>' +
-        `<label class="ws-bis-inline-label">Email *<input type="email" name="email" placeholder="${escapeHtml(settings.emailPlaceholder)}" required autocomplete="email" /></label>` +
-        `<label class="ws-bis-inline-label">Phone (optional)<input type="tel" name="phone" placeholder="${escapeHtml(settings.smsPlaceholder)}" autocomplete="tel" /></label>` +
+        `<label class="ws-bis-inline-label" data-channel-field="email">Email *<input type="email" name="email" placeholder="${escapeHtml(settings.emailPlaceholder)}" required autocomplete="email" /></label>` +
+        (CFG().smsEnabled === true
+          ? `<label class="ws-bis-inline-label" data-channel-field="sms" hidden>Phone *<input type="tel" name="phone" placeholder="${escapeHtml(settings.smsPlaceholder)}" autocomplete="tel" /></label>`
+          : '') +
         `<button class="ws-bis-inline-submit" type="submit">${escapeHtml(settings.emailButton)}</button>` +
         '<p class="ws-bis-inline-feedback" role="status" style="display:none"></p>' +
         '</form></div>'
@@ -512,6 +540,11 @@
         button: form.querySelector('button[type="submit"]'),
         feedback: form.querySelector('.ws-bis-inline-feedback'),
       });
+    });
+
+    document.addEventListener('change', (e) => {
+      const select = e.target.closest && e.target.closest('.ws-bis-inline-form select[name="channel"]');
+      if (select) configureInlineChannel(select.form);
     });
 
     const closeBtn = document.getElementById('ws-bis-close');

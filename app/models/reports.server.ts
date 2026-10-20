@@ -31,12 +31,13 @@ export async function loadReportsOverview(
     clickThroughs,
     sentProducts,
     wishlistOrders,
+    stockAlertPurchases,
   ] = await Promise.all([
     db.stockAlert.count({ where: { shopId, createdAt: alertDate } }),
     db.stockAlert.findMany({
       where: { shopId, createdAt: alertDate },
-      select: { email: true },
-      distinct: ["email"],
+      select: { contactKey: true },
+      distinct: ["contactKey"],
     }),
     db.stockAlert.groupBy({
       by: ["productId"],
@@ -56,6 +57,7 @@ export async function loadReportsOverview(
       select: { orderId: true },
       distinct: ["orderId"],
     }),
+    db.stockAlert.count({ where: { shopId, purchasedAt: alertDate } }),
   ]);
   return {
     ...range,
@@ -67,6 +69,7 @@ export async function loadReportsOverview(
     clickThroughs,
     sentProducts: sentProducts.length,
     wishlistOrders: wishlistOrders.length,
+    stockAlertPurchases,
   };
 }
 
@@ -182,24 +185,32 @@ export async function loadReport(
         snapshots.flatMap((items) => items.map((item) => item.productId)),
       ),
     ];
-    const products = ids.length
-      ? await getProductsByIds(admin, ids, 1)
-      : new Map();
+    const customerIds = [...new Set(shares.map((share) => share.customerId))];
+    const [products, customerNameChunks] = await Promise.all([
+      ids.length ? getProductsByIds(admin, ids, 1) : Promise.resolve(new Map()),
+      Promise.all(
+        Array.from(
+          { length: Math.ceil(customerIds.length / 250) },
+          (_, index) =>
+            getCustomerNamesByIds(
+              admin,
+              customerIds.slice(index * 250, (index + 1) * 250),
+            ),
+        ),
+      ),
+    ]);
+    const customerNames = new Map(
+      customerNameChunks.flatMap((chunk) => [...chunk]),
+    );
     table = {
       title: "Shared Wishlists Report",
       description: "View products in wishlists shared by your customers",
       label: "Shared Wishlist Details",
-      columns: [
-        "Customer",
-        "List Name",
-        "Products",
-        "Sharing Mode",
-        "Created Date",
-      ],
+      columns: ["Customer", "List Name", "Products", "Created Date"],
       rows: shares.map((share, index) => ({
         id: share.id,
         cells: [
-          `Customer ${share.customerId}`,
+          customerNames.get(share.customerId) || `Customer ${share.customerId}`,
           "My Wishlist",
           snapshots[index]
             .map(
@@ -209,7 +220,6 @@ export async function loadReport(
                 `Product ${item.productId}`,
             )
             .join(", ") || "Empty wishlist",
-          share.mode,
           date(share.createdAt),
         ],
       })),
@@ -236,7 +246,7 @@ export async function loadReport(
     const kind = params.get("kind") || "sent";
     if (kind === "subscribers") {
       const groups = await db.stockAlert.groupBy({
-        by: ["email"],
+        by: ["contactKey"],
         where: { shopId, createdAt: dates },
         _count: { _all: true },
         _min: { createdAt: true },
@@ -259,15 +269,15 @@ export async function loadReport(
           "Last Request",
         ],
         rows: groups.map((row, index) => ({
-          id: `subscriber-${index}-${row.email}`,
+          id: `subscriber-${index}-${row.contactKey}`,
           cells: [
-            row.email,
+            row.contactKey.replace(/^(email|sms):/, ""),
             row._count._all,
             date(row._min.createdAt),
             date(row._max.createdAt),
           ],
         })),
-        note: "One row per distinct subscriber email with at least one alert requested in the selected dates (UTC).",
+        note: "One row per distinct email address or phone number with at least one alert requested in the selected dates (UTC).",
       };
     } else if (kind === "requested-products" || kind === "sent-products") {
       const isSent = kind === "sent-products";
@@ -368,19 +378,27 @@ export async function loadReport(
         columns: [
           "Product Title",
           "Variant",
-          "User Email",
+          "Contact",
           "Status",
-          converted ? "Click-through Date" : sent ? "Sent Date" : "Requested Date",
+          converted
+            ? "Click-through Date"
+            : sent
+              ? "Sent Date"
+              : "Requested Date",
         ],
         rows: alerts.map((row) => ({
           id: row.id,
           cells: [
             row.productTitle || row.productId,
             row.variantTitle || row.variantId,
-            row.email,
+            row.email || row.phone || "Unknown contact",
             row.status,
             date(
-              converted ? row.convertedAt : sent ? row.notifiedAt : row.createdAt,
+              converted
+                ? row.convertedAt
+                : sent
+                  ? row.notifiedAt
+                  : row.createdAt,
             ),
           ],
         })),
@@ -403,7 +421,10 @@ export async function loadReport(
       [...new Set(orders.map((row) => row.productId))],
       1,
     );
-    const byOrder = new Map<string, { productIds: string[]; createdAt: Date }>();
+    const byOrder = new Map<
+      string,
+      { productIds: string[]; createdAt: Date }
+    >();
     for (const row of orders) {
       const group = byOrder.get(row.orderId);
       if (group) {
@@ -440,8 +461,8 @@ export async function loadReport(
         orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       }),
       db.stockAlert.findMany({
-        where: { shopId, convertedAt: dates },
-        orderBy: [{ convertedAt: "desc" }, { id: "asc" }],
+        where: { shopId, purchasedAt: dates },
+        orderBy: [{ purchasedAt: "desc" }, { id: "asc" }],
       }),
     ]);
     const products = await getProductsByIds(
@@ -457,7 +478,7 @@ export async function loadReport(
         "Product Title",
         "Source",
         "Order ID",
-        "User Email",
+        "Contact",
         "Recorded Date",
         "Revenue",
       ],
@@ -478,14 +499,16 @@ export async function loadReport(
           cells: [
             row.productTitle || row.productId,
             "Stock alert",
-            "Not recorded",
-            row.email,
-            date(row.convertedAt),
-            "Not tracked",
+            row.purchaseOrderId || "Not recorded",
+            row.email || row.phone || "Unknown contact",
+            date(row.purchasedAt),
+            row.purchaseRevenue != null
+              ? `${row.purchaseCurrency || ""} ${row.purchaseRevenue.toFixed(2)}`.trim()
+              : "Not tracked",
           ],
         })),
       ].sort((a, b) => String(b.cells[4]).localeCompare(String(a.cells[4]))),
-      note: "Wishlist rows use the first recorded order-product date, which may differ from checkout. Alert conversions are separate attribution records and may overlap with wishlist purchases. Revenue is not stored.",
+      note: "Stock-alert purchases are matched from the signed alert property on a paid order. Revenue is the attributed line-item total after its line discount; wishlist-attributed revenue is not tracked.",
     };
   } else {
     const items = await db.wishlistItem.findMany({

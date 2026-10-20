@@ -13,6 +13,18 @@ export const ALERT_STATUS = {
 } as const;
 
 export type AlertStatus = (typeof ALERT_STATUS)[keyof typeof ALERT_STATUS];
+export type AlertChannel = "email" | "sms";
+
+export function stockAlertContactKey(
+  channel: AlertChannel,
+  contact: string,
+): string {
+  const normalized =
+    channel === "email"
+      ? contact.trim().toLowerCase()
+      : contact.replace(/[^\d+]/g, "");
+  return `${channel}:${normalized}`;
+}
 
 /**
  * A row is flipped to SENDING before delivery. If the worker dies between the claim and the
@@ -23,7 +35,8 @@ export const STALE_SENDING_MS = 10 * 60 * 1000;
 
 export async function createStockAlert(input: {
   shopId: string;
-  email: string;
+  channel: AlertChannel;
+  email?: string | null;
   phone?: string | null;
   customerId?: string | null;
   productId: string;
@@ -35,33 +48,55 @@ export async function createStockAlert(input: {
 }): Promise<{ alert: StockAlert; created: boolean }> {
   if (input.perVariantCap && input.perVariantCap > 0) {
     const waiting = await db.stockAlert.count({
-      where: { shopId: input.shopId, variantId: input.variantId, status: ALERT_STATUS.pending },
+      where: {
+        shopId: input.shopId,
+        variantId: input.variantId,
+        status: ALERT_STATUS.pending,
+      },
     });
     if (waiting >= input.perVariantCap) {
-      throw new ProxyError(429, "This waitlist is full right now", "waitlist_full");
+      throw new ProxyError(
+        429,
+        "This waitlist is full right now",
+        "waitlist_full",
+      );
     }
   }
 
+  const contact = input.channel === "email" ? input.email : input.phone;
+  if (!contact)
+    throw new ProxyError(
+      422,
+      "A valid email or phone number is required",
+      "missing_contact",
+    );
+  const contactKey = stockAlertContactKey(input.channel, contact);
+
   const existing = await db.stockAlert.findUnique({
     where: {
-      one_alert_per_email_variant: {
+      one_alert_per_contact_variant: {
         shopId: input.shopId,
         variantId: input.variantId,
-        email: input.email,
+        contactKey,
       },
     },
   });
 
   if (existing) {
     // Re-subscribing after a previous alert was sent or cancelled reopens the same row.
-    if (existing.status === ALERT_STATUS.pending || existing.status === ALERT_STATUS.sending) {
+    if (
+      existing.status === ALERT_STATUS.pending ||
+      existing.status === ALERT_STATUS.sending
+    ) {
       return { alert: existing, created: false };
     }
     const alert = await db.stockAlert.update({
       where: { id: existing.id },
       data: {
         status: ALERT_STATUS.pending,
-        phone: input.phone ?? existing.phone,
+        channel: input.channel,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
         customerId: input.customerId ?? existing.customerId,
         productTitle: input.productTitle ?? existing.productTitle,
         variantTitle: input.variantTitle ?? existing.variantTitle,
@@ -76,7 +111,9 @@ export async function createStockAlert(input: {
   const alert = await db.stockAlert.create({
     data: {
       shopId: input.shopId,
-      email: input.email,
+      channel: input.channel,
+      contactKey,
+      email: input.email ?? null,
       phone: input.phone ?? null,
       customerId: input.customerId ?? null,
       productId: input.productId,
@@ -138,11 +175,19 @@ export async function claimPendingAlerts(
 export async function markAlertSent(id: string): Promise<void> {
   await db.stockAlert.update({
     where: { id },
-    data: { status: ALERT_STATUS.sent, notifiedAt: new Date(), lastError: null },
+    data: {
+      status: ALERT_STATUS.sent,
+      notifiedAt: new Date(),
+      lastError: null,
+    },
   });
 }
 
-export async function markAlertFailed(id: string, error: string, attempts: number): Promise<void> {
+export async function markAlertFailed(
+  id: string,
+  error: string,
+  attempts: number,
+): Promise<void> {
   // Give up after three tries so a permanently bad address stops re-queueing.
   await db.stockAlert.update({
     where: { id },
@@ -170,7 +215,10 @@ export async function variantIdsNeedingRetry(
   opts: { includeFailed?: boolean } = {},
 ): Promise<string[]> {
   const staleBefore = new Date(Date.now() - STALE_SENDING_MS);
-  const statuses: AlertStatus[] = [ALERT_STATUS.pending, ALERT_STATUS.confirmed];
+  const statuses: AlertStatus[] = [
+    ALERT_STATUS.pending,
+    ALERT_STATUS.confirmed,
+  ];
   if (opts.includeFailed) statuses.push(ALERT_STATUS.failed);
 
   const rows = await db.stockAlert.findMany({
@@ -200,7 +248,9 @@ export async function reactivateFailedAlerts(
     where: {
       shopId,
       status: ALERT_STATUS.failed,
-      ...(variantIds && variantIds.length ? { variantId: { in: variantIds } } : {}),
+      ...(variantIds && variantIds.length
+        ? { variantId: { in: variantIds } }
+        : {}),
     },
     data: { status: ALERT_STATUS.pending, attempts: 0, lastError: null },
   });
@@ -223,6 +273,33 @@ export async function markAlertConverted(id: string): Promise<void> {
   });
 }
 
+export async function recordStockAlertPurchase(input: {
+  alertId: string;
+  variantId: string;
+  orderId: string;
+  revenue: string;
+  currency: string;
+  purchasedAt: Date;
+}): Promise<boolean> {
+  const revenue = Number(input.revenue);
+  if (!Number.isFinite(revenue) || revenue < 0) return false;
+
+  const result = await db.stockAlert.updateMany({
+    where: {
+      id: input.alertId,
+      variantId: input.variantId,
+      purchaseOrderId: null,
+    },
+    data: {
+      purchaseOrderId: input.orderId,
+      purchaseRevenue: new Prisma.Decimal(revenue.toFixed(2)),
+      purchaseCurrency: input.currency || null,
+      purchasedAt: input.purchasedAt,
+    },
+  });
+  return result.count > 0;
+}
+
 export async function stockAlertStats(shopId: string) {
   const [grouped, converted, last30] = await Promise.all([
     db.stockAlert.groupBy({
@@ -232,11 +309,16 @@ export async function stockAlertStats(shopId: string) {
     }),
     db.stockAlert.count({ where: { shopId, convertedAt: { not: null } } }),
     db.stockAlert.count({
-      where: { shopId, createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+      where: {
+        shopId,
+        createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      },
     }),
   ]);
 
-  const byStatus = Object.fromEntries(grouped.map((row) => [row.status, row._count._all]));
+  const byStatus = Object.fromEntries(
+    grouped.map((row) => [row.status, row._count._all]),
+  );
   const sent = byStatus[ALERT_STATUS.sent] ?? 0;
   return {
     total: grouped.reduce((sum, row) => sum + row._count._all, 0),
@@ -259,7 +341,10 @@ export type AlertFilters = {
   pageSize?: number;
 };
 
-export async function listStockAlerts(shopId: string, filters: AlertFilters = {}) {
+export async function listStockAlerts(
+  shopId: string,
+  filters: AlertFilters = {},
+) {
   const pageSize = Math.min(filters.pageSize ?? 25, 250);
   const page = Math.max(filters.page ?? 1, 1);
   const where = buildAlertWhere(shopId, filters);
@@ -273,10 +358,19 @@ export async function listStockAlerts(shopId: string, filters: AlertFilters = {}
     }),
     db.stockAlert.count({ where }),
   ]);
-  return { rows, total, page, pageSize, pageCount: Math.max(Math.ceil(total / pageSize), 1) };
+  return {
+    rows,
+    total,
+    page,
+    pageSize,
+    pageCount: Math.max(Math.ceil(total / pageSize), 1),
+  };
 }
 
-export async function allStockAlertsForExport(shopId: string, filters: AlertFilters = {}) {
+export async function allStockAlertsForExport(
+  shopId: string,
+  filters: AlertFilters = {},
+) {
   return db.stockAlert.findMany({
     where: buildAlertWhere(shopId, filters),
     orderBy: { createdAt: "desc" },
@@ -288,11 +382,14 @@ function buildAlertWhere(shopId: string, filters: AlertFilters) {
   const query = filters.query?.trim();
   return {
     shopId,
-    ...(filters.status && filters.status !== "ALL" ? { status: filters.status } : {}),
+    ...(filters.status && filters.status !== "ALL"
+      ? { status: filters.status }
+      : {}),
     ...(query
       ? {
           OR: [
             { email: { contains: query, mode: "insensitive" as const } },
+            { phone: { contains: query } },
             { productTitle: { contains: query, mode: "insensitive" as const } },
             { productId: { contains: query } },
             { variantId: { contains: query } },
@@ -317,7 +414,7 @@ export async function customerEmailsByCustomerIds(
   });
 
   for (const row of rows) {
-    if (row.customerId) result.set(row.customerId, row.email);
+    if (row.customerId && row.email) result.set(row.customerId, row.email);
   }
   return result;
 }

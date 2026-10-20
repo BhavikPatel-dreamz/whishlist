@@ -57,8 +57,17 @@ export function emailLogoUrl(
 }
 
 /** Cart permalink: adds the variant and lands the shopper straight on the cart. */
-export function cartPermalink(domain: string, variantId: string): string {
-  return `${domain.replace(/\/$/, "")}/cart/${variantId}:1`;
+export function cartPermalink(
+  domain: string,
+  variantId: string,
+  alertId?: string,
+): string {
+  const base = `${domain.replace(/\/$/, "")}/cart/${variantId}:1`;
+  if (!alertId) return base;
+  const params = new URLSearchParams({
+    "properties[_back_in_stock_alert]": `${alertId}.${signPayload(alertId)}`,
+  });
+  return `${base}?${params}`;
 }
 
 /**
@@ -88,15 +97,6 @@ export async function dispatchRestockAlerts(params: {
     return { ...base, skippedReason: "product not active" };
   }
 
-  const alerts = await claimPendingAlerts(
-    shop.id,
-    variant.variantId,
-    500,
-    shop.doubleOptIn,
-  );
-  if (!alerts.length) return { ...base, skippedReason: "no pending alerts" };
-
-  const settings = resolveSettings(shop);
   const uiConfig = await db.uIConfig.findUnique({
     where: { shopId: shop.id },
     select: { productCardConfig: true },
@@ -115,6 +115,27 @@ export async function dispatchRestockAlerts(params: {
     !Array.isArray(rawBackInStockSettings)
       ? (rawBackInStockSettings as Partial<BackInStockSettings>)
       : undefined;
+  const configuredMinimumQuantity = Number(
+    backInStockSettings?.minimumQuantity,
+  );
+  const minimumQuantity =
+    Number.isInteger(configuredMinimumQuantity) &&
+    configuredMinimumQuantity >= 0
+      ? configuredMinimumQuantity
+      : 1;
+  if (variant.sellableOnlineQuantity < minimumQuantity) {
+    return { ...base, skippedReason: "below minimum stock threshold" };
+  }
+
+  const alerts = await claimPendingAlerts(
+    shop.id,
+    variant.variantId,
+    500,
+    shop.doubleOptIn,
+  );
+  if (!alerts.length) return { ...base, skippedReason: "no pending alerts" };
+
+  const settings = resolveSettings(shop);
   if (backInStockSettings?.from?.trim())
     settings.senderName = backInStockSettings.from.trim();
   const price = formatMoney(
@@ -176,7 +197,7 @@ async function deliver(
   },
 ): Promise<boolean> {
   const { settings, backInStockSettings, vars, variant, shopContext } = ctx;
-  const emailVars = { ...vars, customer_email: alert.email };
+  const emailVars = { ...vars, customer_email: alert.email || "" };
   const actionUrl = alertTrackingUrl(alert.id);
   const subject = backInStockSettings?.subject
     ? normalizeEmailTemplate(backInStockSettings.subject)
@@ -208,27 +229,34 @@ async function deliver(
     headerText: render(backInStockSettings?.headerText || "", emailVars),
   };
 
-  const result = await sendEmail(settings, {
-    to: alert.email,
-    subject: render(subject, emailVars),
-    html: backInStockHtml(payload),
-    text: backInStockText(payload),
-    replyTo,
-  });
+  const result =
+    alert.channel === "sms"
+      ? alert.phone
+        ? await sendSms(
+            settings,
+            alert.phone,
+            `${variant.productTitle} is back in stock at ${shopContext.name}. ${actionUrl} Cancel: ${alertUnsubscribeUrl(alert.id)}`,
+          )
+        : {
+            ok: false as const,
+            error: "No phone number configured for this SMS alert",
+          }
+      : alert.email
+        ? await sendEmail(settings, {
+            to: alert.email,
+            subject: render(subject, emailVars),
+            html: backInStockHtml(payload),
+            text: backInStockText(payload),
+            replyTo,
+          })
+        : {
+            ok: false as const,
+            error: "No email address configured for this email alert",
+          };
 
   if (!result.ok) {
     await markAlertFailed(alert.id, result.error, alert.attempts);
     return false;
-  }
-
-  if (settings.smsEnabled && alert.phone) {
-    const sms = await sendSms(
-      settings,
-      alert.phone,
-      `${variant.productTitle} is back in stock at ${shopContext.name}. ${actionUrl}`,
-    );
-    if (!sms.ok)
-      console.warn(`[restock] SMS failed for alert ${alert.id}: ${sms.error}`);
   }
 
   await markAlertSent(alert.id);

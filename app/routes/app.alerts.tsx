@@ -123,7 +123,12 @@ export default function Alerts() {
     <IndexTable.Row key={row.id} id={row.id} position={index}>
       <IndexTable.Cell>
         <Text variant="bodyMd" as="span">
-          {row.email}
+          {row.email || row.phone || "Unknown contact"}
+        </Text>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Text variant="bodyMd" as="span" tone="subdued">
+          {row.channel === "sms" ? "SMS" : "Email"}
         </Text>
       </IndexTable.Cell>
       <IndexTable.Cell>
@@ -217,7 +222,8 @@ export default function Alerts() {
                     itemCount={rows.length}
                     selectable={false}
                     headings={[
-                      { title: "Email" },
+                      { title: "Contact" },
+                      { title: "Channel" },
                       { title: "Product" },
                       { title: "Variant" },
                       { title: "Status" },

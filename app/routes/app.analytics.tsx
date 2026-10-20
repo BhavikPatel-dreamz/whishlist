@@ -162,6 +162,11 @@ export default function Analytics() {
               kind: "clickthroughs",
             },
             {
+              label: "Alert Purchases",
+              value: data.overview.stockAlertPurchases,
+              tab: "purchases",
+            },
+            {
               label: "Sent Alerts",
               value: data.overview.sentAlerts,
               tab: "alerts",

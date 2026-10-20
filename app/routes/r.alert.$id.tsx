@@ -28,5 +28,5 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
 
   const { admin } = await unauthenticated.admin(alert.shop.shop);
   const shopContext = await getShopContext(admin as never);
-  return redirect(cartPermalink(shopContext.domain, alert.variantId));
+  return redirect(cartPermalink(shopContext.domain, alert.variantId, alert.id));
 };

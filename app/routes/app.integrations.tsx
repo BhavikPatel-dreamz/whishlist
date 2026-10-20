@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { useState } from "react";
-import { useFetcher, useLoaderData } from "@remix-run/react";
+import { Link, useFetcher, useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
 import {
   Banner,
   BlockStack,
@@ -55,6 +55,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = await requireShop(session.shop);
   const formData = await request.formData();
   const intent = String(formData.get("intent") || "");
+  const requestedReturnTo = new URL(request.url).searchParams.get("returnTo");
+  const returnTo =
+    requestedReturnTo === "/app/settings?section=back-in-stock"
+      ? requestedReturnTo
+      : undefined;
 
   if (intent === "saveEmailIntegration") {
     const provider = String(formData.get("emailProvider") || "brevo");
@@ -133,7 +138,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         ...(twilioAuthToken ? { twilioAuthToken: encryptSecret(twilioAuthToken) } : {}),
       },
     });
-    return { ok: true as const, intent };
+    return { ok: true as const, intent, returnTo };
   }
 
   return { ok: false as const, intent, error: "Unknown integration settings." };
@@ -149,6 +154,13 @@ const EMAIL_PROVIDER_OPTIONS = [
 
 export default function Integrations() {
   const data = useLoaderData<typeof loader>();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedReturnTo = searchParams.get("returnTo");
+  const returnTo =
+    requestedReturnTo === "/app/settings?section=back-in-stock"
+      ? requestedReturnTo
+      : "/app/settings";
   const emailFetcher = useFetcher<typeof action>();
   const smsFetcher = useFetcher<typeof action>();
   const [emailProvider, setEmailProvider] = useState(data.emailProvider);
@@ -165,7 +177,15 @@ export default function Integrations() {
   const smsResult = smsFetcher.data;
 
   return (
-    <Page fullWidth>
+    <Page
+      fullWidth
+      backAction={{
+        content: returnTo.endsWith("back-in-stock")
+          ? "Back to Back-in-Stock"
+          : "Back to Configurations",
+        onAction: () => navigate(returnTo),
+      }}
+    >
       <TitleBar title="Integrations" />
       <BlockStack gap="400">
         <Text as="p" tone="subdued">
@@ -254,7 +274,14 @@ export default function Integrations() {
               </BlockStack>
               {!smsResultDismissed && smsResult?.intent === "saveSmsIntegration" && (
                 <Banner tone={smsResult.ok ? "success" : "critical"}>
-                  {smsResult.ok ? "SMS integration settings saved." : smsResult.error}
+                  {smsResult.ok ? (
+                    <>
+                      SMS integration settings saved.
+                      {"returnTo" in smsResult && smsResult.returnTo && (
+                        <> <Link to={smsResult.returnTo}>Return to Back-in-Stock settings</Link></>
+                      )}
+                    </>
+                  ) : smsResult.error}
                 </Banner>
               )}
               <Select

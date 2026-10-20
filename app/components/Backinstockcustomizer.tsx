@@ -1,8 +1,10 @@
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { Link } from "@remix-run/react";
 import "./Backinstockcustomizer.css";
 
 export type CustomizerSettings = {
   launchType: "inline" | "modal";
+  minimumQuantity: number;
   placement: "next" | "right" | "left";
   buttonType: "text" | "iconText" | "icon";
   buttonText: string;
@@ -43,6 +45,7 @@ type SectionId = "launch" | "button" | "form" | "email";
 
 const DEFAULTS: CustomizerSettings = {
   launchType: "modal",
+  minimumQuantity: 1,
   placement: "next",
   buttonType: "iconText",
   buttonText: "Email me when available",
@@ -265,6 +268,9 @@ export function BackInStockCustomizer({ initial, initialSection, smsEnabled = fa
                     <p className="swc-intro">back in stock Alerts</p>
                     <Radio name="launch" checked={s.launchType === "inline"} onChange={() => set("launchType", "inline")} label="In-Line form" hint="Display the form directly on your product pages under the Sold Out button" />
                     <Radio name="launch" checked={s.launchType === "modal"} onChange={() => set("launchType", "modal")} label="Modal/Pop-up" badge hint="Display a button on your sold out pages, which opens up the form on clicking" />
+                    <Field label="Minimum stock to notify" hint="0 means notify as soon as any stock is sellable online.">
+                      <input className="swc-input" type="number" min={0} max={999999} step={1} value={s.minimumQuantity} onChange={(e) => set("minimumQuantity", Number(e.target.value))} />
+                    </Field>
                     {s.launchType === "modal" && (
                       <div className="swc-sub">
                         <Radio name="place" checked={s.placement === "next"} onChange={() => set("placement", "next")} label="Next to Sold out button" badge hint="The button will be placed near the Sold Out button" />
@@ -346,7 +352,7 @@ export function BackInStockCustomizer({ initial, initialSection, smsEnabled = fa
                             <span className="swc-sms-warning-icon" aria-hidden="true">!</span>
                             <div>
                               <strong>Enable SMS Integrations to enable the SMS UI on your store</strong>
-                              <a href={smsIntegrationsUrl}>Go to Integrations</a>
+                              <Link to={smsIntegrationsUrl}>Go to Integrations</Link>
                             </div>
                           </div>
                         ))}
@@ -392,10 +398,7 @@ export function BackInStockCustomizer({ initial, initialSection, smsEnabled = fa
                       <input className="swc-input" value={s.from} onChange={(e) => set("from", e.target.value)} />
                     </Field>
                     <Field label="Reply to Email id *" hint="Customer responses will be sent to this email address">
-                      <div className="swc-joined">
-                        <input className="swc-input" value={s.replyTo} onChange={(e) => set("replyTo", e.target.value)} />
-                        <button type="button">Send Verification Email</button>
-                      </div>
+                      <input className="swc-input" type="email" value={s.replyTo} onChange={(e) => set("replyTo", e.target.value)} />
                     </Field>
                     <h2 className="swc-group">Email Template</h2>
                     <Field label="Subject">

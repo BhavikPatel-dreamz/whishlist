@@ -38,9 +38,12 @@ export type BackInStockEmailInput = {
 };
 
 /** Only allow https and inline png/jpeg images so a stored logo cannot inject scriptable URLs. */
-export function safeEmailImageUrl(url: string | null | undefined): string | null {
+export function safeEmailImageUrl(
+  url: string | null | undefined,
+): string | null {
   if (!url) return null;
-  return /^https:\/\//i.test(url) || /^data:image\/(png|jpe?g);base64,/i.test(url)
+  return /^https:\/\//i.test(url) ||
+    /^data:image\/(png|jpe?g);base64,/i.test(url)
     ? url
     : null;
 }
@@ -61,11 +64,12 @@ export function backInStockHtml(input: BackInStockEmailInput): string {
     : "";
   const logo = safeEmailImageUrl(input.logoUrl)
     ? `<img src="${e(input.logoUrl as string)}" alt="${e(input.headerText || input.shopName)}"
-         style="display:block;border:0;max-height:56px;width:auto;max-width:100%;height:auto;margin:0 auto 20px;" />`
+         style="display:block;border:0;max-height:150px;width:auto;max-width:100%;height:auto;margin:0 auto 20px;" />`
     : "";
-  const headerText = !logo && input.headerText
-    ? `<p style="margin:0 0 20px;font-size:16px;font-weight:700;color:#1a1a1a;">${e(input.headerText)}</p>`
-    : "";
+  const headerText =
+    !logo && input.headerText
+      ? `<p style="margin:0 0 20px;font-size:16px;font-weight:700;color:#1a1a1a;">${e(input.headerText)}</p>`
+      : "";
   const footer = input.footer
     ? `<p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#6b7177;">${e(input.footer).replace(/\n/g, "<br />")}</p>`
     : "";

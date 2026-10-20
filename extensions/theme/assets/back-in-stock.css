@@ -88,7 +88,8 @@ html[data-ws-bis-disabled] :is(.back-in-stock, #ws-bis-modal) {
 .ws-bis-inline { margin-top: 12px; }
 .ws-bis-inline-form { display: grid; gap: 10px; }
 .ws-bis-inline-label { display: grid; gap: 5px; font-size: 13px; }
-.ws-bis-inline-label input {
+.ws-bis-inline-label input,
+.ws-bis-inline-label select {
   box-sizing: border-box;
   width: 100%;
   min-height: 42px;

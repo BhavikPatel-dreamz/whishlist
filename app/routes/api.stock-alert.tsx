@@ -12,14 +12,20 @@ import {
 import { rateLimit } from "../lib/rate-limit.server";
 import { getVariantsByIds } from "../lib/shopify-data.server";
 import { signPayload } from "../lib/crypto.server";
-import { sendEmail } from "../lib/notifications/providers.server";
+import { sendEmail, sendSms } from "../lib/notifications/providers.server";
 import {
   confirmationEmailHtml,
   confirmationEmailText,
 } from "../lib/notifications/template.server";
 import { resolveSettings } from "../lib/shop.server";
 import db from "../db.server";
-import { ALERT_STATUS, cancelStockAlert, createStockAlert } from "../models/stock-alert.server";
+import {
+  ALERT_STATUS,
+  cancelStockAlert,
+  createStockAlert,
+  stockAlertContactKey,
+  type AlertChannel,
+} from "../models/stock-alert.server";
 
 /** GET /apps/wishlist-stock/api/stock-alert?variantId=… — is this shopper already waiting? */
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -33,14 +39,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
 
     const variantId = numericId(ctx.url.searchParams.get("variantId"));
-    const email = ctx.url.searchParams.get("email")?.trim().toLowerCase();
-    if (!variantId || !email) {
-      throw new ProxyError(422, "variantId and email are required", "missing_params");
-    }
+    const channel: AlertChannel = ctx.url.searchParams.get("channel") === "sms" ? "sms" : "email";
+    const email = channel === "email" ? assertEmail(ctx.url.searchParams.get("email") ?? undefined) : null;
+    const phone = channel === "sms" ? sanitisePhone(ctx.url.searchParams.get("phone") || undefined) : null;
+    const contact = email || phone;
+    if (!variantId || !contact) throw new ProxyError(422, "variantId and a valid contact are required", "missing_params");
 
     const alert = await db.stockAlert.findUnique({
       where: {
-        one_alert_per_email_variant: { shopId: ctx.shop.id, variantId, email },
+        one_alert_per_contact_variant: {
+          shopId: ctx.shop.id,
+          variantId,
+          contactKey: stockAlertContactKey(channel, contact),
+        },
       },
       select: { status: true, createdAt: true },
     });
@@ -89,13 +100,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Honeypot field rendered hidden in the storefront form; only bots fill it in.
     if (body.website) return json({ ok: true, subscribed: true });
 
-    const email = assertEmail(body.email);
+    const channel: AlertChannel = body.channel === "sms" ? "sms" : "email";
+    const email = channel === "email" ? assertEmail(body.email) : null;
+    const phone = channel === "sms" ? sanitisePhone(body.phone) : null;
+    const contact = email || phone;
+    if (!contact) throw new ProxyError(422, "Enter a valid email or phone number", "missing_contact");
     const variantId = numericId(body.variantId);
     if (!variantId) throw new ProxyError(422, "variantId is required", "missing_variant");
 
     if (method === "DELETE") {
       const existing = await db.stockAlert.findUnique({
-        where: { one_alert_per_email_variant: { shopId: ctx.shop.id, variantId, email } },
+        where: {
+          one_alert_per_contact_variant: {
+            shopId: ctx.shop.id,
+            variantId,
+            contactKey: stockAlertContactKey(channel, contact),
+          },
+        },
         select: { id: true },
       });
       if (existing) await cancelStockAlert(existing.id);
@@ -103,6 +124,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (method !== "POST") throw new ProxyError(405, "Method not allowed", "method_not_allowed");
+    if (channel === "sms" && !ctx.shop.smsEnabled) {
+      throw new ProxyError(422, "SMS alerts are not enabled for this store", "sms_disabled");
+    }
 
     // Trust Shopify, not the form: confirm the variant exists and really is unavailable.
     const [variant] = await getVariantsByIds(await ctx.admin(), [variantId]);
@@ -120,8 +144,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const { alert, created } = await createStockAlert({
       shopId: ctx.shop.id,
+      channel,
       email,
-      phone: sanitisePhone(body.phone),
+      phone,
       customerId: ctx.loggedInCustomerId,
       productId: numericId(body.productId) || variant.productId,
       variantId,
@@ -140,26 +165,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const confirmUrl = `${(process.env.SHOPIFY_APP_URL || "").replace(/\/$/, "")}/r/confirm/${alert.id}?sig=${signPayload(alert.id)}`;
       const unsubscribeUrl = `${(process.env.SHOPIFY_APP_URL || "").replace(/\/$/, "")}/alerts/unsubscribe?id=${alert.id}&sig=${signPayload(alert.id)}`;
 
-      const emailResult = await sendEmail(settings, {
-        to: email,
-        subject: `Confirm your alert for ${variant.productTitle}`,
-        html: confirmationEmailHtml({
-          shopName: ctx.shopDomain,
-          productTitle: variant.productTitle,
-          variantTitle: variant.variantTitle,
-          confirmUrl,
-          unsubscribeUrl,
-        }),
-        text: confirmationEmailText({
-          shopName: ctx.shopDomain,
-          productTitle: variant.productTitle,
-          variantTitle: variant.variantTitle,
-          confirmUrl,
-          unsubscribeUrl,
-        }),
-      });
-      if (!emailResult.ok) {
-        console.error("[double-opt-in] confirmation email failed:", emailResult.error);
+      const confirmationResult = channel === "email"
+        ? await sendEmail(settings, {
+            to: email!,
+            subject: `Confirm your alert for ${variant.productTitle}`,
+            html: confirmationEmailHtml({ shopName: ctx.shopDomain, productTitle: variant.productTitle, variantTitle: variant.variantTitle, confirmUrl, unsubscribeUrl }),
+            text: confirmationEmailText({ shopName: ctx.shopDomain, productTitle: variant.productTitle, variantTitle: variant.variantTitle, confirmUrl, unsubscribeUrl }),
+          })
+        : await sendSms(settings, phone!, `Confirm your back-in-stock alert for ${variant.productTitle}: ${confirmUrl} Cancel: ${unsubscribeUrl}`);
+      if (!confirmationResult.ok) {
+        console.error(`[double-opt-in] ${channel} confirmation failed:`, confirmationResult.error);
         return json(
           {
             ok: false,
@@ -178,7 +193,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       alertId: alert.id,
       message:
         ctx.shop.doubleOptIn && alert.status === ALERT_STATUS.pending
-          ? "Check your email to confirm your alert."
+          ? channel === "email" ? "Check your email to confirm your alert." : "Check your phone for a text to confirm your alert."
           : created
             ? "You're on the list. We'll email you the moment it's back."
             : "You're already on the list for this item.",
@@ -191,8 +206,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 function sanitisePhone(value: string | undefined): string | null {
   const phone = (value || "").replace(/[^\d+]/g, "");
   if (!phone) return null;
-  if (phone.length < 8 || phone.length > 16) {
-    throw new ProxyError(422, "Enter a valid phone number", "invalid_phone");
+  if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+    throw new ProxyError(422, "Enter a phone number in international format, such as +14155550123", "invalid_phone");
   }
   return phone;
 }
