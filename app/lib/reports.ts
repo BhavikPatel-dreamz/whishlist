@@ -1,6 +1,5 @@
 export const wishlistReportTabs = [
   ["products", "Product Report"],
-  ["activity", "Wishlist Activity"],
   ["shared", "Shared Wishlists"],
   ["wishlist-orders", "Wishlist Orders"],
 ] as const;
@@ -65,10 +64,7 @@ export function toCsv(rows: Array<Array<string | number>>): string {
       text = `'${text}`;
     return `"${text.replace(/"/g, '""')}"`;
   };
-  return (
-    "\uFEFF" +
-    rows.map((row) => row.map(cell).join(",")).join("\r\n")
-  );
+  return "\uFEFF" + rows.map((row) => row.map(cell).join(",")).join("\r\n");
 }
 
 export function reportCsv(columns: string[], rows: ReportRow[]) {

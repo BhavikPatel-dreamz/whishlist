@@ -193,18 +193,21 @@ export function AnalyticsMetrics({
     productId: r.productId,
     title: r.title,
     imageUrl: r.imageUrl,
-    meta: `${r.shoppers} shoppers`,
+    meta: `${r.saves} ${r.saves === 1 ? "save" : "saves"} · ${r.shoppers} ${r.shoppers === 1 ? "customer" : "customers"}`,
   }));
 
-  const runningLowRows: ProductRow[] = data.runningLow.map((r) => ({
-    productId: r.productId,
-    title: r.title,
-    imageUrl: r.imageUrl,
-    meta:
-      r.stock < 0
-        ? `Out of stock · oversold by ${Math.abs(r.stock)}`
-        : `Out of stock · ${r.stock} units`,
-  }));
+  // "Running out soon" only surfaces products that are both out of stock and
+  // in high demand — by wishlist saves (wishlist view) or alert requests
+  // (back-in-stock view). Popular lists are demand-ordered (saves / alerts).
+  const outOfStockIds = new Set(data.runningLow.map((r) => r.productId));
+  const hotOutOfStockRows: ProductRow[] = data.popular
+    .filter((r) => outOfStockIds.has(r.productId))
+    .map((r) => ({
+      productId: r.productId,
+      title: r.title,
+      imageUrl: r.imageUrl,
+      meta: `${r.saves} ${r.saves === 1 ? "save" : "saves"} · ${r.shoppers} ${r.shoppers === 1 ? "customer" : "customers"} · Out of stock`,
+    }));
 
   const requestedRows: ProductRow[] = backInStock.popularRequestedProducts.map(
     (r) => ({
@@ -214,6 +217,16 @@ export function AnalyticsMetrics({
       meta: `${r.alerts} alert requests`,
     }),
   );
+
+  const requestedOutOfStockRows: ProductRow[] =
+    backInStock.popularRequestedProducts
+      .filter((r) => outOfStockIds.has(r.productId))
+      .map((r) => ({
+        productId: r.productId,
+        title: r.title,
+        imageUrl: r.imageUrl,
+        meta: `${r.alerts} ${r.alerts === 1 ? "alert request" : "alert requests"} · Out of stock`,
+      }));
 
   return (
     <section className="ws-metrics" aria-labelledby="ws-metrics-heading">
@@ -290,13 +303,13 @@ export function AnalyticsMetrics({
 
           <MetricColumn
             title="Running out soon"
-            subtitle="Currently out-of-stock products"
+            subtitle="High-demand wishlist products that are out of stock"
             reportTo={wishlistReport("running-low")}
           >
             <ProductList
-              rows={runningLowRows}
+              rows={hotOutOfStockRows}
               placeholder="♡"
-              emptyText="No out-of-stock products in your store."
+              emptyText="No high-demand wishlist products are out of stock."
             />
           </MetricColumn>
         </div>
@@ -345,13 +358,13 @@ export function AnalyticsMetrics({
 
           <MetricColumn
             title="Running out soon"
-            subtitle="Currently out-of-stock products"
+            subtitle="High-demand alert products that are out of stock"
             reportTo={backInStockReport("stock", "out-of-stock")}
           >
             <ProductList
-              rows={runningLowRows}
+              rows={requestedOutOfStockRows}
               placeholder="!"
-              emptyText="No out-of-stock products in your store."
+              emptyText="No high-demand alert products are out of stock."
             />
           </MetricColumn>
         </div>
@@ -362,16 +375,17 @@ export function AnalyticsMetrics({
           <>
             Currently saved items added between {data.from} and {data.to} (UTC).
             Showing up to 20 entries per column; reports include all results.
-            Running out soon shows every active, inventory-tracked product with
-            zero or fewer units across all locations, regardless of wishlist
-            activity. Values estimate one unit per product at its current
-            minimum price; inventory is current.
+            Running out soon lists the most-wishlisted products that are also
+            currently out of stock, so restocking them protects existing demand.
+            Values estimate one unit per product at its current minimum price;
+            inventory is current.
           </>
         ) : (
           <>
             Customer requests cover {backInStock.from} to {backInStock.to}{" "}
             (UTC). Showing up to 20 customers; the detailed report includes all
-            results. Inventory is current.
+            results. Running out soon lists the products with the most alert
+            requests that are also currently out of stock. Inventory is current.
           </>
         )}
       </p>

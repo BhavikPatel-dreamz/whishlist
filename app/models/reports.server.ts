@@ -500,8 +500,9 @@ export async function loadReport(
     tab === "wishlist-orders" ||
     (tab === "purchases" && params.get("kind") === "wishlist-orders")
   ) {
+    const allTimeOrders = params.get("kind") === "all-time-orders";
     const orders = await db.wishlistOrder.findMany({
-      where: { shopId, createdAt: dates },
+      where: allTimeOrders ? { shopId } : { shopId, createdAt: dates },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     });
     const products = await getProductsByIds(
@@ -526,7 +527,9 @@ export async function loadReport(
       }
     }
     table = {
-      title: "Wishlist-attributed Orders",
+      title: allTimeOrders
+        ? "All-time Wishlist-attributed Orders"
+        : "Wishlist-attributed Orders",
       description: "View orders attributed to products saved in wishlists",
       label: "Orders",
       columns: ["Order ID", "Products", "Recorded Date"],
@@ -540,14 +543,19 @@ export async function loadReport(
           date(group.createdAt),
         ],
       })),
-      note: "One row per distinct order containing at least one product saved in a wishlist, using the earliest recorded order-product date (UTC).",
+      note: allTimeOrders
+        ? "One row per distinct order containing at least one product saved in a wishlist, across all dates."
+        : "One row per distinct order containing at least one product saved in a wishlist, using the earliest recorded order-product date (UTC).",
     };
   } else if (tab === "purchases") {
+    const stockAlertOnly = params.get("kind") === "stock-alert";
     const [orders, conversions] = await Promise.all([
-      db.wishlistOrder.findMany({
-        where: { shopId, createdAt: dates },
-        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      }),
+      stockAlertOnly
+        ? Promise.resolve([])
+        : db.wishlistOrder.findMany({
+            where: { shopId, createdAt: dates },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+          }),
       db.stockAlert.findMany({
         where: { shopId, purchasedAt: dates },
         orderBy: [{ purchasedAt: "desc" }, { id: "asc" }],
@@ -559,9 +567,11 @@ export async function loadReport(
       1,
     );
     table = {
-      title: "Purchases Report",
-      description: "View recorded purchases from wishlists and alerts",
-      label: "Purchases",
+      title: stockAlertOnly ? "Back-in-stock Purchases" : "Purchases Report",
+      description: stockAlertOnly
+        ? "Purchases attributed to a clicked back-in-stock alert"
+        : "View recorded purchases from wishlists and alerts",
+      label: stockAlertOnly ? "Stock Alert Purchases" : "Purchases",
       columns: [
         "Product Title",
         "Source",
@@ -596,13 +606,31 @@ export async function loadReport(
           ],
         })),
       ].sort((a, b) => String(b.cells[4]).localeCompare(String(a.cells[4]))),
-      note: "Stock-alert purchases are matched from the signed alert property on a paid order. Revenue is the attributed line-item total after its line discount; wishlist-attributed revenue is not tracked.",
+      note: stockAlertOnly
+        ? "Counted when a paid order includes the signed alert token from the back-in-stock email. Wishlist-attributed orders are not included. Revenue uses the attributed line-item total after its line discount."
+        : "Stock-alert purchases are matched from the signed alert property on a paid order. Revenue is the attributed line-item total after its line discount; wishlist-attributed revenue is not tracked.",
     };
   } else {
+    const allTimeProducts =
+      tab === "products" &&
+      (params.get("kind") === "all-time-products" || !params.get("kind"));
+    const allTimeSaves =
+      tab === "products" && params.get("kind") === "all-time-saves";
     const items = await db.wishlistItem.findMany({
-      where: { shopId, createdAt: dates },
+      where:
+        allTimeSaves || allTimeProducts
+          ? { shopId }
+          : { shopId, createdAt: dates },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     });
+    // Removal history so the all-time products report can list products that
+    // were wishlisted in the past even after the saved row was deleted.
+    const removals = allTimeProducts
+      ? await db.wishlistEvent.findMany({
+          where: { shopId, type: "remove" },
+          select: { productId: true, customerId: true, guestToken: true },
+        })
+      : [];
     const variantIds = [
       ...new Set(
         items.flatMap((item) => (item.variantId ? [item.variantId] : [])),
@@ -613,10 +641,15 @@ export async function loadReport(
         items.flatMap((item) => (item.customerId ? [item.customerId] : [])),
       ),
     ];
-    const [products, variantChunks, nameChunks, alerts] = await Promise.all([
+    const [products, variantChunks, nameChunks] = await Promise.all([
       getProductsByIds(
         admin,
-        [...new Set(items.map((item) => item.productId))],
+        [
+          ...new Set([
+            ...items.map((item) => item.productId),
+            ...removals.map((row) => row.productId),
+          ]),
+        ],
         1,
       ),
       Promise.all(
@@ -635,13 +668,6 @@ export async function loadReport(
                 ),
             ),
           )
-        : Promise.resolve([]),
-      tab === "products"
-        ? db.stockAlert.groupBy({
-            by: ["productId", "variantId"],
-            where: { shopId, notifiedAt: dates },
-            _count: { _all: true },
-          })
         : Promise.resolve([]),
     ]);
     const variants = new Map(
@@ -678,6 +704,68 @@ export async function loadReport(
         })),
         note: "Shows currently saved items, not a complete action history. Removed items are not retained. Customer names appear when Shopify access permits; emails are not stored with wishlist saves.",
       };
+    } else if (allTimeProducts) {
+      type ProductGroup = {
+        saves: number;
+        active: number;
+        shoppers: Set<string>;
+      };
+      const productGroups = new Map<string, ProductGroup>();
+      const groupFor = (productId: string) => {
+        const group = productGroups.get(productId) || {
+          saves: 0,
+          active: 0,
+          shoppers: new Set<string>(),
+        };
+        productGroups.set(productId, group);
+        return group;
+      };
+      const identityOf = (row: {
+        customerId: string | null;
+        guestToken: string | null;
+      }) =>
+        row.customerId
+          ? `customer:${row.customerId}`
+          : row.guestToken
+            ? `guest:${row.guestToken}`
+            : null;
+      for (const item of items) {
+        const group = groupFor(item.productId);
+        group.saves++;
+        group.active++;
+        const identity = identityOf(item);
+        if (identity) group.shoppers.add(identity);
+      }
+      // Products removed from a wishlist stay visible with their history.
+      for (const removal of removals) {
+        const group = groupFor(removal.productId);
+        group.saves++;
+        const identity = identityOf(removal);
+        if (identity) group.shoppers.add(identity);
+      }
+      table = {
+        title: "Wishlisted Products",
+        description: "One row per product ever wishlisted, across all dates",
+        label: "Products",
+        imageColumn: true,
+        columns: ["Product Title", "Wishlist Saves", "Shoppers", "Status"],
+        rows: [...productGroups]
+          .sort(
+            ([productIdA, a], [productIdB, b]) =>
+              b.saves - a.saves || productIdA.localeCompare(productIdB),
+          )
+          .map(([productId, group]) => ({
+            id: productId,
+            image: products.get(productId)?.imageUrl,
+            cells: [
+              products.get(productId)?.title || productId,
+              group.saves,
+              group.shoppers.size,
+              group.active > 0 ? "Active" : "Removed",
+            ],
+          })),
+        note: "One row per distinct product ever saved to a wishlist. Saves include items that were later removed; status shows whether the product still sits in a shopper's wishlist. Removal history starts from the launch of this report.",
+      };
     } else {
       const groups = new Map<
         string,
@@ -712,14 +800,12 @@ export async function loadReport(
         groups.set(key, group);
       }
       const low = params.get("kind") === "running-low";
-      const sent = new Map(
-        alerts.map((row) => [
-          `${row.productId}:${row.variantId}`,
-          row._count._all,
-        ]),
-      );
       table = {
-        title: low ? "Running out soon" : "Products",
+        title: low
+          ? "Running out soon"
+          : allTimeSaves
+            ? "All-time Wishlist Saves"
+            : "Products",
         description: "View and analyze wishlist engagement for your products",
         label: "Product Variants",
         imageColumn: true,
@@ -727,9 +813,7 @@ export async function loadReport(
           "Product Title",
           "SKU",
           "Inventory",
-          "Inventory Last Updated",
           "Wishlist Saves",
-          "Alerts Sent",
           "Revenue",
         ],
         rows: [...groups]
@@ -760,18 +844,17 @@ export async function loadReport(
                   (row.variantId
                     ? "Unavailable"
                     : (product?.totalInventory ?? "Unavailable")),
-                "Not tracked",
                 row.saves,
-                sent.get(id) || 0,
                 "Not tracked",
               ],
             };
           }),
-        note:
-          "Saves are currently retained items added during the selected dates; alerts use notification dates. Inventory is current across all locations. Revenue and inventory-change timestamps are not tracked." +
-          (low
-            ? " Low-stock filter: at least 2 distinct shoppers and product stock of 10 or fewer."
-            : ""),
+        note: allTimeSaves
+          ? "Wishlist saves show currently retained items across all dates; removed items are not retained. Inventory is current across all locations. Revenue and inventory-change timestamps are not tracked."
+          : "Saves are currently retained items added during the selected dates. Inventory is current across all locations. Revenue and inventory-change timestamps are not tracked." +
+            (low
+              ? " Low-stock filter: at least 2 distinct shoppers and product stock of 10 or fewer."
+              : ""),
       };
     }
   }

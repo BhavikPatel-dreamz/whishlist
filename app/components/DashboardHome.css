@@ -7,7 +7,7 @@
 .ws-home-panel {
   padding: 24px 22px;
   border-radius: 12px;
-  background: #f7f7f7;
+  background: linear-gradient(180deg, #f5f4fb 0%, #f7f7f7 55%);
   margin-bottom: 16px;
 }
 .ws-home-sectionHeading {
@@ -38,19 +38,50 @@
 }
 .ws-home-embedGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 .ws-home-embedCard {
+  --card-accent: #6b5ce7;
+  --card-accent-2: #9b7cf6;
+  --card-accent-soft: #f1edff;
+  position: relative;
+  overflow: hidden;
   padding: 22px;
-  border-radius: 12px;
-  background: white;
+  border-radius: 14px;
+  border: 1px solid #ececec;
+  border-top: 3px solid var(--card-accent);
+  background:
+    radial-gradient(circle at 110% -10%, var(--card-accent-soft), transparent 45%),
+    linear-gradient(180deg, #ffffff 0%, #fcfbff 100%);
+  box-shadow: 0 2px 6px rgba(20, 20, 40, 0.06);
+}
+.ws-home-embedCard--green {
+  --card-accent: #178a56;
+  --card-accent-2: #2fae74;
+  --card-accent-soft: #e7f6ee;
+}
+.ws-home-embedCard--amber {
+  --card-accent: #b26a00;
+  --card-accent-2: #e0900f;
+  --card-accent-soft: #fdf2e0;
 }
 .ws-home-embedCard h2 {
   font-size: 13px;
   font-weight: 650;
   margin: 0;
   line-height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ws-home-embedCard h2::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, var(--card-accent), var(--card-accent-2));
+  flex-shrink: 0;
 }
 .ws-home-embedTitleRow {
   display: flex;
@@ -70,8 +101,8 @@
   color: #014b40;
 }
 .ws-home-neutral {
-  background: #ededed;
-  color: #616161;
+  background: var(--card-accent-soft, #ededed);
+  color: var(--card-accent, #616161);
 }
 .ws-home-embedCard p {
   margin: 14px 0;
@@ -84,19 +115,21 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background: white;
+  padding: 5px 11px;
+  border: 1px solid var(--card-accent, #ccc);
+  border-radius: 999px;
+  background: #fff;
   box-shadow: 0 1px 1px #0000000a;
-  color: #303030;
+  color: var(--card-accent, #303030);
   text-decoration: none;
   font-size: 12px;
   line-height: 17px;
   font-weight: 550;
+  transition: background 140ms ease, border-color 140ms ease;
 }
 .ws-home-button:hover {
-  background: #f5f5f5;
+  background: var(--card-accent-soft, #f5f5f5);
+  border-color: var(--card-accent-2, #ccc);
 }
 .ws-home-page a:focus-visible,
 .ws-home-refresh:focus-visible {
@@ -480,6 +513,11 @@
   }
   .ws-home-featureHeading h2 {
     font-size: 22px;
+  }
+}
+@media (max-width: 1000px) {
+  .ws-home-embedGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 600px) {

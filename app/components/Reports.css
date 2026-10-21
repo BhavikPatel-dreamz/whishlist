@@ -5,38 +5,84 @@
 .ws-overview-sections {
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 16px;
+}
+.ws-overview-section {
+  padding: 18px;
+  border: 1px solid #e8eaed;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(20, 20, 40, 0.05);
 }
 .ws-overview-section h2 {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
   font-size: 14px;
   font-weight: 650;
   line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ws-overview-section h2::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--ov-accent, #8c9196), var(--ov-accent-2, #b0b4b9));
+}
+/* The Insights section is a plain wrapper — its chart cards supply the
+   card chrome, so the outer box must not draw a border around them. */
+.ws-overview-section--teal {
+  --ov-accent: #199c88;
+  --ov-accent-2: #43bfa9;
+  --ov-accent-soft: #e5f6f3;
+  padding: 4px 0 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.ws-overview-section--teal h2 {
+  padding-inline: 2px;
 }
 .ws-overview-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
+}
+.ws-overview-section--green {
+  --ov-accent: #178a56;
+  --ov-accent-2: #2fae74;
+  --ov-accent-soft: #e7f6ee;
+}
+.ws-overview-section--violet {
+  --ov-accent: #6b5ce7;
+  --ov-accent-2: #9b7cf6;
+  --ov-accent-soft: #f1edff;
 }
 .ws-overview-card {
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 80px;
+  min-height: 84px;
   flex-direction: column;
   justify-content: center;
   padding: 13px 40px 13px 15px;
   border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 2px 4px #00000012;
+  border-left: 3px solid var(--ov-accent, #d8dce2);
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 110% -20%, var(--ov-accent-soft, transparent), transparent 55%),
+    #fff;
+  box-shadow: 0 1px 3px rgba(20, 20, 40, 0.06);
   color: inherit;
   text-decoration: none;
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 .ws-overview-card:hover {
-  border-color: #c9cdd1;
-  box-shadow: 0 3px 7px #00000018;
+  border-color: var(--ov-accent-2, #c9cdd1);
+  box-shadow: 0 4px 10px rgba(20, 20, 40, 0.1);
+  transform: translateY(-1px);
 }
 .ws-overview-card:focus-visible {
   outline: 2px solid var(--wl-accent);
@@ -51,7 +97,7 @@
 }
 .ws-overview-card-value {
   margin-top: 7px;
-  color: #202a38;
+  color: var(--ov-accent, #202a38);
   font-size: 22px;
   font-weight: 650;
   line-height: 1.1;
@@ -66,8 +112,8 @@
   height: 18px;
   place-items: center;
   border-radius: 4px;
-  background: #f0f1f2;
-  color: #333;
+  background: var(--ov-accent-soft, #f0f1f2);
+  color: var(--ov-accent, #333);
   font-size: 12px;
 }
 .ws-reports-tabs {
@@ -78,14 +124,12 @@
 }
 
 @media (max-width: 600px) {
-
   .ws-overview-grid {
-    grid-template-columns: 1fr;
     gap: 9px;
   }
-
-  .ws-overview-sections {
-    gap: 22px;
+  .ws-overview-section {
+    padding: 14px;
+    border-radius: 10px;
   }
 }
 .ws-reports-subtabs {
@@ -399,18 +443,6 @@
 .ws-stock-summary {
   margin: 0 0 18px;
 }
-.ws-stock-summary .ws-overview-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.ws-stock-summary .ws-overview-card {
-  min-height: 0;
-  gap: 6px;
-  padding: 14px 16px;
-  border-left-width: 3px;
-}
-.ws-stock-summary .ws-overview-card-value {
-  margin-top: 0;
-}
 .ws-stock-summary .ws-overview-card[aria-current="page"] {
   box-shadow: 0 0 0 2px #303030, 0 2px 4px #00000012;
 }
@@ -425,11 +457,6 @@
 }
 .ws-stock-summary .ws-overview-card:nth-child(4) {
   border-left-color: #b42318;
-}
-@media (max-width: 900px) {
-  .ws-stock-summary .ws-overview-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 .ws-reports-empty {
   min-height: 385px;
@@ -502,5 +529,235 @@
   }
   .ws-reports {
     padding: 12px;
+  }
+}
+
+/* ==================================================================
+   Overview charts (SVG, no external chart library)
+   ================================================================== */
+.ws-overview-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.ws-overview-charts > :nth-child(1) {
+  grid-column: 1 / -1;
+}
+.ws-chart-card {
+  margin: 0;
+  padding: 14px 15px 15px;
+  border: 1px solid #e8eaed;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(20, 20, 40, 0.05);
+  min-width: 0;
+}
+.ws-chart-card figcaption,
+.ws-chart-card .ws-chart-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+.ws-chart-card figcaption strong,
+.ws-chart-card .ws-chart-card-head strong {
+  font-size: 12px;
+  font-weight: 650;
+  color: #202a38;
+}
+.ws-chart-card figcaption span,
+.ws-chart-card .ws-chart-card-head span {
+  font-size: 11px;
+  color: #6b7684;
+}
+
+/* ---------- Bar series ---------- */
+.ws-chart-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ws-chart-bar {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+a.ws-chart-bar:hover .ws-chart-bar-label {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ws-chart-bar-label {
+  overflow: hidden;
+  font-size: 11px;
+  color: #34435a;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ws-chart-bar-track {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: #eef0f2;
+  overflow: hidden;
+}
+.ws-chart-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #25b69c, #6bd5c0);
+  transition: width 240ms ease;
+}
+.ws-chart-bars li:nth-child(2) .ws-chart-bar-fill { background: linear-gradient(90deg, #438fc4, #80bce1); }
+.ws-chart-bars li:nth-child(3) .ws-chart-bar-fill { background: linear-gradient(90deg, #d8a33d, #f0cc72); }
+.ws-chart-bars li:nth-child(4) .ws-chart-bar-fill { background: linear-gradient(90deg, #d7755d, #efa58e); }
+.ws-chart-bars li:nth-child(5) .ws-chart-bar-fill { background: linear-gradient(90deg, #7f9a58, #b0c984); }
+.ws-chart-bar-track-accent .ws-chart-bar-fill {
+  background: linear-gradient(90deg, #d7755d, #efa58e);
+}
+.ws-chart-bar-value {
+  text-align: right;
+  font-size: 12px;
+  font-weight: 650;
+  color: #202a38;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Donuts ---------- */
+.ws-chart-donut-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+.ws-chart-donut {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.ws-chart-donut svg,
+.ws-chart-donut-row > svg {
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+}
+.ws-donut-track {
+  fill: none;
+  stroke: #eef0f2;
+  stroke-width: 9;
+}
+.ws-donut-value {
+  fill: none;
+  stroke: #19b59a;
+  stroke-linecap: round;
+  stroke-width: 9;
+}
+.ws-chart-donut:nth-child(2) .ws-donut-value {
+  stroke: #438fc4;
+}
+.ws-donut-segment {
+  fill: none;
+  stroke-width: 9;
+}
+.ws-donut-segment.ws-tone-good,
+.ws-chart-swatch.ws-tone-good {
+  stroke: #2f8f5b;
+  background: #2f8f5b;
+}
+.ws-donut-segment.ws-tone-warn,
+.ws-chart-swatch.ws-tone-warn {
+  stroke: #d9a441;
+  background: #d9a441;
+}
+.ws-donut-segment.ws-tone-bad,
+.ws-chart-swatch.ws-tone-bad {
+  stroke: #c4553f;
+  background: #c4553f;
+}
+.ws-donut-text {
+  fill: #202a38;
+  font-size: 15px;
+  font-weight: 650;
+}
+.ws-chart-donut figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+.ws-chart-donut figcaption strong {
+  font-size: 12px;
+  font-weight: 650;
+  color: #202a38;
+}
+.ws-chart-donut figcaption span {
+  font-size: 11px;
+  color: #6b7684;
+}
+
+/* ---------- Legend (inventory donut) ---------- */
+.ws-chart-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.ws-chart-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #34435a;
+}
+.ws-chart-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.ws-chart-legend-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ws-chart-legend-value {
+  font-weight: 650;
+  color: #202a38;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Stock summary layout ---------- */
+.ws-stock-summary-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .ws-overview-charts {
+    grid-template-columns: 1fr;
+  }
+  .ws-overview-charts > :nth-child(1) {
+    grid-column: auto;
+  }
+  .ws-stock-summary-layout {
+    grid-template-columns: 1fr;
+  }
+  .ws-chart-bar {
+    grid-template-columns: 96px minmax(0, 1fr) 40px;
   }
 }

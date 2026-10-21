@@ -80,8 +80,8 @@ export function summarizeMetrics(
     })
     .sort(
       (a, b) =>
-        b.shoppers - a.shoppers ||
         b.saves - a.saves ||
+        b.shoppers - a.shoppers ||
         a.productId.localeCompare(b.productId),
     );
   const runningLow = [...inventoryProducts]

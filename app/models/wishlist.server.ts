@@ -92,17 +92,40 @@ export async function removeFromWishlist(
   identity: Identity,
   item: { productId: string; variantId?: string | null; listName?: string; itemId?: string },
 ): Promise<number> {
-  const { count } = await db.wishlistItem.deleteMany({
-    where: {
-      ...identityWhere(shopId, identity),
-      productId: item.productId,
-      ...(item.listName ? { listName: item.listName } : {}),
-      ...(item.itemId ? { id: item.itemId } : {}),
-      // Omitting variantId clears every variant of the product.
-      ...(item.variantId ? { variantId: item.variantId } : {}),
+  const where = {
+    ...identityWhere(shopId, identity),
+    productId: item.productId,
+    ...(item.listName ? { listName: item.listName } : {}),
+    ...(item.itemId ? { id: item.itemId } : {}),
+    // Omitting variantId clears every variant of the product.
+    ...(item.variantId ? { variantId: item.variantId } : {}),
+  };
+  const targets = await db.wishlistItem.findMany({
+    where,
+    select: {
+      id: true,
+      customerId: true,
+      guestToken: true,
+      productId: true,
+      variantId: true,
     },
   });
-  return count;
+  if (!targets.length) return 0;
+  const [, deleted] = await db.$transaction([
+    db.wishlistItem.deleteMany({ where }),
+    db.wishlistEvent.createMany({
+      data: targets.map((row) => ({
+        shopId,
+        itemId: row.id,
+        customerId: row.customerId,
+        guestToken: row.guestToken,
+        productId: row.productId,
+        variantId: row.variantId,
+        type: "remove",
+      })),
+    }),
+  ]);
+  return deleted.count;
 }
 
 /**

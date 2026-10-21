@@ -73,6 +73,7 @@ model Shop {
   wishlistShares  WishlistShare[]
   wishlistLists   WishlistList[]
   wishlists       WishlistItem[]
+  wishlistEvents  WishlistEvent[]
   wishlistMetrics WishlistMetric[]
   wishlistCartDays WishlistCartDay[]
   wishlistOrders  WishlistOrder[]
@@ -101,6 +102,24 @@ model WishlistItem {
   @@index([shopId, guestToken])
   @@index([shopId, productId])
   @@index([shopId, createdAt])
+}
+
+/// Audit trail of removed wishlist items so all-time reports can show products
+/// that were wishlisted in the past even after the saved row was deleted.
+model WishlistEvent {
+  id         String    @id @default(uuid())
+  shopId     String
+  shop       Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  itemId     String? // the deleted WishlistItem id
+  customerId String?
+  guestToken String?
+  productId  String
+  variantId  String?
+  type       String    @default("remove") // remove | clear (reserved)
+  createdAt  DateTime  @default(now())
+
+  @@index([shopId, createdAt])
+  @@index([shopId, productId])
 }
 
 /// A "notify me when available" subscription for one variant.

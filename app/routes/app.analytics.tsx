@@ -10,9 +10,16 @@ import {
   useSubmit,
 } from "@remix-run/react";
 import { TitleBar } from "@shopify/app-bridge-react";
+import "../components/Reports.css";
 import { requireAdminShop } from "../lib/admin-auth.server";
 import { loadReport } from "../models/reports.server";
 import { stockReportTabs, wishlistReportTabs } from "../lib/reports";
+import {
+  BarSeriesChart,
+  ChartCard,
+  DonutChart,
+  SegmentedDonut,
+} from "../components/OverviewCharts";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { admin, shop } = await requireAdminShop(request);
@@ -124,11 +131,12 @@ export default function Analytics() {
     }
   }
   const overviewSections:
-    | { title: string; cards: OverviewCard[] }[]
+    | { title: string; tone: "green" | "violet"; cards: OverviewCard[] }[]
     | undefined = data.overview && data.wishlistSummary
     ? [
         {
           title: "Back in Stock",
+          tone: "green",
           cards: [
             {
               label: "Subscribed Alerts",
@@ -152,26 +160,31 @@ export default function Analytics() {
               label: "Alert Purchases",
               value: data.overview.stockAlertPurchases,
               tab: "purchases",
+              kind: "stock-alert",
             },
           ],
         },
         {
           title: "Wishlist Metrics",
+          tone: "violet",
           cards: [
             {
               label: "Total Wishlist Saves",
               value: data.wishlistSummary.totalSaves,
               tab: "products",
+              kind: "all-time-saves",
             },
             {
               label: "Wishlist Orders",
               value: data.wishlistSummary.orders,
               tab: "wishlist-orders",
+              kind: "all-time-orders",
             },
             {
               label: "Wishlisted Products",
               value: data.wishlistSummary.productCount,
               tab: "products",
+              kind: "all-time-products",
             },
           ],
         },
@@ -194,6 +207,76 @@ export default function Analytics() {
           },
         ]
       : [];
+  const reportHref = (tab: string, kind?: string) => {
+    const reportParams = new URLSearchParams({ from: data.from, to: data.to });
+    reportParams.set("tab", tab);
+    if (kind) reportParams.set("kind", kind);
+    return `/app/analytics?${reportParams}`;
+  };
+  const overviewCharts =
+    data.overview && data.wishlistSummary
+      ? {
+          funnel: [
+            {
+              label: "Alert requests",
+              value: data.overview.subscribedAlerts,
+              href: reportHref("alerts", "all"),
+            },
+            {
+              label: "Pending alerts",
+              value: data.overview.pendingAlerts,
+              href: reportHref("alerts", "pending"),
+            },
+            {
+              label: "Sent notifications",
+              value: data.overview.sentAlerts,
+              href: reportHref("alerts", "sent"),
+            },
+            {
+              label: "Click-throughs",
+              value: data.overview.clickThroughs,
+              href: reportHref("alerts", "clickthroughs"),
+            },
+            {
+              label: "Purchases",
+              value: data.overview.stockAlertPurchases,
+              href: reportHref("purchases", "stock-alert"),
+            },
+          ],
+          wishlist: [
+            {
+              label: "Total saves",
+              value: data.wishlistSummary.totalSaves,
+              href: reportHref("products", "all-time-saves"),
+            },
+            {
+              label: "Wishlisted products",
+              value: data.wishlistSummary.productCount,
+              href: reportHref("products", "all-time-products"),
+            },
+            {
+              label: "Wishlist orders",
+              value: data.wishlistSummary.orders,
+              href: reportHref("wishlist-orders", "all-time-orders"),
+            },
+          ],
+          topProducts: data.overview.popularRequestedProducts
+            .slice(0, 8)
+            .map((product) => ({
+              label: product.title,
+              value: product.alerts,
+              href: reportHref("alerts", "requested-products"),
+            })),
+          clickRate: {
+            value: data.overview.clickThroughs,
+            total: data.overview.sentAlerts,
+          },
+          purchaseRate: {
+            value: data.overview.stockAlertPurchases,
+            total: data.overview.sentAlerts,
+          },
+        }
+      : null;
   return (
     <main className="ws-reports">
       <TitleBar title="Analytics" />
@@ -321,7 +404,10 @@ export default function Analytics() {
       {isOverview && overviewSections && (
         <div className="ws-overview-sections" aria-busy={busy}>
           {overviewSections.map((section) => (
-            <section className="ws-overview-section" key={section.title}>
+            <section
+              className={`ws-overview-section ws-overview-section--${section.tone}`}
+              key={section.title}
+            >
               <h2>{section.title}</h2>
               <div className="ws-overview-grid">
                 {section.cards.map((card) => {
@@ -362,32 +448,96 @@ export default function Analytics() {
               </div>
             </section>
           ))}
+          {overviewCharts && (
+            <section
+              className="ws-overview-section ws-overview-section--teal"
+              aria-label="Charts"
+            >
+              <h2>Insights</h2>
+              <div className="ws-overview-charts">
+                <BarSeriesChart
+                  title="Alert funnel"
+                  subtitle="From request to purchase"
+                  steps={overviewCharts.funnel}
+                  accentLast
+                />
+                <ChartCard
+                  title="Conversion rates"
+                  subtitle="Calculated against sent notifications"
+                >
+                  <div className="ws-chart-donut-row">
+                    <DonutChart
+                      label="Click-through"
+                      value={overviewCharts.clickRate.value}
+                      total={overviewCharts.clickRate.total}
+                    />
+                    <DonutChart
+                      label="Purchases"
+                      value={overviewCharts.purchaseRate.value}
+                      total={overviewCharts.purchaseRate.total}
+                    />
+                  </div>
+                </ChartCard>
+                <BarSeriesChart
+                  title="Wishlist engagement"
+                  steps={overviewCharts.wishlist}
+                />
+                <BarSeriesChart
+                  title="Top requested products"
+                  subtitle="Alert requests per product"
+                  steps={overviewCharts.topProducts}
+                />
+              </div>
+            </section>
+          )}
         </div>
       )}
       {isStockList && data.inventory && (
         <section className="ws-overview-section ws-stock-summary" aria-label="Inventory metrics">
           <h2>Inventory Metrics</h2>
-          <div className="ws-overview-grid">
-            {stockCards.map((card) => {
-              const cardParams = new URLSearchParams({
-                tab: "stock",
-                from: data.from,
-                to: data.to,
-              });
-              if (card.kind) cardParams.set("kind", card.kind);
-              const isActive = (params.get("kind") || "") === (card.kind || "");
-              return (
-                <Link
-                  className="ws-overview-card"
-                  key={card.label}
-                  to={`/app/analytics?${cardParams}`}
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <span className="ws-overview-card-label">{card.label}</span>
-                  <span className="ws-overview-card-value">{card.value}</span>
-                </Link>
-              );
-            })}
+          <div className="ws-stock-summary-layout">
+            <div className="ws-overview-grid">
+              {stockCards.map((card) => {
+                const cardParams = new URLSearchParams({
+                  tab: "stock",
+                  from: data.from,
+                  to: data.to,
+                });
+                if (card.kind) cardParams.set("kind", card.kind);
+                const isActive = (params.get("kind") || "") === (card.kind || "");
+                return (
+                  <Link
+                    className="ws-overview-card"
+                    key={card.label}
+                    to={`/app/analytics?${cardParams}`}
+                    aria-current={isActive ? "page" : undefined}
+                  >
+                    <span className="ws-overview-card-label">{card.label}</span>
+                    <span className="ws-overview-card-value">{card.value}</span>
+                  </Link>
+                );
+              })}
+            </div>
+            <SegmentedDonut
+              title="Inventory split"
+              segments={[
+                {
+                  label: "In stock",
+                  value: data.inventory.inStock,
+                  tone: "ws-tone-good",
+                },
+                {
+                  label: "Low stock",
+                  value: data.inventory.lowStock,
+                  tone: "ws-tone-warn",
+                },
+                {
+                  label: "Out of stock",
+                  value: data.inventory.outOfStock,
+                  tone: "ws-tone-bad",
+                },
+              ]}
+            />
           </div>
         </section>
       )}

@@ -193,6 +193,7 @@ export default function Dashboard() {
         "Manage wishlist visibility, colors, notification alignment, drawer direction, and the wishlist page from one app embed.",
       label: "Wishlist",
       featureKey: "wishlist" as const,
+      tone: "violet" as const,
     },
     {
       title: "Back-in-Stock",
@@ -202,6 +203,7 @@ export default function Dashboard() {
         "Manage stock alert buttons, icons, colors, and notification text independently from wishlist.",
       label: "Back-in-Stock",
       featureKey: "backInStock" as const,
+      tone: "green" as const,
     },
     {
       title: "Storefront UI Elements",
@@ -211,6 +213,7 @@ export default function Dashboard() {
         "Show a popup to choose product options before saving to wishlist. Customize its colors, text, and font sizes.",
       label: "Variant popup",
       featureKey: null,
+      tone: "amber" as const,
     },
   ];
   return (
@@ -244,7 +247,10 @@ export default function Dashboard() {
                   : "Manage in Theme Editor";
 
             return (
-              <article className="ws-home-embedCard" key={embed.handle}>
+              <article
+                className={`ws-home-embedCard ws-home-embedCard--${embed.tone}`}
+                key={embed.handle}
+              >
                 <div className="ws-home-embedTitleRow">
                   <h2>{embed.title}</h2>
                   {(featureOff || status) && (

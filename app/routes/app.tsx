@@ -7,7 +7,6 @@ import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import dashboardStyles from "../components/DashboardHome.css?url";
 import dashboardHelpStyles from "../components/DashboardHelp.css?url";
 import analyticsMetricsStyles from "../components/AnalyticsMetrics.css?url";
-import reportsStyles from "../components/Reports.css?url";
 import adminPageStyles from "../components/AdminPage.css?url";
 
 import { authenticate } from "../shopify.server";
@@ -17,7 +16,6 @@ export const links = () => [
   { rel: "stylesheet", href: dashboardStyles },
   { rel: "stylesheet", href: dashboardHelpStyles },
   { rel: "stylesheet", href: analyticsMetricsStyles },
-  { rel: "stylesheet", href: reportsStyles },
   { rel: "stylesheet", href: adminPageStyles },
 ];
 
