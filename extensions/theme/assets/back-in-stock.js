@@ -62,10 +62,28 @@
   let featureConfigReady = false;
   const isEnabled = () => CFG().uiConfig?.productCardConfig?.backInStockEnabled !== false;
 
+  // In the theme editor only: surface that the feature is switched off in the app,
+  // so the embed preview does not look silently broken.
+  function syncDisabledNotice(enabled) {
+    const existing = document.getElementById('ws-bis-disabled-notice');
+    if (enabled || !window.Shopify?.designMode) {
+      existing?.remove();
+      return;
+    }
+    if (existing) return;
+    const notice = document.createElement('div');
+    notice.id = 'ws-bis-disabled-notice';
+    notice.setAttribute('role', 'status');
+    notice.style.cssText = 'position:fixed;z-index:2147483647;left:50%;top:12px;transform:translateX(-50%);background:#1f1f1f;color:#fff;padding:10px 16px;border-radius:8px;font:12px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none;';
+    notice.textContent = 'Back-in-stock alerts are turned off in the app. Enable them under Configurations → Back in Stock Configuration.';
+    document.body.appendChild(notice);
+  }
+
   function applyFeatureState() {
     if (!featureConfigReady) return;
     const enabled = isEnabled();
     document.documentElement.toggleAttribute('data-ws-bis-disabled', !enabled);
+    syncDisabledNotice(enabled);
     if (enabled) {
       injectProductPage();
       return;

@@ -784,11 +784,11 @@ export default function Settings() {
   };
 
   const features: FeatureCard[] = [
-    { id: "wishlist-button", title: "Wishlist button", description: "Shoppers can save products from product details page", enabled: true, variant: "wishlist", tab: "Product Page" },
-    { id: "quick-save", title: "Quick save", description: "Shoppers can add items to wishlist from collections", enabled: saved.quickSaveEnabled, variant: "quick", tab: "Collections" },
-    { id: "save-later", title: "Save for later", description: "Prompt to save items when shoppers remove them from cart", enabled: saved.saveLaterMode !== "disabled", variant: "later", tab: "Cart" },
-    { id: "smart-save", title: "Smart save", description: `Auto-wishlist products after ${saved.smartSaveVisits} visits by the shopper`, enabled: saved.smartSave, variant: "smart", tab: "Product Page" },
-    { id: "boost-engagement", title: "Boost wishlist engagement", description: "Show subtle, non-intrusive tooltips and toasts that guide new shoppers on how and why to use their wishlist", enabled: saved.boostEngagement, variant: "boost", tab: "Basics" },
+    { id: "wishlist-button", title: "Wishlist button", description: "Shoppers can save products from product details page", enabled: saved.wishlistEnabled, variant: "wishlist", tab: "Product Page" },
+    { id: "quick-save", title: "Quick save", description: "Shoppers can add items to wishlist from collections", enabled: saved.wishlistEnabled && saved.quickSaveEnabled, variant: "quick", tab: "Collections" },
+    { id: "save-later", title: "Save for later", description: "Prompt to save items when shoppers remove them from cart", enabled: saved.wishlistEnabled && saved.saveLaterMode !== "disabled", variant: "later", tab: "Cart" },
+    { id: "smart-save", title: "Smart save", description: `Auto-wishlist products after ${saved.smartSaveVisits} visits by the shopper`, enabled: saved.wishlistEnabled && saved.smartSave, variant: "smart", tab: "Product Page" },
+    { id: "boost-engagement", title: "Boost wishlist engagement", description: "Show subtle, non-intrusive tooltips and toasts that guide new shoppers on how and why to use their wishlist", enabled: saved.wishlistEnabled && saved.boostEngagement, variant: "boost", tab: "Basics" },
   ];
 
   const filterOptions = [
@@ -1787,7 +1787,7 @@ export default function Settings() {
 
   return (
     <Page fullWidth>
-      <TitleBar title={showingSaveFeatures ? "Help Shoppers Save Favorites" : showingBackInStock ? "Back-in-Stock Alerts" : "Configurations"} />
+      <TitleBar title={showingSaveFeatures ? "Wishlist Configuration" : showingBackInStock ? "Back in Stock Configuration" : "Configurations"} />
       <style>{CSS}</style>
 
       <BlockStack gap="400">
@@ -1798,7 +1798,7 @@ export default function Settings() {
             /
           </Text>
           <Text as="span" fontWeight="semibold">
-            {showingSaveFeatures ? "Help Shoppers Save Favorites" : "Back-in-Stock Alerts"}
+            {showingSaveFeatures ? "Wishlist Configuration" : "Back in Stock Configuration"}
           </Text>
           </>}
         </InlineStack>
@@ -1847,7 +1847,7 @@ export default function Settings() {
 
         <BlockStack gap="300">
           <Text as="h2" variant="headingMd">
-            Help Shoppers Save Favorites
+            Wishlist Configuration
           </Text>
           <div className="wl-feature-grid">
             {filtered.length ? (
@@ -1887,9 +1887,17 @@ export default function Settings() {
           </div>
         </BlockStack>
         </BlockStack></div>}
+
         {showingBackInStock && (
           <BackInStockConfiguration
             initialSettings={loaderData.backInStockSettings}
+            backInStockEnabled={saved.backInStockEnabled}
+            emailDeliveryEnabled={
+              loaderData.shop.hasApiKey &&
+              (loaderData.shop.emailProvider === "klaviyo" ||
+                Boolean(loaderData.shop.senderEmail))
+            }
+            emailDeliveryUrl="/app/integrations?returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
             smsIntegrationsUrl="/app/integrations?returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
             smsEnabled={
               loaderData.shop.smsEnabled &&

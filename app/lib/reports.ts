@@ -1,10 +1,21 @@
-export const reportTabs = [
+export const wishlistReportTabs = [
   ["products", "Product Report"],
   ["activity", "Wishlist Activity"],
   ["shared", "Shared Wishlists"],
+  ["wishlist-orders", "Wishlist Orders"],
+] as const;
+
+export const stockReportTabs = [
+  ["stock", "Stock List"],
   ["alerts", "Sent Alert Details"],
   ["purchases", "Purchases"],
 ] as const;
+
+/** Every tab key `reportTab()` accepts, across both sections. */
+export const reportTabs: ReadonlyArray<readonly [string, string]> = [
+  ...wishlistReportTabs,
+  ...stockReportTabs,
+];
 export type ReportRow = {
   id: string;
   image?: string | null;

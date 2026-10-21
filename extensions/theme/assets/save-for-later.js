@@ -49,18 +49,57 @@
   }
   function getDialog() {
     if (dialog) return dialog;
-    dialog = node('dialog', 'ws-save-dialog');
-    dialog.setAttribute('aria-labelledby', 'ws-save-dialog-title');
-    dialog.innerHTML = '<button type="button" class="ws-save-close" aria-label="Cancel and keep item in cart">×</button><div class="ws-save-dialog-content"><img class="ws-save-dialog-image" alt="" hidden><div><p class="ws-save-dialog-product"></p><h2 id="ws-save-dialog-title"></h2><label class="ws-save-permission" hidden><input type="checkbox"> Don’t show this pop-up again</label><p class="ws-save-dialog-status" role="status"></p><div class="ws-save-dialog-actions"><button type="button" class="ws-save-secondary"></button><button type="button" class="ws-save-primary"></button></div></div></div>';
-    dialog.querySelector('.ws-save-close').addEventListener('click', () => { if (!busy) dialog.close(); });
-    dialog.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
-    dialog.addEventListener('close', () => { pending = null; });
+    dialog = document.createElement('div');
+    dialog.id = 'ws-save-dialog';
+    dialog.className = 'ws-modal-overlay';
+    dialog.setAttribute('aria-hidden', 'true');
+    dialog.innerHTML =
+      '<div class="ws-modal" role="dialog" aria-modal="true" aria-labelledby="ws-save-dialog-title">' +
+      '  <div class="ws-modal__header">' +
+      '    <h3 class="ws-modal__title" id="ws-save-dialog-title"></h3>' +
+      '    <button type="button" class="ws-modal__close" aria-label="Cancel and keep item in cart">' +
+      '      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="14" y1="4" x2="4" y2="14"></line><line x1="4" y1="4" x2="14" y2="14"></line></svg>' +
+      '    </button>' +
+      '  </div>' +
+      '  <div class="ws-modal__body">' +
+      '    <div class="ws-save-dialog__content">' +
+      '      <div class="ws-save-dialog__media">' +
+      '        <img class="ws-save-dialog__image" alt="" hidden>' +
+      '      </div>' +
+      '      <div class="ws-save-dialog__info">' +
+      '        <p class="ws-save-dialog__product"></p>' +
+      '        <p class="ws-save-dialog__desc">You can save this item for later and move it to your cart when you\'re ready.</p>' +
+      '        <label class="ws-save-permission" hidden><input type="checkbox"> Don’t show this pop-up again</label>' +
+      '        <p class="ws-save-dialog-status" role="status"></p>' +
+      '      </div>' +
+      '    </div>' +
+      '    <div class="ws-modal__actions ws-save-dialog__actions">' +
+      '      <button type="button" class="ws-btn ws-save-secondary"></button>' +
+      '      <button type="button" class="ws-btn ws-btn--primary ws-save-primary"></button>' +
+      '    </div>' +
+      '  </div>' +
+      '</div>';
+    const close = () => { if (busy) return; dialog.classList.remove('is-open'); dialog.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; pending = null; };
+    dialog.querySelector('.ws-modal__close').addEventListener('click', close);
+    dialog.addEventListener('click', (e) => { if (e.target === dialog && !busy) close(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && dialog && dialog.classList.contains('is-open') && !busy) {
+        const c = dialog._close;
+        if (typeof c === 'function') c();
+      }
+    });
     dialog.querySelector('.ws-save-primary').addEventListener('click', () => finishRemoval(true));
     dialog.querySelector('.ws-save-secondary').addEventListener('click', () => finishRemoval(false));
     document.body.appendChild(dialog);
+    dialog._close = close;
+    dialog._open = () => {
+      dialog.classList.add('is-open');
+      dialog.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    };
     return dialog;
   }
-  function dialogStatus(text) { dialog.querySelector('.ws-save-dialog-status').textContent = text; }
+  function dialogStatus(text) { const el = dialog.querySelector('.ws-save-dialog-status'); if (el) el.textContent = text || ''; }
   function lock(value) {
     busy = value;
     dialog.querySelectorAll('button, input').forEach((button) => { button.disabled = value; });
@@ -103,22 +142,24 @@
     return { key, line, variant };
   }
   async function beginRemoval(control, direct = false) {
-    if (busy || dialog?.open) return;
+    if (busy || (dialog && dialog.classList.contains('is-open'))) return;
     const reference = removeReference(control);
     if (!reference) return;
     const view = getDialog();
     const c = settings();
     pending = null;
     view.querySelector('#ws-save-dialog-title').textContent = c.saveLaterTitle || 'Do you want to save this product for later?';
-    view.querySelector('.ws-save-primary').textContent = c.saveLaterPrimary || 'Save For Later';
-    view.querySelector('.ws-save-secondary').textContent = c.saveLaterSecondary || 'No, thanks!';
-    view.querySelector('.ws-save-dialog-product').textContent = '';
-    view.querySelector('.ws-save-dialog-image').hidden = true;
-    view.querySelector('.ws-save-permission').hidden = c.saveLaterPermission !== 'ask';
-    view.querySelector('input').checked = false;
+    view.querySelector('.ws-save-primary').textContent = c.saveLaterPrimary || 'Save for Later';
+    view.querySelector('.ws-save-secondary').textContent = c.saveLaterSecondary || 'No, thanks';
+    const prod = view.querySelector('.ws-save-dialog__product');
+    if (prod) prod.textContent = '';
+    const img = view.querySelector('.ws-save-dialog__image');
+    if (img) { img.hidden = true; img.removeAttribute('src'); }
+    const perm = view.querySelector('.ws-save-permission');
+    if (perm) { perm.hidden = c.saveLaterPermission !== 'ask'; const chk = perm.querySelector('input'); if (chk) chk.checked = false; }
     dialogStatus('Loading cart item…');
     lock(true);
-    view.showModal();
+    if (typeof view._open === 'function') view._open(); else view.classList.add('is-open'); view.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
     try {
       const cart = await cartRequest('cart.js');
       const item = reference.key
@@ -128,10 +169,11 @@
           : cart.items.find((entry) => String(entry.variant_id) === reference.variant);
       if (!item || (reference.variant && String(item.variant_id) !== reference.variant)) throw new Error('Your cart has changed. Close this pop-up and try again.');
       pending = { item, currency: cart.currency };
-      view.querySelector('.ws-save-dialog-product').textContent = `${item.product_title || item.title}${item.variant_title && item.variant_title !== 'Default Title' ? ` · ${item.variant_title}` : ''} · Qty ${item.quantity}`;
-      const image = view.querySelector('.ws-save-dialog-image');
+      const prod = view.querySelector('.ws-save-dialog__product');
+      if (prod) prod.textContent = `${item.product_title || item.title}${item.variant_title && item.variant_title !== 'Default Title' ? ` · ${item.variant_title}` : ''} · Qty ${item.quantity}`;
+      const image = view.querySelector('.ws-save-dialog__image');
       const src = safeUrl(item.featured_image?.url || item.image || '', true);
-      if (src) { image.src = src; image.hidden = false; }
+      if (image) { if (src) { image.src = src; image.hidden = false; } else { image.hidden = true; image.removeAttribute('src'); } }
       dialogStatus('');
     } catch (error) {
       dialogStatus(message(error));
@@ -169,10 +211,13 @@
         saved = true;
       }
       if (cartItem) await cartRequest('cart/change.js', { id: cartItem.key, quantity: 0 });
-      if (settings().saveLaterPermission === 'ask' && dialog.querySelector('input').checked) {
-        try { localStorage.setItem(permissionKey(), '1'); } catch { /* Cart action already succeeded. */ }
+      if (settings().saveLaterPermission === 'ask') {
+        const chk = dialog.querySelector('.ws-save-permission input');
+        if (chk && chk.checked) {
+          try { localStorage.setItem(permissionKey(), '1'); } catch { /* Cart action already succeeded. */ }
+        }
       }
-      dialog.close();
+      if (typeof dialog._close === 'function') dialog._close(); else { dialog.classList.remove('is-open'); dialog.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; pending = null; }
       if (save) {
         const opened = window.__wishlistStock?.openDrawer('saved-later');
         if (!opened) window.__wishlistStock?.showPageTab?.('saved-later');
@@ -334,7 +379,9 @@
     new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
     document.addEventListener('wishlist:config-updated', () => {
       enhanceInline();
-      if (dialog?.open && !busy) dialog.close();
+      if (dialog && dialog.classList.contains('is-open') && !busy) {
+        if (typeof dialog._close === 'function') dialog._close(); else { dialog.classList.remove('is-open'); dialog.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
+      }
     });
     document.addEventListener('wishlist:page-ready', renderSavedItems);
     document.addEventListener('wishlist:saved-later-updated', renderSavedItems);

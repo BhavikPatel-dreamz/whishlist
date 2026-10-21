@@ -16,6 +16,7 @@ import {
 } from "../lib/notifications/template.server";
 import { resolveSettings } from "../lib/shop.server";
 import db from "../db.server";
+import { getUIConfigByShopId } from "../models/ui-config.server";
 import {
   ALERT_STATUS,
   cancelStockAlert,
@@ -103,6 +104,10 @@ export const action = async ({ request }: ActionFunctionArgs) =>
     }
 
     if (method !== "POST") throw new ProxyError(405, "Method not allowed", "method_not_allowed");
+    const uiConfig = await getUIConfigByShopId(ctx.shop.id);
+    if (uiConfig?.productCardConfig.backInStockEnabled === false) {
+      throw new ProxyError(403, "Back-in-stock alerts are currently disabled", "feature_disabled");
+    }
     if (channel === "sms" && !ctx.shop.smsEnabled) {
       throw new ProxyError(422, "SMS alerts are not enabled for this store", "sms_disabled");
     }

@@ -111,6 +111,9 @@ export async function dispatchRestockAlerts(params: {
     !Array.isArray(rawProductConfig)
       ? (rawProductConfig as Record<string, unknown>)
       : {};
+  if (productConfig.backInStockEnabled === false) {
+    return { ...base, skippedReason: "back-in-stock feature disabled" };
+  }
   const rawBackInStockSettings = productConfig.backInStockSettings;
   const backInStockSettings =
     rawBackInStockSettings &&

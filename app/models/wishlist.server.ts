@@ -314,6 +314,16 @@ export async function wishlistDrivenOrderCount(
   return Number(rows[0]?.count ?? 0);
 }
 
+/** Distinct products saved in wishlists (Product Report row count). */
+export async function wishlistProductCount(shopId: string): Promise<number> {
+  const rows = await db.$queryRaw<Array<{ count: bigint }>>`
+    SELECT COUNT(DISTINCT "productId")::bigint AS count
+    FROM "WishlistItem"
+    WHERE "shopId" = ${shopId}
+  `;
+  return Number(rows[0]?.count ?? 0);
+}
+
 export type WishlistMetricRow = {
   productId: string;
   addsToCart: number;

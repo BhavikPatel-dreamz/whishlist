@@ -9,6 +9,7 @@ type Props = {
   smsEnabled?: boolean;
   smsIntegrationsUrl?: string;
   initialSection?: "launch" | "button" | "form" | "email";
+  initialChannel?: "email" | "sms";
   saving?: boolean;
   saved?: boolean;
   saveError?: string;
@@ -119,11 +120,11 @@ function DropRow({ title, heading, value, onChange }: { title: string; heading: 
   );
 }
 
-export function BackInStockCustomizer({ initial, initialSection, smsEnabled = false, smsIntegrationsUrl = "/app/integrations", saving, saved, saveError, onBack, onSave }: Props) {
+export function BackInStockCustomizer({ initial, initialSection, initialChannel, smsEnabled = false, smsIntegrationsUrl = "/app/integrations", saving, saved, saveError, onBack, onSave }: Props) {
   const [s, setS] = useState<BackInStockSettings>({ ...DEFAULTS, ...initial });
   const [open, setOpen] = useState<SectionId | null>(initialSection ?? "launch");
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
-  const [previewChannel, setPreviewChannel] = useState<"email" | "sms">(initialSection === "form" ? "sms" : "email");
+  const [previewChannel, setPreviewChannel] = useState<"email" | "sms">(initialChannel ?? (initialSection === "form" ? "sms" : "email"));
   const [smsFormOpen, setSmsFormOpen] = useState(!smsEnabled);
   const [confirmationOpen, setConfirmationOpen] = useState(smsEnabled);
   const [hasChanges, setHasChanges] = useState(false);

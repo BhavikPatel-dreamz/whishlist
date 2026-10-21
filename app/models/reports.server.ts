@@ -4,9 +4,18 @@ import {
   loadOutOfStockProducts,
   loadStockProducts,
 } from "./out-of-stock.server";
-import { metricsDateBounds, metricsDateRange, shopperValue } from "../lib/analytics-metrics";
+import {
+  metricsDateBounds,
+  metricsDateRange,
+  shopperValue,
+} from "../lib/analytics-metrics";
 import { filterReport, reportTab, type ReportTable } from "../lib/reports";
 import { loadAnalyticsMetrics } from "./analytics-metrics.server";
+import {
+  wishlistDrivenOrderCount,
+  wishlistProductCount,
+  wishlistStats,
+} from "./wishlist.server";
 import {
   getProductsByIds,
   getVariantsByIds,
@@ -16,6 +25,7 @@ import {
 
 export async function loadReportsOverview(
   shopId: string,
+  admin: GraphqlClient,
   params: URLSearchParams,
 ) {
   const range = metricsDateRange(params);
@@ -23,7 +33,7 @@ export async function loadReportsOverview(
   const alertDate = { gte: start, lt: end };
   const [
     subscribedAlerts,
-    alertSubscribers,
+    subscriberGroups,
     requestedProducts,
     pendingAlerts,
     sentAlerts,
@@ -33,14 +43,16 @@ export async function loadReportsOverview(
     stockAlertPurchases,
   ] = await Promise.all([
     db.stockAlert.count({ where: { shopId, createdAt: alertDate } }),
-    db.stockAlert.findMany({
+    db.stockAlert.groupBy({
+      by: ["contactKey"],
       where: { shopId, createdAt: alertDate },
-      select: { contactKey: true },
-      distinct: ["contactKey"],
+      _count: { _all: true },
+      _max: { createdAt: true },
     }),
     db.stockAlert.groupBy({
       by: ["productId"],
       where: { shopId, createdAt: alertDate },
+      _count: { _all: true },
     }),
     db.stockAlert.count({
       where: { shopId, status: "PENDING", createdAt: alertDate },
@@ -58,10 +70,53 @@ export async function loadReportsOverview(
     }),
     db.stockAlert.count({ where: { shopId, purchasedAt: alertDate } }),
   ]);
+  const popularRequestedProducts = [...requestedProducts]
+    .sort(
+      (a, b) =>
+        b._count._all - a._count._all || a.productId.localeCompare(b.productId),
+    )
+    .slice(0, 20);
+  const productIds = popularRequestedProducts.map(
+    (product) => product.productId,
+  );
+  const [productTitles, productDetails] = await Promise.all([
+    productIds.length
+      ? db.stockAlert.findMany({
+          where: {
+            shopId,
+            createdAt: alertDate,
+            productId: { in: productIds },
+          },
+          select: { productId: true, productTitle: true },
+          distinct: ["productId"],
+        })
+      : Promise.resolve([]),
+    getProductsByIds(admin, productIds, 1),
+  ]);
+  const cachedTitles = new Map(
+    productTitles.map((product) => [product.productId, product.productTitle]),
+  );
+  // Shopper-facing list: who asked for an alert, and how many times.
+  const alertCustomers = [...subscriberGroups]
+    .sort(
+      (a, b) =>
+        b._count._all - a._count._all ||
+        (b._max.createdAt?.getTime() || 0) - (a._max.createdAt?.getTime() || 0),
+    )
+    .slice(0, 20)
+    .map((group) => ({
+      contact: group.contactKey.replace(/^(email|sms):/, ""),
+      channel: group.contactKey.startsWith("sms:") ? "sms" : "email",
+      requests: group._count._all,
+      lastRequestedAt: group._max.createdAt
+        ? group._max.createdAt.toISOString()
+        : null,
+    }));
   return {
     ...range,
     subscribedAlerts,
-    alertSubscribers: alertSubscribers.length,
+    alertSubscribers: subscriberGroups.length,
+    alertCustomers,
     requestedProducts: requestedProducts.length,
     pendingAlerts,
     sentAlerts,
@@ -69,6 +124,18 @@ export async function loadReportsOverview(
     sentProducts: sentProducts.length,
     wishlistOrders: wishlistOrders.length,
     stockAlertPurchases,
+    popularRequestedProducts: popularRequestedProducts.map((product) => {
+      const details = productDetails.get(product.productId);
+      return {
+        productId: product.productId,
+        title:
+          details?.title ||
+          cachedTitles.get(product.productId) ||
+          `Unavailable product (${product.productId})`,
+        imageUrl: details?.imageUrl || null,
+        alerts: product._count._all,
+      };
+    }),
   };
 }
 
@@ -80,6 +147,28 @@ export async function loadReport(
   const range = metricsDateRange(params);
   const dates = metricsDateBounds(range);
   const tab = reportTab(params);
+  // All-time summary counts shown on Overview and Wishlist reports.
+  const wishlistSummary = [
+    "overview",
+    "products",
+    "activity",
+    "shared",
+    "wishlist-orders",
+    "shoppers",
+  ].includes(tab)
+    ? await (async () => {
+        const [stats, productCount, orders] = await Promise.all([
+          wishlistStats(shopId),
+          wishlistProductCount(shopId),
+          wishlistDrivenOrderCount(shopId),
+        ]);
+        return {
+          totalSaves: stats.total,
+          productCount,
+          orders,
+        };
+      })()
+    : undefined;
   const date = (value: Date | null) =>
     value
       ? value.toISOString().replace("T", " ").slice(0, 19) + " UTC"
@@ -90,7 +179,7 @@ export async function loadReport(
     | { tracked: number; inStock: number; lowStock: number; outOfStock: number }
     | undefined;
   if (tab === "overview") {
-    overview = await loadReportsOverview(shopId, params);
+    overview = await loadReportsOverview(shopId, admin, params);
     table = {
       title: "Overview",
       description: "Alert and conversion metrics for the selected dates",
@@ -407,7 +496,10 @@ export async function loadReport(
               : "Filtered by the recorded notification date (UTC). A sent notification does not confirm delivery or opening.",
       };
     }
-  } else if (tab === "purchases" && params.get("kind") === "wishlist-orders") {
+  } else if (
+    tab === "wishlist-orders" ||
+    (tab === "purchases" && params.get("kind") === "wishlist-orders")
+  ) {
     const orders = await db.wishlistOrder.findMany({
       where: { shopId, createdAt: dates },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
@@ -684,5 +776,12 @@ export async function loadReport(
     }
   }
   const rows = filterReport(table.rows, params);
-  return { ...range, tab, table: { ...table, rows }, inventory, overview };
+  return {
+    ...range,
+    tab,
+    table: { ...table, rows },
+    inventory,
+    overview,
+    wishlistSummary,
+  };
 }

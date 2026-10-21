@@ -27,7 +27,9 @@ export async function action({ request }: ActionFunctionArgs) {
   return withProxy(request, limits, async (ctx) => {
     const body = await readBody(request);
     const identity = await identityFor(ctx, body.guestToken || null);
-    if ((await wishlistFeatures(ctx.shop.id)).wishlistMode !== "multi") throw new ProxyError(403, "Multiple wishlists are disabled.", "multi_disabled");
+    const features = await wishlistFeatures(ctx.shop.id);
+    if (features.wishlistEnabled === false) throw new ProxyError(403, "The wishlist is currently disabled.", "wishlist_disabled");
+    if (features.wishlistMode !== "multi") throw new ProxyError(403, "Multiple wishlists are disabled.", "multi_disabled");
     await changeList(ctx.shop.id, identity, body.operation, listName(body.name), listName(body.newName), numericId(body.productId) || undefined);
     if (identity.customerId) await syncWishlistToMetafield(await ctx.admin(), identity.customerId, await listWishlist(ctx.shop.id, identity));
     return json({ ok: true, lists: await getLists(ctx.shop.id, identity) });

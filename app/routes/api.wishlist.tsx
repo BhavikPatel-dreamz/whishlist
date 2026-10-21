@@ -109,6 +109,9 @@ export const action = async ({ request }: ActionFunctionArgs) =>
     }
 
     const features = await wishlistFeatures(ctx.shop.id);
+    if (features.wishlistEnabled === false) {
+      throw new ProxyError(403, "The wishlist is currently disabled", "wishlist_disabled");
+    }
     const targetList = features.wishlistMode === "multi" ? listName(body.listName) : "My Wishlist";
     await ensureList(ctx.shop.id, identity, targetList);
     const item = await addToWishlist(ctx.shop.id, identity, {

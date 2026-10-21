@@ -12,7 +12,7 @@ import {
 import { TitleBar } from "@shopify/app-bridge-react";
 import { requireAdminShop } from "../lib/admin-auth.server";
 import { loadReport } from "../models/reports.server";
-import { reportTabs } from "../lib/reports";
+import { stockReportTabs, wishlistReportTabs } from "../lib/reports";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { admin, shop } = await requireAdminShop(request);
@@ -48,8 +48,14 @@ type OverviewCard = {
 
 export default function Analytics() {
   const data = useLoaderData<typeof loader>();
-  const isStockList = data.tab === "stock";
   const isOverview = data.tab === "overview";
+  const isStockList = data.tab === "stock";
+  // Back-in-stock reporting (stock list, sent alerts, purchases) lives under its own
+  // top-level section; wishlist reporting keeps product/activity/shared reports.
+  const isWishlistSection =
+    data.tab === "shoppers" ||
+    wishlistReportTabs.some(([key]) => key === data.tab);
+  const isStockSection = stockReportTabs.some(([key]) => key === data.tab);
   const [params] = useSearchParams();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -119,10 +125,10 @@ export default function Analytics() {
   }
   const overviewSections:
     | { title: string; cards: OverviewCard[] }[]
-    | undefined = data.overview
+    | undefined = data.overview && data.wishlistSummary
     ? [
         {
-          title: "Requested Alerts Metrics",
+          title: "Back in Stock",
           cards: [
             {
               label: "Subscribed Alerts",
@@ -131,38 +137,10 @@ export default function Analytics() {
               kind: "all",
             },
             {
-              label: "Alert Subscribers",
-              value: data.overview.alertSubscribers,
-              tab: "alerts",
-              kind: "subscribers",
-            },
-            {
-              label: "Alert Requested Products",
-              value: data.overview.requestedProducts,
-              tab: "alerts",
-              kind: "requested-products",
-            },
-            {
               label: "Pending Alerts",
               value: data.overview.pendingAlerts,
               tab: "alerts",
               kind: "pending",
-            },
-          ],
-        },
-        {
-          title: "Alerts Conversion Metrics",
-          cards: [
-            {
-              label: "Alert Click-throughs",
-              value: data.overview.clickThroughs,
-              tab: "alerts",
-              kind: "clickthroughs",
-            },
-            {
-              label: "Alert Purchases",
-              value: data.overview.stockAlertPurchases,
-              tab: "purchases",
             },
             {
               label: "Sent Alerts",
@@ -171,16 +149,29 @@ export default function Analytics() {
               kind: "sent",
             },
             {
-              label: "Wishlist-attributed Orders",
-              value: data.overview.wishlistOrders,
+              label: "Alert Purchases",
+              value: data.overview.stockAlertPurchases,
               tab: "purchases",
-              kind: "wishlist-orders",
+            },
+          ],
+        },
+        {
+          title: "Wishlist Metrics",
+          cards: [
+            {
+              label: "Total Wishlist Saves",
+              value: data.wishlistSummary.totalSaves,
+              tab: "products",
             },
             {
-              label: "Products for which alerts were sent",
-              value: data.overview.sentProducts,
-              tab: "alerts",
-              kind: "sent-products",
+              label: "Wishlist Orders",
+              value: data.wishlistSummary.orders,
+              tab: "wishlist-orders",
+            },
+            {
+              label: "Wishlisted Products",
+              value: data.wishlistSummary.productCount,
+              tab: "products",
             },
           ],
         },
@@ -215,20 +206,20 @@ export default function Analytics() {
         </Link>
         <Link
           to={`/app/analytics?${new URLSearchParams({ tab: "products", from: data.from, to: data.to })}`}
-          aria-current={!isStockList && !isOverview ? "page" : undefined}
+          aria-current={isWishlistSection ? "page" : undefined}
         >
           Wishlist
         </Link>
         <Link
           to={`/app/analytics?${new URLSearchParams({ tab: "stock", from: data.from, to: data.to })}`}
-          aria-current={data.tab === "stock" ? "page" : undefined}
+          aria-current={isStockSection ? "page" : undefined}
         >
-          Stock List
+          Back in Stock
         </Link>
       </nav>
-      {data.tab !== "stock" && !isOverview && (
+      {isWishlistSection && (
         <nav className="ws-reports-tabs ws-reports-subtabs" aria-label="Wishlist reports">
-          {reportTabs.map(([key, label]) => (
+          {wishlistReportTabs.map(([key, label]) => (
             <Link
               key={key}
               to={`/app/analytics?${new URLSearchParams({ tab: key, from: data.from, to: data.to })}`}
@@ -238,6 +229,19 @@ export default function Analytics() {
             </Link>
           ))}
           {data.tab === "shoppers" && <span aria-current="page">Shoppers</span>}
+        </nav>
+      )}
+      {isStockSection && (
+        <nav className="ws-reports-tabs ws-reports-subtabs" aria-label="Back in stock reports">
+          {stockReportTabs.map(([key, label]) => (
+            <Link
+              key={key}
+              to={`/app/analytics?${new URLSearchParams({ tab: key, from: data.from, to: data.to })}`}
+              aria-current={data.tab === key ? "page" : undefined}
+            >
+              {label}
+            </Link>
+          ))}
         </nav>
       )}
       <header className="ws-reports-heading">

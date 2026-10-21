@@ -29,10 +29,6 @@ export function SmartSaveSettings({ config: c, onChange: set, onBack, onSave, sa
         {check('wishlistNudge', 'Wishlist nudge popup', 'Show a popup on the product page encouraging shoppers to save items to their wishlist.')}
       </div></div>
     </div></section>
-    <section className="ss-section"><aside><h2>Compliance and Accessibility</h2><p>Configure how your wishlist handles privacy and accessibility based on your store’s location.</p></aside><div className="ss-card"><h2>Privacy-First Wishlist</h2><div className="ss-group">
-      {check('worksWithoutCookies', 'Works without cookies', 'Save items to the shopper’s device if they decline cookies.')}
-      {check('askPermission', 'Ask for Permission', 'Show a consent prompt on the shopper’s first heart-click.')}
-    </div><p className="ss-note">Privacy preferences are saved here; their storefront behavior is not yet enabled.</p></div></section>
     <footer className="ss-footer"><button onClick={onBack} disabled={saving}>Cancel</button><button className="ss-primary" onClick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button></footer>
   </div>;
 }

@@ -12,14 +12,11 @@ type Props = {
 function FeatureIcon({
   kind,
 }: {
-  kind: "save" | "share" | "alerts" | "privacy";
+  kind: "save" | "alerts";
 }) {
   const paths = {
     save: "M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z",
-    share:
-      "M12 16V3m-4 4 4-4 4 4M7 10H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2",
     alerts: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
-    privacy: "M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5V10Zm7 4v3",
   };
   return (
     <svg
@@ -57,7 +54,7 @@ export function ConfigurationFeatures({
           <FeatureIcon kind="save" />
           <span>
             <Link to={saveFeaturesUrl} className="wl-configuration-link">
-              <strong>Help Shoppers Save Favorites</strong>
+              <strong>Wishlist Configuration</strong>
             </Link>
             <span>
               Configure core elements like the wishlist button, Quick Save, and
@@ -76,24 +73,11 @@ export function ConfigurationFeatures({
             <span />
           </button>
         </div>
-        <div
-          className="wl-configuration-row wl-configuration-row-unavailable"
-          aria-disabled="true"
-        >
-          <FeatureIcon kind="share" />
-          <span>
-            <strong>Ways to Access &amp; Share Wishlist</strong>
-            <span>
-              Manage the wishlist page, sharing options, and launch points.
-            </span>
-          </span>
-          <span className="wl-configuration-coming-soon">Coming soon</span>
-        </div>
         <div className="wl-configuration-row">
           <FeatureIcon kind="alerts" />
           <span>
             <Link to={backInStockFeaturesUrl} className="wl-configuration-link">
-              <strong>Back-in-Stock Alerts</strong>
+              <strong>Back in Stock Configuration</strong>
             </Link>
             <span>
               Customize the notify button, signup form, and back-in-stock email.
@@ -110,20 +94,6 @@ export function ConfigurationFeatures({
           >
             <span />
           </button>
-        </div>
-        <div
-          className="wl-configuration-row wl-configuration-row-unavailable"
-          aria-disabled="true"
-        >
-          <FeatureIcon kind="privacy" />
-          <span>
-            <strong>Compliance &amp; Accessibility</strong>
-            <span>
-              Configure how your wishlist handles privacy and accessibility
-              based on your store’s location.
-            </span>
-          </span>
-          <span className="wl-configuration-coming-soon">Coming soon</span>
         </div>
       </div>
     </section>
