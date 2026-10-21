@@ -452,6 +452,36 @@
     return false;
   }
 
+  // When a variant is out of stock the theme's own "Sold out" / Add to cart /
+  // Buy now controls are redundant next to the notify button, so hide them
+  // while the notify button is shown and restore them when stock returns.
+  function toggleThemeBuyButtons(form, unavailable) {
+    if (!form) return;
+    const root =
+      form.closest('product-form') ||
+      form.closest('.product-form') ||
+      form.closest('.product') ||
+      form.closest('#MainContent, main') ||
+      form;
+    const selectors = [
+      '[name="add"]',
+      '.product-form__submit',
+      '.shopify-payment-button',
+      '[data-shopify="payment-button"]',
+      '.buy-now',
+      '.dynamic-checkout__content',
+    ];
+    selectors.forEach((sel) => {
+      root.querySelectorAll(sel).forEach((el) => {
+        if (el.closest('.back-in-stock') || el.closest('#ws-bis-pdp')) return;
+        if (el.__wsBisWasHidden === undefined) {
+          el.__wsBisWasHidden = el.style.display || '';
+        }
+        el.style.display = unavailable ? 'none' : el.__wsBisWasHidden;
+      });
+    });
+  }
+
   function notifyMarkup(vid, pid) {
     const settings = SETTINGS();
     const label = escapeHtml(settings.notifyButtonText);
@@ -484,29 +514,19 @@
     );
   }
 
-  function updatePdpVariant(product, form, wrap) {
-    const vid = currentVariantId(form);
-    const pid = (product && String(product.id)) || '';
-    const bis = wrap.querySelector('.back-in-stock');
-    if (!variantUnavailable(product, vid, form)) {
-      if (bis) bis.remove();
-    } else if (!bis) {
-      wrap.insertAdjacentHTML('beforeend', notifyMarkup(vid, pid));
-    } else {
-      bis.dataset.variantId = vid;
-      bis.dataset.productId = pid;
-    }
-  }
-
   let pdpDone = false;
   async function injectProductPage() {
     if (!featureConfigReady || !isEnabled() || pdpDone || !SETTINGS().productButton) return;
     const handle = pdpHandle();
     if (!handle) return;
-    if (document.querySelector('.back-in-stock')) { pdpDone = true; return; }
     const form = mainProductForm();
     if (!form) return;
     pdpDone = true;
+
+    // A block may already be manually placed on the product page; in that case
+    // keep it (don't inject a duplicate button) but still hide the theme's own
+    // Sold out / Buy now controls while the variant is unavailable.
+    const placed = document.querySelector('.back-in-stock');
 
     let product = null;
     try {
@@ -522,23 +542,47 @@
     const wrap = document.createElement('div');
     wrap.className = 'ws-pdp';
     wrap.id = 'ws-bis-pdp';
-    if (variantUnavailable(product, vid, form)) {
+    const unavailable = variantUnavailable(product, vid, form);
+    if (unavailable && !placed) {
       wrap.insertAdjacentHTML('beforeend', notifyMarkup(vid, pid));
     }
+    toggleThemeBuyButtons(form, unavailable);
 
-    const anchor = (form.closest('product-form') || form);
-    anchor.insertAdjacentElement('afterend', wrap);
+    if (!placed) {
+      const anchor = (form.closest('product-form') || form);
+      anchor.insertAdjacentElement('afterend', wrap);
+    }
 
     if (!form.__wsBisBound) {
       form.__wsBisBound = true;
       form.addEventListener('change', () => {
-        setTimeout(() => updatePdpVariant(product, form, wrap), 60);
+        setTimeout(() => {
+          const v = currentVariantId(form);
+          const off = variantUnavailable(product, v, form);
+          toggleThemeBuyButtons(form, off);
+          if (placed) return;
+          const bis = wrap.querySelector('.back-in-stock');
+          if (!off) {
+            if (bis) bis.remove();
+          } else if (!bis) {
+            wrap.insertAdjacentHTML('beforeend', notifyMarkup(v, product ? String(product.id) : ''));
+          } else {
+            bis.dataset.variantId = v;
+          }
+        }, 60);
       });
     }
   }
 
   /* ---------- Initialize (gated on the per-store config) ---------- */
   function init() {
+    // The embed and the section block can both render the modal markup; keep only
+    // the first instance so IDs stay unique and the overlay isn't doubled.
+    const modals = document.querySelectorAll('#ws-bis-modal');
+    if (modals.length > 1) {
+      for (let i = 1; i < modals.length; i++) modals[i].remove();
+    }
+
     document.addEventListener('click', (e) => {
       if (!featureConfigReady || !isEnabled()) return;
       const button = e.target.closest && e.target.closest('.notify-me');

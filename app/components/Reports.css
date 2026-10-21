@@ -15,8 +15,8 @@
   box-shadow: 0 1px 3px rgba(20, 20, 40, 0.05);
 }
 .ws-overview-section h2 {
-  margin: 0 0 14px;
-  font-size: 14px;
+  margin: 0 0 16px;
+  font-size: 15px;
   font-weight: 650;
   line-height: 1.4;
   display: flex;
@@ -47,8 +47,8 @@
 }
 .ws-overview-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
 }
 .ws-overview-section--green {
   --ov-accent: #178a56;
@@ -64,15 +64,16 @@
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 84px;
+  min-height: 108px;
   flex-direction: column;
   justify-content: center;
-  padding: 13px 40px 13px 15px;
+  gap: 2px;
+  padding: 16px 46px 16px 18px;
   border: 1px solid #e5e5e5;
-  border-left: 3px solid var(--ov-accent, #d8dce2);
-  border-radius: 10px;
+  border-left: 4px solid var(--ov-accent, #d8dce2);
+  border-radius: 12px;
   background:
-    radial-gradient(circle at 110% -20%, var(--ov-accent-soft, transparent), transparent 55%),
+    radial-gradient(circle at 115% -25%, var(--ov-accent-soft, transparent), transparent 60%),
     #fff;
   box-shadow: 0 1px 3px rgba(20, 20, 40, 0.06);
   color: inherit;
@@ -81,8 +82,8 @@
 }
 .ws-overview-card:hover {
   border-color: var(--ov-accent-2, #c9cdd1);
-  box-shadow: 0 4px 10px rgba(20, 20, 40, 0.1);
-  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(20, 20, 40, 0.12);
+  transform: translateY(-2px);
 }
 .ws-overview-card:focus-visible {
   outline: 2px solid var(--wl-accent);
@@ -90,31 +91,33 @@
 }
 .ws-overview-card-label {
   overflow: hidden;
-  color: #34435a;
-  font-size: 11px;
+  color: #4a5568;
+  font-size: 12.5px;
+  font-weight: 550;
   line-height: 1.4;
   text-overflow: ellipsis;
 }
 .ws-overview-card-value {
-  margin-top: 7px;
+  margin-top: 8px;
   color: var(--ov-accent, #202a38);
-  font-size: 22px;
-  font-weight: 650;
-  line-height: 1.1;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 .ws-overview-card-action {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 14px;
+  right: 14px;
   display: grid;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   place-items: center;
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--ov-accent-soft, #f0f1f2);
   color: var(--ov-accent, #333);
-  font-size: 12px;
+  font-size: 13px;
 }
 .ws-reports-tabs {
   display: flex;
@@ -125,11 +128,19 @@
 
 @media (max-width: 600px) {
   .ws-overview-grid {
-    gap: 9px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
   }
   .ws-overview-section {
     padding: 14px;
     border-radius: 10px;
+  }
+  .ws-overview-card {
+    min-height: 92px;
+    padding: 13px 40px 13px 14px;
+  }
+  .ws-overview-card-value {
+    font-size: 24px;
   }
 }
 .ws-reports-subtabs {

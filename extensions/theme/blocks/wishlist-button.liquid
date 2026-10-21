@@ -1,0 +1,146 @@
+{% comment %}
+  Wishlist section block: the full wishlist experience (drawer, header icon,
+  wishlist page hooks and scripts) plus a product heart button, so a merchant who
+  adds this under Theme Editor → Add section → Apps gets the complete
+  functionality without needing the App Control Centre embed.
+{% endcomment %}
+{% render 'control-centre-wishlist', block: block %}
+
+{% assign app_product = block.settings.product | default: product %}
+{% assign app_variant = app_product.selected_or_first_available_variant %}
+{% if app_product != blank %}
+  <div
+    class="ws-product-block"
+    data-product-id="{{ app_product.id }}"
+    data-product-handle="{{ app_product.handle }}"
+    {{ block.shopify_attributes }}
+  >
+    <button
+      class="wishlist-heart"
+      type="button"
+      data-product-id="{{ app_product.id }}"
+      data-variant-id="{{ app_variant.id }}"
+      data-product-handle="{{ app_product.handle }}"
+      aria-label="Add {{ app_product.title | escape }} to wishlist"
+      aria-pressed="false"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" />
+      </svg>
+      <span class="ws-sr-only">Add to wishlist</span>
+    </button>
+  </div>
+{% elsif request.design_mode %}
+  <p {{ block.shopify_attributes }}>Select a product for the wishlist button.</p>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Wishlist (section)",
+  "target": "section",
+  "settings": [
+    {
+      "type": "product",
+      "id": "product",
+      "label": "Product",
+      "info": "Uses the current product when placed on a product page."
+    },
+    {
+      "type": "checkbox",
+      "id": "show_wishlist_ui",
+      "label": "Show wishlist UI",
+      "default": true,
+      "info": "Show wishlist buttons, the header icon, wishlist page, and drawer on your storefront."
+    },
+    {
+      "type": "checkbox",
+      "id": "show_header_wishlist_icon",
+      "label": "Show header wishlist icon",
+      "default": true,
+      "info": "Show or hide the wishlist icon in your store header."
+    },
+    {
+      "type": "checkbox",
+      "id": "advanced_settings",
+      "label": "Advanced Wishlist Settings",
+      "default": false,
+      "info": "Show the settings below and apply custom colors and corner radius. These visual settings override app styling when enabled. Turn off to use styling saved in the app."
+    },
+    {
+      "type": "select",
+      "id": "icon_type",
+      "label": "Wishlist icon type",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "options": [
+        { "value": "heart", "label": "Heart" },
+        { "value": "star", "label": "Star" },
+        { "value": "bookmark", "label": "Bookmark" }
+      ],
+      "default": "heart"
+    },
+    {
+      "type": "color",
+      "id": "icon_color",
+      "label": "Wishlist icon color",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "default": "#000000"
+    },
+    {
+      "type": "range",
+      "id": "icon_thickness",
+      "label": "Wishlist icon thickness",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "min": 1,
+      "max": 3,
+      "step": 0.1,
+      "unit": "px",
+      "default": 1.5
+    },
+    {
+      "type": "color",
+      "id": "button_background",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "label": "Button background color (in wishlist)",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "button_text",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "label": "Button text color (in wishlist)",
+      "default": "#FFFFFF"
+    },
+    {
+      "type": "color",
+      "id": "drawer_bg_color",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "label": "Background color (wishlist header, footer and pop-ups)",
+      "default": "#F4F8FE"
+    },
+    {
+      "type": "color",
+      "id": "drawer_text_color",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "label": "Text color (wishlist header, footer and pop-ups)",
+      "default": "#333333"
+    },
+    {
+      "type": "range",
+      "id": "border_radius",
+      "visible_if": "{{ block.settings.advanced_settings }}",
+      "label": "Corner radius",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "unit": "px",
+      "default": 6
+    },
+    {
+      "type": "page",
+      "id": "wishlist_page",
+      "label": "Wishlist Page",
+      "info": "Select the page shoppers visit to view their wishlist."
+    }
+  ]
+}
+{% endschema %}

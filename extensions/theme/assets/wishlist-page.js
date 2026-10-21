@@ -861,6 +861,12 @@
   /* ---------- Event wiring ---------- */
   function init() {
     initialized = true;
+    // The embed and the section block can both render the shared wishlist markup;
+    // keep only the first copy of each singleton so IDs stay unique.
+    ['ws-drawer', 'ws-drawer-overlay', 'ws-header-count'].forEach((id) => {
+      const nodes = document.querySelectorAll('#' + id);
+      for (let i = 1; i < nodes.length; i++) nodes[i].remove();
+    });
     const drawer = document.getElementById('ws-drawer');
     drawer?.querySelectorAll('[data-drawer-tab]').forEach((tab) => {
       tab.addEventListener('click', () => showDrawerTab(tab.dataset.drawerTab));

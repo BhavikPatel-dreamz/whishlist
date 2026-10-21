@@ -121,6 +121,17 @@ html[data-ws-bis-disabled] :is(.back-in-stock, #ws-bis-modal) {
   margin-top: 14px;
 }
 
+/* The notify button replaces the hidden Sold out / Buy now controls, so it
+   should span the product form width. Side placements keep their own layout. */
+.ws-pdp .back-in-stock--next,
+.ws-pdp .back-in-stock--next .notify-me,
+.ws-pdp .back-in-stock.ws-bis-inline {
+  width: 100%;
+}
+.ws-pdp .back-in-stock--next .notify-me {
+  justify-content: center;
+}
+
 /* ---------- Modal ---------- */
 .ws-modal-overlay {
   position: fixed;
