@@ -10,6 +10,11 @@ import {
   shopperValue,
 } from "../lib/analytics-metrics";
 import { filterReport, reportTab, type ReportTable } from "../lib/reports";
+import { readRequestFilters } from "../lib/back-in-stock-requests";
+import {
+  listBackInStockRequests,
+  listRequestedProductOptions,
+} from "./stock-alert.server";
 import { loadAnalyticsMetrics } from "./analytics-metrics.server";
 import {
   wishlistDrivenOrderCount,
@@ -21,6 +26,7 @@ import {
   getVariantsByIds,
   getCustomerNamesByIds,
   type GraphqlClient,
+  type ProductSummary,
 } from "../lib/shopify-data.server";
 
 export async function loadReportsOverview(
@@ -136,6 +142,91 @@ export async function loadReportsOverview(
         alerts: product._count._all,
       };
     }),
+  };
+}
+
+/**
+ * Back-in-Stock Requests shown inside the Stock List report: one row per customer with
+ * the specific products they asked to be notified about. The request filters use their own
+ * query-string keys so they never clash with the report toolbar; the date range is shared
+ * with the rest of the page.
+ */
+export async function loadBackInStockRequests(
+  shopId: string,
+  admin: GraphqlClient,
+  params: URLSearchParams,
+  range: { from: string; to: string },
+  options: { page?: number; pageSize?: number } = {},
+) {
+  const filters = readRequestFilters(params);
+  const fetchPage = (page: number) =>
+    listBackInStockRequests(shopId, {
+      status: filters.status,
+      channel: filters.channel,
+      query: filters.query,
+      productId: filters.productId,
+      outcome: filters.outcome,
+      from: range.from,
+      to: range.to,
+      sort: filters.sort,
+      page,
+      pageSize: options.pageSize ?? 10,
+    });
+
+  const [productOptions, requests] = await Promise.all([
+    listRequestedProductOptions(shopId),
+    fetchPage(options.page ?? filters.page),
+  ]);
+
+  // A stale page number (e.g. the filters narrowed the result set) would render an empty
+  // table with no way back — fall back to the last page that still has rows.
+  const finalRequests =
+    !requests.rows.length && requests.page > requests.pageCount
+      ? await fetchPage(requests.pageCount)
+      : requests;
+
+  const requestProductIds = [
+    ...new Set(
+      finalRequests.rows.flatMap((row) =>
+        row.products.map((product) => product.productId),
+      ),
+    ),
+  ];
+  const [customerNames, requestProducts] = await Promise.all([
+    getCustomerNamesByIds(
+      admin,
+      finalRequests.rows
+        .map((row) => row.customerId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+    // Product images are a nice-to-have — a failed lookup must not break the report.
+    getProductsByIds(admin, requestProductIds, 50).catch(
+      () => new Map<string, ProductSummary>(),
+    ),
+  ]);
+
+  return {
+    ...finalRequests,
+    rows: finalRequests.rows.map((row) => ({
+      ...row,
+      products: row.products.map((product) => {
+        const details = requestProducts.get(product.productId);
+        const variant = details?.variants.find(
+          (item) => item.variantId === product.variantId,
+        );
+        return { ...product, imageUrl: variant?.imageUrl || details?.imageUrl || null };
+      }),
+    })),
+    productOptions,
+    customerNames: Object.fromEntries(customerNames),
+    filters: {
+      status: filters.status,
+      channel: filters.channel,
+      productId: filters.productId,
+      outcome: filters.outcome,
+      query: filters.query,
+      sort: filters.sort,
+    },
   };
 }
 

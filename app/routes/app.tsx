@@ -36,7 +36,7 @@ export default function App() {
         <Link to="/app" rel="home">
           Dashboard
         </Link>
-        {/* <Link to="/app/alerts">Stock Alerts</Link> */}
+        {/* Back-in-Stock Requests are part of Analytics → Back in Stock → Stock List */}
         <Link to="/app/analytics">Analytics</Link>
         <Link to="/app/settings">Configurations</Link>
       </NavMenu>

@@ -341,6 +341,388 @@ export type AlertFilters = {
   pageSize?: number;
 };
 
+/** Sort orders offered by the "Back-in-Stock Requests" list. */
+export const ALERT_REQUEST_SORTS = {
+  newest: "newest",
+  oldest: "oldest",
+  requests: "requests",
+  products: "products",
+  contact: "contact",
+} as const;
+
+export type AlertRequestSort =
+  (typeof ALERT_REQUEST_SORTS)[keyof typeof ALERT_REQUEST_SORTS];
+
+export type BackInStockRequestFilters = {
+  status?: string | null;
+  channel?: string | null;
+  query?: string | null;
+  productId?: string | null;
+  /** Inclusive UTC day, `YYYY-MM-DD`. */
+  from?: string | null;
+  /** Inclusive UTC day, `YYYY-MM-DD`. */
+  to?: string | null;
+  sort?: string | null;
+  outcome?: string | null;
+  page?: number;
+  pageSize?: number;
+};
+
+export type NormalizedRequestFilters = {
+  status: string | null;
+  channel: string | null;
+  query: string | null;
+  productId: string | null;
+  outcome: "notified" | "clicked" | "purchased" | null;
+  from: Date | null;
+  toExclusive: Date | null;
+};
+
+export type RequestedProduct = {
+  productId: string;
+  productTitle: string | null;
+  variantId: string;
+  variantTitle: string | null;
+  status: string;
+  requestedAt: Date;
+};
+
+export type BackInStockRequestRow = {
+  contactKey: string;
+  email: string | null;
+  phone: string | null;
+  channel: string;
+  customerId: string | null;
+  requests: number;
+  productCount: number;
+  firstRequestAt: Date;
+  lastRequestAt: Date;
+  statuses: string[];
+  notified: number;
+  converted: number;
+  products: RequestedProduct[];
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function parseUtcDay(value?: string | null): Date | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!match) return null;
+  const date = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
+  );
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Turns raw query-string values into a canonical filter set shared by the SQL and the
+ * Prisma query builders, so both always agree on what "the same request" means.
+ */
+export function normalizeRequestFilters(
+  filters: BackInStockRequestFilters = {},
+): NormalizedRequestFilters {
+  const rawStatus = filters.status?.trim().toUpperCase() || "";
+  const rawChannel = filters.channel?.trim().toLowerCase() || "";
+  const rawQuery = filters.query?.trim() || "";
+  const rawProduct = filters.productId?.trim() || "";
+  const rawOutcome = filters.outcome?.trim().toLowerCase() || "";
+
+  let from = parseUtcDay(filters.from);
+  let to = parseUtcDay(filters.to);
+  if (from && to && from.getTime() > to.getTime()) {
+    const swap = from;
+    from = to;
+    to = swap;
+  }
+
+  return {
+    status: rawStatus && rawStatus !== "ALL" ? rawStatus : null,
+    channel: rawChannel === "email" || rawChannel === "sms" ? rawChannel : null,
+    query: rawQuery || null,
+    productId: rawProduct && rawProduct !== "ALL" ? rawProduct : null,
+    outcome:
+      rawOutcome === "notified" || rawOutcome === "clicked" || rawOutcome === "purchased"
+        ? rawOutcome
+        : null,
+    from,
+    toExclusive: to ? new Date(to.getTime() + DAY_MS) : null,
+  };
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/([\\%_])/g, "\\$1");
+}
+
+function buildRequestWhere(
+  shopId: string,
+  filters: NormalizedRequestFilters,
+): Prisma.StockAlertWhereInput {
+  return {
+    shopId,
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.channel ? { channel: filters.channel } : {}),
+    ...(filters.productId ? { productId: filters.productId } : {}),
+    ...(filters.outcome === "notified" ? { notifiedAt: { not: null } } : {}),
+    ...(filters.outcome === "clicked" ? { convertedAt: { not: null } } : {}),
+    ...(filters.outcome === "purchased" ? { purchasedAt: { not: null } } : {}),
+    ...(filters.from || filters.toExclusive
+      ? {
+          createdAt: {
+            ...(filters.from ? { gte: filters.from } : {}),
+            ...(filters.toExclusive ? { lt: filters.toExclusive } : {}),
+          },
+        }
+      : {}),
+    ...(filters.query
+      ? {
+          OR: [
+            { email: { contains: filters.query, mode: "insensitive" as const } },
+            { phone: { contains: filters.query, mode: "insensitive" as const } },
+            { customerId: { contains: filters.query, mode: "insensitive" as const } },
+            {
+              productTitle: {
+                contains: filters.query,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              variantTitle: {
+                contains: filters.query,
+                mode: "insensitive" as const,
+              },
+            },
+            { productId: { contains: filters.query, mode: "insensitive" as const } },
+            { variantId: { contains: filters.query, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
+}
+
+function buildRequestWhereSql(
+  shopId: string,
+  filters: NormalizedRequestFilters,
+): Prisma.Sql {
+  const conditions: Prisma.Sql[] = [Prisma.sql`"shopId" = ${shopId}`];
+  if (filters.status) conditions.push(Prisma.sql`"status" = ${filters.status}`);
+  if (filters.channel)
+    conditions.push(Prisma.sql`"channel" = ${filters.channel}`);
+  if (filters.productId)
+    conditions.push(Prisma.sql`"productId" = ${filters.productId}`);
+  if (filters.outcome === "notified")
+    conditions.push(Prisma.sql`"notifiedAt" IS NOT NULL`);
+  if (filters.outcome === "clicked")
+    conditions.push(Prisma.sql`"convertedAt" IS NOT NULL`);
+  if (filters.outcome === "purchased")
+    conditions.push(Prisma.sql`"purchasedAt" IS NOT NULL`);
+  if (filters.from)
+    conditions.push(Prisma.sql`"createdAt" >= ${filters.from}`);
+  if (filters.toExclusive)
+    conditions.push(Prisma.sql`"createdAt" < ${filters.toExclusive}`);
+  if (filters.query) {
+    const pattern = `%${escapeLikePattern(filters.query)}%`;
+    conditions.push(Prisma.sql`(
+      "email" ILIKE ${pattern} ESCAPE '\\'
+      OR "phone" ILIKE ${pattern} ESCAPE '\\'
+      OR "customerId" ILIKE ${pattern} ESCAPE '\\'
+      OR "productTitle" ILIKE ${pattern} ESCAPE '\\'
+      OR "variantTitle" ILIKE ${pattern} ESCAPE '\\'
+      OR "productId" ILIKE ${pattern} ESCAPE '\\'
+      OR "variantId" ILIKE ${pattern} ESCAPE '\\'
+    )`);
+  }
+  return Prisma.join(conditions, " AND ");
+}
+
+function requestOrderSql(sort?: string | null): Prisma.Sql {
+  switch (sort) {
+    case ALERT_REQUEST_SORTS.oldest:
+      return Prisma.sql`MIN("createdAt") ASC, "contactKey" ASC`;
+    case ALERT_REQUEST_SORTS.requests:
+      return Prisma.sql`COUNT(*) DESC, "contactKey" ASC`;
+    case ALERT_REQUEST_SORTS.products:
+      return Prisma.sql`COUNT(DISTINCT "productId") DESC, "contactKey" ASC`;
+    case ALERT_REQUEST_SORTS.contact:
+      return Prisma.sql`"contactKey" ASC`;
+    default:
+      return Prisma.sql`MAX("createdAt") DESC, "contactKey" ASC`;
+  }
+}
+
+type RequestGroupRow = {
+  contactKey: string;
+  email: string | null;
+  phone: string | null;
+  channel: string | null;
+  customerId: string | null;
+  requests: number;
+  products: number;
+  firstRequestAt: Date;
+  lastRequestAt: Date;
+  statuses: string[] | null;
+  notified: number;
+  converted: number;
+};
+
+/**
+ * One row per customer (contact) that requested a back-in-stock notification, together
+ * with the specific products and variants they asked to be notified about.
+ *
+ * The grouping happens in SQL so the row counts, distinct-product counts and pagination
+ * are computed on the whole filtered set rather than on a page-sized sample.
+ */
+export async function listBackInStockRequests(
+  shopId: string,
+  filters: BackInStockRequestFilters = {},
+) {
+  const pageSize = Math.min(Math.max(filters.pageSize ?? 25, 1), 5000);
+  const page = Math.max(filters.page ?? 1, 1);
+  const normalized = normalizeRequestFilters(filters);
+  const where = buildRequestWhereSql(shopId, normalized);
+  const orderBy = requestOrderSql(filters.sort);
+
+  const [totals, grouped] = await Promise.all([
+    db.$queryRaw<{
+      customers: number;
+      requests: number;
+      products: number;
+      notified: number;
+      converted: number;
+    }[]>(
+      Prisma.sql`
+        SELECT
+          (COUNT(DISTINCT "contactKey"))::int AS "customers",
+          (COUNT(*))::int AS "requests",
+          (COUNT(DISTINCT "productId"))::int AS "products",
+          (COUNT(*) FILTER (WHERE "notifiedAt" IS NOT NULL))::int AS "notified",
+          (COUNT(*) FILTER (WHERE "convertedAt" IS NOT NULL))::int AS "converted"
+        FROM "StockAlert"
+        WHERE ${where}
+      `,
+    ),
+    db.$queryRaw<RequestGroupRow[]>(Prisma.sql`
+      SELECT
+        "contactKey",
+        MAX("email")::text AS "email",
+        MAX("phone")::text AS "phone",
+        MAX("channel")::text AS "channel",
+        MAX("customerId")::text AS "customerId",
+        (COUNT(*))::int AS "requests",
+        (COUNT(DISTINCT "productId"))::int AS "products",
+        MIN("createdAt") AS "firstRequestAt",
+        MAX("createdAt") AS "lastRequestAt",
+        ARRAY_AGG(DISTINCT "status")::text[] AS "statuses",
+        (COUNT(*) FILTER (WHERE "notifiedAt" IS NOT NULL))::int AS "notified",
+        (COUNT(*) FILTER (WHERE "convertedAt" IS NOT NULL))::int AS "converted"
+      FROM "StockAlert"
+      WHERE ${where}
+      GROUP BY "contactKey"
+      ORDER BY ${orderBy}
+      LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+    `),
+  ]);
+
+  const contactKeys = grouped.map((row) => row.contactKey);
+  const detail = contactKeys.length
+    ? await db.stockAlert.findMany({
+        where: {
+          ...buildRequestWhere(shopId, normalized),
+          contactKey: { in: contactKeys },
+        },
+        orderBy: [{ createdAt: "desc" }],
+        take: 20_000,
+      })
+    : [];
+
+  // Detail rows come back newest-first, so the first hit for a variant is its latest request.
+  const productsByContact = new Map<string, RequestedProduct[]>();
+  const seenVariants = new Map<string, Set<string>>();
+  for (const alert of detail) {
+    const seen = seenVariants.get(alert.contactKey) ?? new Set<string>();
+    const key = `${alert.productId}:${alert.variantId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    seenVariants.set(alert.contactKey, seen);
+    const list = productsByContact.get(alert.contactKey) ?? [];
+    list.push({
+      productId: alert.productId,
+      productTitle: alert.productTitle,
+      variantId: alert.variantId,
+      variantTitle: alert.variantTitle,
+      status: alert.status,
+      requestedAt: alert.createdAt,
+    });
+    productsByContact.set(alert.contactKey, list);
+  }
+
+  const rows: BackInStockRequestRow[] = grouped.map((row) => ({
+    contactKey: row.contactKey,
+    email: row.email,
+    phone: row.phone,
+    channel: row.channel || "email",
+    customerId: row.customerId,
+    requests: row.requests,
+    productCount: row.products,
+    firstRequestAt: row.firstRequestAt,
+    lastRequestAt: row.lastRequestAt,
+    statuses: row.statuses ?? [],
+    notified: row.notified,
+    converted: row.converted,
+    products: productsByContact.get(row.contactKey) ?? [],
+  }));
+
+  const customers = totals[0]?.customers ?? 0;
+
+  return {
+    rows,
+    total: customers,
+    totals: {
+      customers,
+      requests: totals[0]?.requests ?? 0,
+      products: totals[0]?.products ?? 0,
+      notified: totals[0]?.notified ?? 0,
+      converted: totals[0]?.converted ?? 0,
+    },
+    page,
+    pageSize,
+    pageCount: Math.max(Math.ceil(customers / pageSize), 1),
+  };
+}
+
+/** Every matching customer row, for CSV export. */
+export async function allBackInStockRequests(
+  shopId: string,
+  filters: BackInStockRequestFilters = {},
+) {
+  return listBackInStockRequests(shopId, {
+    ...filters,
+    page: 1,
+    pageSize: 5000,
+  });
+}
+
+/** Products that have back-in-stock requests — powers the "Product" filter dropdown. */
+export async function listRequestedProductOptions(
+  shopId: string,
+  limit = 200,
+) {
+  const rows = await db.stockAlert.groupBy({
+    by: ["productId"],
+    where: { shopId },
+    _count: { _all: true },
+    _max: { productTitle: true },
+    orderBy: { _count: { id: "desc" } },
+    take: limit,
+  });
+
+  return rows.map((row) => ({
+    productId: row.productId,
+    productTitle: row._max.productTitle,
+    requests: row._count._all,
+  }));
+}
+
 export async function listStockAlerts(
   shopId: string,
   filters: AlertFilters = {},

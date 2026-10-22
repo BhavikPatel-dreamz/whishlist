@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import {
   Form,
   Link,
@@ -11,15 +11,20 @@ import {
 } from "@remix-run/react";
 import { TitleBar } from "@shopify/app-bridge-react";
 import "../components/Reports.css";
+import "../components/BackInStockRequests.css";
 import { requireAdminShop } from "../lib/admin-auth.server";
-import { loadReport } from "../models/reports.server";
+import { loadReport, loadBackInStockRequests } from "../models/reports.server";
 import { stockReportTabs, wishlistReportTabs } from "../lib/reports";
+import { getShopContext } from "../lib/shopify-data.server";
+import { retryStuckAlerts } from "../lib/notifications/dispatch.server";
 import {
   BarSeriesChart,
   ChartCard,
   DonutChart,
   SegmentedDonut,
 } from "../components/OverviewCharts";
+import { BackInStockRequests } from "../components/BackInStockRequests";
+import { REQUEST_PARAMS, requestParamEntries } from "../lib/back-in-stock-requests";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { admin, shop } = await requireAdminShop(request);
@@ -34,6 +39,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const page = Number.isInteger(requested)
     ? Math.max(1, Math.min(pages, requested))
     : 1;
+  // The back-in-stock request list lives inside the Stock List report.
+  const requests =
+    data.tab === "stock"
+      ? await loadBackInStockRequests(shop.id, admin, params, {
+          from: data.from,
+          to: data.to,
+        })
+      : undefined;
   return {
     ...data,
     table: {
@@ -43,7 +56,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
     count,
     page,
     pages,
+    requests,
   };
+}
+
+/**
+ * "Retry failed & stuck" for the back-in-stock requests list. Re-drives alerts that never
+ * got emailed — sends stranded by a crash, alerts left PENDING after a failed attempt, and
+ * FAILED rows (a merchant clicking here is a deliberate choice to retry even previously
+ * exhausted addresses). Only variants that are back in stock actually send.
+ */
+export async function action({ request }: ActionFunctionArgs) {
+  const { admin, shop } = await requireAdminShop(request);
+  const shopContext = await getShopContext(admin);
+  const result = await retryStuckAlerts({
+    shop,
+    admin,
+    shopContext,
+    includeFailed: true,
+  });
+  return { ok: true as const, result };
 }
 
 type OverviewCard = {
@@ -190,23 +222,28 @@ export default function Analytics() {
         },
       ]
     : undefined;
-  const stockCards: { label: string; value: number; kind?: string }[] =
-    data.inventory
-      ? [
-          { label: "Tracked Products", value: data.inventory.tracked },
-          { label: "In Stock", value: data.inventory.inStock, kind: "in-stock" },
-          {
-            label: "Low Stock",
-            value: data.inventory.lowStock,
-            kind: "low-stock",
-          },
-          {
-            label: "Out of Stock",
-            value: data.inventory.outOfStock,
-            kind: "out-of-stock",
-          },
-        ]
-      : [];
+  const stockListHref = (filters: {
+    status?: "PENDING" | "SENT";
+    outcome?: "notified" | "clicked" | "purchased";
+  } = {}) => {
+    const requestParams = new URLSearchParams({
+      tab: "stock",
+      from: data.from,
+      to: data.to,
+    });
+    if (filters.status) requestParams.set(REQUEST_PARAMS.status, filters.status);
+    if (filters.outcome) requestParams.set(REQUEST_PARAMS.outcome, filters.outcome);
+    return `/app/analytics?${requestParams}#back-in-stock-requests`;
+  };
+  const requestCards = data.requests
+    ? [
+        { label: "Customers", value: data.requests.totals.customers, href: stockListHref() },
+        { label: "Requests", value: data.requests.totals.requests, href: stockListHref() },
+        { label: "Products Requested", value: data.requests.totals.products, href: stockListHref() },
+        { label: "Notified", value: data.requests.totals.notified, href: stockListHref({ outcome: "notified" }) },
+        { label: "Clicked through", value: data.requests.totals.converted, href: stockListHref({ outcome: "clicked" }) },
+      ]
+    : [];
   const reportHref = (tab: string, kind?: string) => {
     const reportParams = new URLSearchParams({ from: data.from, to: data.to });
     reportParams.set("tab", tab);
@@ -220,27 +257,27 @@ export default function Analytics() {
             {
               label: "Alert requests",
               value: data.overview.subscribedAlerts,
-              href: reportHref("alerts", "all"),
+              href: stockListHref(),
             },
             {
               label: "Pending alerts",
               value: data.overview.pendingAlerts,
-              href: reportHref("alerts", "pending"),
+              href: stockListHref({ status: "PENDING" }),
             },
             {
               label: "Sent notifications",
               value: data.overview.sentAlerts,
-              href: reportHref("alerts", "sent"),
+              href: stockListHref({ status: "SENT" }),
             },
             {
               label: "Click-throughs",
               value: data.overview.clickThroughs,
-              href: reportHref("alerts", "clickthroughs"),
+              href: stockListHref({ outcome: "clicked" }),
             },
             {
               label: "Purchases",
               value: data.overview.stockAlertPurchases,
-              href: reportHref("purchases", "stock-alert"),
+              href: stockListHref({ outcome: "purchased" }),
             },
           ],
           wishlist: [
@@ -319,7 +356,18 @@ export default function Analytics() {
           {stockReportTabs.map(([key, label]) => (
             <Link
               key={key}
-              to={`/app/analytics?${new URLSearchParams({ tab: key, from: data.from, to: data.to })}`}
+              to={`/app/analytics?${(() => {
+                const next = new URLSearchParams({
+                  tab: key,
+                  from: data.from,
+                  to: data.to,
+                });
+                // Keep the request filters when hopping between the sub-tabs.
+                for (const [name, value] of requestParamEntries(params)) {
+                  next.set(name, value);
+                }
+                return next.toString();
+              })()}`}
               aria-current={data.tab === key ? "page" : undefined}
             >
               {label}
@@ -369,6 +417,9 @@ export default function Analytics() {
                 name="sort"
                 value={params.get("sort") || "default"}
               />
+              {requestParamEntries(params).map(([name, value]) => (
+                <input key={name} type="hidden" name={name} value={value} />
+              ))}
               <label>
                 From (UTC)
                 <input
@@ -492,56 +543,37 @@ export default function Analytics() {
           )}
         </div>
       )}
-      {isStockList && data.inventory && (
-        <section className="ws-overview-section ws-stock-summary" aria-label="Inventory metrics">
-          <h2>Inventory Metrics</h2>
+      {isStockList && data.requests && (
+        <section className="ws-overview-section ws-stock-summary" aria-label="Back-in-stock request metrics">
+          <h2>Back-in-Stock Request Metrics</h2>
           <div className="ws-stock-summary-layout">
             <div className="ws-overview-grid">
-              {stockCards.map((card) => {
-                const cardParams = new URLSearchParams({
-                  tab: "stock",
-                  from: data.from,
-                  to: data.to,
-                });
-                if (card.kind) cardParams.set("kind", card.kind);
-                const isActive = (params.get("kind") || "") === (card.kind || "");
-                return (
-                  <Link
-                    className="ws-overview-card"
-                    key={card.label}
-                    to={`/app/analytics?${cardParams}`}
-                    aria-current={isActive ? "page" : undefined}
-                  >
+              {requestCards.map((card) => (
+                  <Link className="ws-overview-card" key={card.label} to={card.href}>
                     <span className="ws-overview-card-label">{card.label}</span>
                     <span className="ws-overview-card-value">{card.value}</span>
                   </Link>
-                );
-              })}
+              ))}
             </div>
             <SegmentedDonut
-              title="Inventory split"
+              title="Request delivery"
               segments={[
                 {
-                  label: "In stock",
-                  value: data.inventory.inStock,
+                  label: "Notified",
+                  value: data.requests.totals.notified,
                   tone: "ws-tone-good",
                 },
                 {
-                  label: "Low stock",
-                  value: data.inventory.lowStock,
+                  label: "Waiting",
+                  value: Math.max(0, data.requests.totals.requests - data.requests.totals.notified),
                   tone: "ws-tone-warn",
-                },
-                {
-                  label: "Out of stock",
-                  value: data.inventory.outOfStock,
-                  tone: "ws-tone-bad",
                 },
               ]}
             />
           </div>
         </section>
       )}
-      {!isOverview && <section
+      {!isOverview && !isStockList && <section
         className={`ws-reports-card${isStockList ? " ws-stock-list-card" : ""}`}
         aria-label={data.table.title}
         aria-busy={busy}
@@ -561,6 +593,9 @@ export default function Analytics() {
             {params.get("kind") && (
               <input type="hidden" name="kind" value={params.get("kind")!} />
             )}
+            {requestParamEntries(params).map(([name, value]) => (
+              <input key={name} type="hidden" name={name} value={value} />
+            ))}
             <input
               name="q"
               type="search"
@@ -690,7 +725,7 @@ export default function Analytics() {
           </div>
         )}
       </section>}
-      {!isOverview && data.count > 0 && (
+      {!isOverview && !isStockList && data.count > 0 && (
         <nav className="ws-reports-pagination" aria-label="Report pages">
           {data.page > 1 ? (
             <Link to={pageUrl(data.page - 1)} aria-label="Previous page">
@@ -712,7 +747,10 @@ export default function Analytics() {
           )}
         </nav>
       )}
-      {!isOverview && <p className="ws-reports-note">{data.table.note}</p>}
+      {!isOverview && !isStockList && <p className="ws-reports-note">{data.table.note}</p>}
+      {isStockList && data.requests && (
+        <BackInStockRequests data={data.requests} />
+      )}
     </main>
   );
 }
@@ -751,4 +789,3 @@ function ReportProductImage({
     </a>
   );
 }
-
