@@ -6,6 +6,7 @@
   window.__wishlist_stock = window.__wishlist_stock || {};
   window.__wishlist_stock.proxyBase = window.__wishlist_stock.proxyBase || '/apps/wishlist-stock/api';
   window.__wishlist_stock.customerEmail = {{ customer.email | default: nil | json }};
+  window.__wishlist_stock.customerId = {{ customer.id | default: nil | json }};
   window.__wishlist_stock.customerLoggedIn = {% if customer %}true{% else %}false{% endif %};
   window.__wishlist_stock.bisSettings = {
     advancedSettings: {% if block.settings.advanced_settings %}true{% else %}false{% endif %},
@@ -28,68 +29,7 @@
     borderRadius: {% if block.settings.advanced_settings %}{{ block.settings.bis_border_radius | default: 0 }}{% else %}8{% endif %},
   };
 
-  /* Inject Back-in-Stock theme CSS custom properties */
-  (function() {
-    var s = window.__wishlist_stock.bisSettings;
-    var root = document.documentElement;
-    root.style.setProperty('--ws-bis-primary', s.buttonColor || '#e74c3c');
-    root.style.setProperty('--ws-bis-font-size', s.buttonSize + 'px');
-    root.style.setProperty('--ws-bis-button-bg', s.buttonStyle === 'filled' ? s.buttonColor : 'transparent');
-    root.style.setProperty('--ws-bis-button-text', s.buttonStyle === 'filled' ? '#fff' : s.buttonColor);
-    root.style.setProperty('--ws-bis-radius', (s.borderRadius ?? 8) + 'px');
-  })();
 </script>
 
-{%- comment -%} Back-in-Stock modal {%- endcomment -%}
-<div class="ws-modal-overlay" id="ws-bis-modal" aria-hidden="true">
-  <div class="ws-modal" role="dialog" aria-label="Back in stock notification">
-    <div class="ws-modal__header">
-      <h3 class="ws-modal__title">{{ block.settings.notify_modal_title | default: 'Email me when available' }}</h3>
-      <button class="ws-modal__close" id="ws-bis-close" aria-label="Close">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-    </div>
-    <div class="ws-modal__body" id="ws-bis-form-body">
-      <div class="ws-modal__tabs" role="tablist" aria-label="Notification method">
-        <button class="ws-modal__tab is-active" id="ws-bis-email-tab" type="button" role="tab" aria-selected="true" aria-controls="ws-bis-form">Email</button>
-        <button class="ws-modal__tab" id="ws-bis-sms-tab" type="button" role="tab" aria-selected="false" aria-controls="ws-bis-form">SMS</button>
-      </div>
-      <p class="ws-modal__intro" id="ws-bis-intro">Get notified via email when this product is back in stock</p>
-      <p class="ws-modal__msg" id="ws-bis-msg" role="alert" style="display:none;"></p>
-      <form class="ws-modal__form" id="ws-bis-form">
-        <input type="hidden" name="variantId" value="" />
-        <input type="hidden" name="productId" value="" />
-        <input type="hidden" name="channel" value="email" />
-        <div class="ws-hp" aria-hidden="true">
-          <label for="ws-bis-website">Website</label>
-          <input type="text" name="website" id="ws-bis-website" tabindex="-1" autocomplete="off" />
-        </div>
-        <div class="ws-modal__field" id="ws-bis-email-field">
-          <label class="ws-sr-only" for="ws-bis-email">Email address *</label>
-          <input type="email" name="email" id="ws-bis-email" placeholder="Enter your email address" required autocomplete="email" />
-        </div>
-        <div class="ws-modal__field ws-modal__phone-field" id="ws-bis-phone-field" hidden>
-          <label class="ws-sr-only" for="ws-bis-phone">Phone number *</label>
-          <input type="tel" name="phone" id="ws-bis-phone" placeholder="Enter your phone number" autocomplete="tel" />
-        </div>
-        <button class="ws-btn ws-btn--primary ws-modal__submit" id="ws-bis-submit" type="submit">Email Me</button>
-      </form>
-      <p class="ws-modal__disclaimer" id="ws-bis-disclaimer">We will send you an email once the product becomes available. Your email address will not be shared with anyone else.</p>
-    </div>
-    <div class="ws-modal__success" id="ws-bis-success" style="display:none;">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-        <polyline points="22 4 12 14.01 9 11.01"/>
-      </svg>
-      <h3 id="ws-bis-success-title">You're on the list!</h3>
-      <p id="ws-bis-success-msg">We'll email you when this is back in stock.</p>
-      <button class="ws-btn ws-btn--small ws-btn--danger" id="ws-bis-unsub" type="button" style="display:none;">Unsubscribe</button>
-    </div>
-  </div>
-</div>
-
+<script src="{{ 'wishlist-analytics.js' | asset_url }}" defer></script>
 <script src="{{ 'back-in-stock.js' | asset_url }}" defer></script>
-

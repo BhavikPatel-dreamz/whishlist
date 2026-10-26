@@ -106,6 +106,25 @@
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
+.ws-overview-card-delta {
+  margin-top: 6px;
+  color: #687078;
+  font-size: 11px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+.ws-overview-card-delta[data-trend="up"] {
+  color: #18794e;
+}
+.ws-overview-card-delta[data-trend="down"] {
+  color: #b42318;
+}
+.ws-overview-compare-note {
+  margin: 0;
+  color: #626a72;
+  font-size: 12px;
+  line-height: 1.4;
+}
 .ws-overview-card-action {
   position: absolute;
   top: 14px;
@@ -277,6 +296,19 @@
   display: grid;
   gap: 4px;
 }
+.ws-reports-dates .ws-reports-compare-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #303030;
+  font-size: 12px;
+}
+.ws-reports-dates .ws-reports-compare-toggle input {
+  width: 16px;
+  min-height: 16px;
+  margin: 0;
+  accent-color: #168a63;
+}
 .ws-reports input,
 .ws-reports select {
   font: inherit;
@@ -380,17 +412,22 @@
 }
 .ws-stock-table th:first-child,
 .ws-stock-table td:first-child {
-  width: 62%;
+  width: 44%;
   text-align: left;
 }
 .ws-stock-table th:nth-child(2),
 .ws-stock-table td:nth-child(2) {
-  width: 18%;
-  text-align: center;
+  width: 22%;
+  text-align: left;
 }
 .ws-stock-table th:nth-child(3),
 .ws-stock-table td:nth-child(3) {
-  width: 20%;
+  width: 12%;
+  text-align: center;
+}
+.ws-stock-table th:nth-child(4),
+.ws-stock-table td:nth-child(4) {
+  width: 22%;
   text-align: center;
 }
 .ws-stock-table td {
@@ -428,6 +465,11 @@
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
+}
+.ws-stock-variant {
+  color: #616161;
+  font-size: 13px;
+  line-height: 1.4;
 }
 .ws-stock-status {
   display: inline-flex;

@@ -2,7 +2,11 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { getOrCreateShop } from "../lib/shop.server";
 import { verifyPayloadSignature } from "../lib/crypto.server";
 import { recordStockAlertPurchase } from "../models/stock-alert.server";
-import { attributeWishlistOrders, handleOrderWebhook } from "../lib/order-webhook.server";
+import {
+  attributeOrderLines,
+  attributeWishlistOrders,
+  handleOrderWebhook,
+} from "../lib/order-webhook.server";
 
 function stockAlertToken(lineItem: any): string | null {
   const properties = lineItem?.properties;
@@ -63,4 +67,5 @@ export const action = async ({ request }: ActionFunctionArgs) =>
       customerId,
       onLineItem: (lineItem) => recordAlertPurchase(lineItem, order, orderId),
     });
+    await attributeOrderLines({ shopRecordId: shopRecord.id, order });
   });

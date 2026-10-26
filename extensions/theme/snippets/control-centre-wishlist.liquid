@@ -39,6 +39,8 @@
   window.__wishlist_stock.proxyBase = window.__wishlist_stock.proxyBase || '/apps/wishlist-stock/api';
   window.__wishlist_stock.customerEmail = {{ customer.email | default: nil | json }};
   window.__wishlist_stock.customerId = {{ customer.id | default: nil | json }};
+  window.__wishlist_stock.productId = {% if product %}{{ product.id | json }}{% else %}null{% endif %};
+  window.__wishlist_stock.variantId = {% if product %}{{ product.selected_or_first_available_variant.id | json }}{% else %}null{% endif %};
   window.__wishlist_stock.customerLoggedIn = {% if customer %}true{% else %}false{% endif %};
   window.__wishlist_stock.settings = {
     advancedSettings: {% if block.settings.advanced_settings == false %}false{% else %}true{% endif %},
@@ -144,6 +146,7 @@
 <span id="ws-header-count" class="ws-sr-only" data-count="0"></span>
 
 <script src="{{ 'wishlist-features.js' | asset_url }}" defer></script>
+<script src="{{ 'wishlist-analytics.js' | asset_url }}" defer></script>
 <script src="{{ 'wishlist-button.js' | asset_url }}" defer></script>
 <script src="{{ 'wishlist-page.js' | asset_url }}" defer></script>
 <script src="{{ 'wishlist-toggle.js' | asset_url }}" defer></script>

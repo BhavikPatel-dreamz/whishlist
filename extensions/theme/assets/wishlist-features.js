@@ -26,6 +26,17 @@
     } : undefined);
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.message || 'Could not update your wishlist. Please try again.');
+
+    // Track wishlist save/remove events for analytics.
+    if (path === 'wishlist' && window.wsTrack) {
+      const isRemove = body && body._method === 'DELETE';
+      window.wsTrack(isRemove ? 'WISHLIST_REMOVE' : 'WISHLIST_SAVE', {
+        productId: body.productId || undefined,
+        variantId: body.variantId || undefined,
+        source: 'pdp',
+      });
+    }
+
     return data;
   }
   function button(label, action) {

@@ -37,7 +37,7 @@ export default function App() {
           Dashboard
         </Link>
         {/* Back-in-Stock Requests are part of Analytics → Back in Stock → Stock List */}
-        <Link to="/app/analytics">Analytics</Link>
+        <Link to="/app/analytics/polaris">Analytics</Link>
         <Link to="/app/settings">Configurations</Link>
       </NavMenu>
       <div className="ws-admin-pages">

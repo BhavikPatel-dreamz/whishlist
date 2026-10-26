@@ -3,6 +3,13 @@ import {
   customerSavedProductIds,
   recordWishlistDrivenOrders,
 } from "../models/wishlist.server";
+import {
+  attributeOrder,
+  lineProperties,
+  normalizeOrderLines,
+  type OrderLine,
+} from "../models/attribution.server";
+import { verifyPayloadSignature } from "./crypto.server";
 
 type LineItem = Record<string, any>;
 
@@ -16,6 +23,68 @@ export function isWishlistLineItem(lineItem: LineItem): boolean {
     );
   }
   return properties?._wishlist_stock === "true";
+}
+
+/**
+ * The alert id a back-in-stock notification put on the line, but only when the
+ * signature proves the app minted it.
+ */
+export function verifiedRestockAlertId(lineItem: LineItem): string | null {
+  const token = lineProperties(lineItem)._back_in_stock_alert;
+  if (typeof token !== "string") return null;
+  const separator = token.lastIndexOf(".");
+  if (separator <= 0) return null;
+  const alertId = token.slice(0, separator);
+  const signature = token.slice(separator + 1);
+  if (!verifyPayloadSignature(alertId, signature)) return null;
+  return alertId;
+}
+
+/**
+ * Records the analytics attribution for an order: which wishlist or restock
+ * touch led to each line, and how much revenue it carried.
+ */
+export async function attributeOrderLines({
+  shopRecordId,
+  order,
+}: {
+  shopRecordId: string;
+  order: OrderPayload;
+}): Promise<void> {
+  const orderId = order?.id ? String(order.id) : null;
+  if (!orderId) return;
+
+  const items: LineItem[] = Array.isArray(order?.line_items) ? order.line_items : [];
+  const lines: OrderLine[] = normalizeOrderLines(items).map((line, index) => ({
+    ...line,
+    restockAlertId: verifiedRestockAlertId(items[index] ?? {}),
+  }));
+
+  if (!lines.length) return;
+
+  const customerId = order?.customer?.id ? String(order.customer.id) : null;
+  const email = order?.email
+    ? String(order.email).trim().toLowerCase()
+    : null;
+  const orderedAt = new Date(
+    order?.processed_at || order?.created_at || Date.now(),
+  );
+
+  try {
+    await attributeOrder({
+      shopId: shopRecordId,
+      orderId,
+      orderNumber: String(order?.name || order?.order_number || orderId),
+      orderEmail: email,
+      customerId,
+      shopperId: customerId,
+      lines,
+      orderedAt,
+    });
+  } catch (error) {
+    // Attribution must never block the order from being processed.
+    console.warn("Failed to record order attribution", error);
+  }
 }
 
 /**

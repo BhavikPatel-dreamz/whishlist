@@ -174,18 +174,28 @@ export function AnalyticsMetrics({
   );
 
   /* ---- report links ---- */
-  const wishlistQuery = new URLSearchParams({ from: data.from, to: data.to });
-  const wishlistReport = (kind: string) =>
-    `/app/analytics?${wishlistQuery}&kind=${kind}`;
+  const reportUrl = (slug: string, from: string, to: string) => {
+    const params = new URLSearchParams({ report: slug, from, to });
+    return `/app/analytics/polaris?${params.toString()}`;
+  };
+  const wishlistReport = (kind: string) => {
+    const slug =
+      kind === "shoppers"
+        ? "top-intent-customers"
+        : kind === "popular"
+          ? "wishlisted-products"
+          : "low-stock-demand";
+    return reportUrl(slug, data.from, data.to);
+  };
 
   const backInStockReport = (tab: string, kind?: string) => {
-    const params = new URLSearchParams({
-      from: backInStock.from,
-      to: backInStock.to,
-      tab,
-    });
-    if (kind) params.set("kind", kind);
-    return `/app/analytics?${params}`;
+    const slug =
+      tab === "alerts" && kind === "subscribers"
+        ? "pending-alerts"
+        : tab === "alerts"
+          ? "alert-subscriptions"
+          : "low-stock-demand";
+    return reportUrl(slug, backInStock.from, backInStock.to);
   };
 
   /* ---- rows for lists ---- */
@@ -199,14 +209,25 @@ export function AnalyticsMetrics({
   // "Running out soon" only surfaces products that are both out of stock and
   // in high demand — by wishlist saves (wishlist view) or alert requests
   // (back-in-stock view). Popular lists are demand-ordered (saves / alerts).
-  const outOfStockIds = new Set(data.runningLow.map((r) => r.productId));
+  const outOfStockVariants = new Map(
+    data.runningLow.map((row) => [row.productId, row.variants ?? []]),
+  );
+  const outOfStockIds = new Set(outOfStockVariants.keys());
+  const outOfStockLabel = (productId: string) => {
+    const variants = outOfStockVariants.get(productId) || [];
+    if (!variants.length) return "Out of stock";
+    const shown = variants.slice(0, 3).join(", ");
+    return `Out of stock: ${shown}${
+      variants.length > 3 ? ` +${variants.length - 3} more` : ""
+    }`;
+  };
   const hotOutOfStockRows: ProductRow[] = data.popular
     .filter((r) => outOfStockIds.has(r.productId))
     .map((r) => ({
       productId: r.productId,
       title: r.title,
       imageUrl: r.imageUrl,
-      meta: `${r.saves} ${r.saves === 1 ? "save" : "saves"} · ${r.shoppers} ${r.shoppers === 1 ? "customer" : "customers"} · Out of stock`,
+      meta: `${r.saves} ${r.saves === 1 ? "save" : "saves"} · ${r.shoppers} ${r.shoppers === 1 ? "customer" : "customers"} · ${outOfStockLabel(r.productId)}`,
     }));
 
   const requestedRows: ProductRow[] = backInStock.popularRequestedProducts.map(
@@ -225,7 +246,7 @@ export function AnalyticsMetrics({
         productId: r.productId,
         title: r.title,
         imageUrl: r.imageUrl,
-        meta: `${r.alerts} ${r.alerts === 1 ? "alert request" : "alert requests"} · Out of stock`,
+        meta: `${r.alerts} ${r.alerts === 1 ? "alert request" : "alert requests"} · ${outOfStockLabel(r.productId)}`,
       }));
 
   return (

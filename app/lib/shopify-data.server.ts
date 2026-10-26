@@ -172,6 +172,7 @@ export type ProductSummary = {
   minPrice: string | null;
   currencyCode: string | null;
   availableForSale: boolean;
+  collections: Array<{ collectionId: string; title: string }>;
   variants: Array<{
     variantId: string;
     title: string;
@@ -257,31 +258,34 @@ export async function getProductsByIds(
       while (next < chunks.length) {
         const chunk = chunks[next++];
         const data = await gql<{
-      nodes: Array<{
-        id: string;
-        title: string;
-        handle: string;
-        status: string;
-        onlineStoreUrl: string | null;
-        totalInventory: number | null;
-        featuredImage: { url: string } | null;
-        priceRangeV2: {
-          minVariantPrice: { amount: string; currencyCode: string };
-        };
-        variants: {
           nodes: Array<{
             id: string;
             title: string;
-            price: string | null;
-            availableForSale: boolean;
-            sku: string | null;
-            image: { url: string } | null;
-          }>;
-        };
-      } | null>;
-    }>(
-      admin,
-      `#graphql
+            handle: string;
+            status: string;
+            onlineStoreUrl: string | null;
+            totalInventory: number | null;
+            featuredImage: { url: string } | null;
+            priceRangeV2: {
+              minVariantPrice: { amount: string; currencyCode: string };
+            };
+            variants: {
+              nodes: Array<{
+                id: string;
+                title: string;
+                price: string | null;
+                availableForSale: boolean;
+                sku: string | null;
+                image: { url: string } | null;
+              }>;
+            };
+            collections: {
+              nodes: Array<{ id: string; title: string }>;
+            };
+          } | null>;
+        }>(
+          admin,
+          `#graphql
        query ProductsByIds($ids: [ID!]!, $variantLimit: Int!) {
          nodes(ids: $ids) {
            ... on Product {
@@ -293,40 +297,50 @@ export async function getProductsByIds(
              totalInventory
              featuredImage { url }
              priceRangeV2 { minVariantPrice { amount currencyCode } }
-variants(first: $variantLimit) {
-             nodes { id title price availableForSale sku image { url } }
-           }
+             variants(first: $variantLimit) {
+               nodes { id title price availableForSale sku image { url } }
+             }
+             collections(first: 50) {
+               nodes { id title }
+             }
            }
          }
        }`,
-      { ids: chunk.map((id) => toGid("Product", id)), variantLimit },
-    );
+          { ids: chunk.map((id) => toGid("Product", id)), variantLimit },
+        );
 
-    for (const node of data.nodes) {
-      if (!node) continue;
-      const variants = node.variants.nodes.map((variant) => ({
-        variantId: variant.id.split("/").pop() as string,
-        title: variant.title,
-        price: variant.price,
-        availableForSale: variant.availableForSale,
-        imageUrl: variant.image?.url ?? node.featuredImage?.url ?? null,
-        sku: variant.sku ?? null,
-      }));
-      const productId = node.id.split("/").pop() as string;
-      result.set(productId, {
-        productId,
-        title: node.title,
-        handle: node.handle,
-        status: node.status,
-        onlineStoreUrl: node.onlineStoreUrl,
-        imageUrl: node.featuredImage?.url ?? null,
-        totalInventory: node.totalInventory ?? 0,
-        minPrice: node.priceRangeV2?.minVariantPrice?.amount ?? null,
-        currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode ?? null,
-        availableForSale: variants.some((variant) => variant.availableForSale),
-        variants,
-      });
-      }
+        for (const node of data.nodes) {
+          if (!node) continue;
+          const variants = node.variants.nodes.map((variant) => ({
+            variantId: variant.id.split("/").pop() as string,
+            title: variant.title,
+            price: variant.price,
+            availableForSale: variant.availableForSale,
+            imageUrl: variant.image?.url ?? node.featuredImage?.url ?? null,
+            sku: variant.sku ?? null,
+          }));
+          const productId = node.id.split("/").pop() as string;
+          result.set(productId, {
+            productId,
+            title: node.title,
+            handle: node.handle,
+            status: node.status,
+            onlineStoreUrl: node.onlineStoreUrl,
+            imageUrl: node.featuredImage?.url ?? null,
+            totalInventory: node.totalInventory ?? 0,
+            minPrice: node.priceRangeV2?.minVariantPrice?.amount ?? null,
+            currencyCode:
+              node.priceRangeV2?.minVariantPrice?.currencyCode ?? null,
+            availableForSale: variants.some(
+              (variant) => variant.availableForSale,
+            ),
+            collections: node.collections.nodes.map((collection) => ({
+              collectionId: collection.id.split("/").pop() as string,
+              title: collection.title,
+            })),
+            variants,
+          });
+        }
       }
     },
   );
@@ -430,6 +444,7 @@ export async function getFirstProduct(
     minPrice: node.priceRangeV2?.minVariantPrice?.amount ?? null,
     currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode ?? null,
     availableForSale: variants.some((variant) => variant.availableForSale),
+    collections: [],
     variants,
   };
 }

@@ -1,6 +1,10 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { getOrCreateShop } from "../lib/shop.server";
-import { attributeWishlistOrders, handleOrderWebhook } from "../lib/order-webhook.server";
+import {
+  attributeOrderLines,
+  attributeWishlistOrders,
+  handleOrderWebhook,
+} from "../lib/order-webhook.server";
 
 /** Acknowledge `orders/updated` webhooks. */
 export const action = async ({ request }: ActionFunctionArgs) =>
@@ -19,4 +23,5 @@ export const action = async ({ request }: ActionFunctionArgs) =>
       items,
       customerId,
     });
+    await attributeOrderLines({ shopRecordId: shopRecord.id, order });
   });

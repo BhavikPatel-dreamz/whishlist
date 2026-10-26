@@ -1,8 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import db from "../db.server";
 import {
-  loadOutOfStockProducts,
-  loadStockProducts,
+  loadInventoryVariants,
+  loadOutOfStockVariants,
 } from "./out-of-stock.server";
 import {
   metricsDateBounds,
@@ -214,7 +214,10 @@ export async function loadBackInStockRequests(
         const variant = details?.variants.find(
           (item) => item.variantId === product.variantId,
         );
-        return { ...product, imageUrl: variant?.imageUrl || details?.imageUrl || null };
+        return {
+          ...product,
+          imageUrl: variant?.imageUrl || details?.imageUrl || null,
+        };
       }),
     })),
     productOptions,
@@ -280,10 +283,8 @@ export async function loadReport(
       note: "",
     };
   } else if (tab === "stock") {
-    const products = await loadStockProducts(admin);
-    const stock = [...products.values()].map(
-      (product) => product.totalInventory,
-    );
+    const variants = await loadInventoryVariants(admin);
+    const stock = variants.map((variant) => variant.inventory);
     inventory = {
       tracked: stock.length,
       inStock: stock.filter((quantity) => quantity > 10).length,
@@ -294,57 +295,64 @@ export async function loadReport(
     const kind = params.get("kind");
     const statusFilter =
       kind === "in-stock"
-        ? { title: "In Stock Products", match: (q: number) => q > 10 }
+        ? { title: "In Stock Variants", match: (q: number) => q > 10 }
         : kind === "low-stock"
           ? {
-              title: "Low Stock Products",
+              title: "Low Stock Variants",
               match: (q: number) => q > 0 && q <= 10,
             }
           : kind === "out-of-stock"
             ? {
-                title: "Out of Stock Products",
+                title: "Out of Stock Variants",
                 match: (q: number) => q <= 0,
               }
             : { title: "Stock List", match: () => true };
     table = {
       title: statusFilter.title,
-      description: "Current inventory for active, inventory-tracked products",
-      label: "Products",
+      description:
+        "Current inventory for active, inventory-tracked product variants",
+      label: "Variants",
       imageColumn: true,
-      columns: ["Product Title", "Inventory", "Stock Status"],
-      rows: [...products]
-        .filter(([, product]) => statusFilter.match(product.totalInventory))
-        .map(([id, product]) => ({
-          id,
-          image: product.imageUrl,
+      columns: ["Product Title", "Variant", "Inventory", "Stock Status"],
+      rows: variants
+        .filter((variant) => statusFilter.match(variant.inventory))
+        .map((variant) => ({
+          id: variant.variantId,
+          image: variant.imageUrl,
           cells: [
-            product.title,
-            product.totalInventory,
-            product.totalInventory <= 0
+            variant.productTitle,
+            variant.variantTitle,
+            variant.inventory,
+            variant.inventory <= 0
               ? "Out of stock"
-              : product.totalInventory <= 10
+              : variant.inventory <= 10
                 ? "Low stock"
                 : "In stock",
           ],
         })),
       note:
-        "Current inventory across all locations. This list is independent of wishlist saves and the selected date range." +
+        "Current inventory across all locations, one row per product variant — a product with one sold out variant is listed separately from its in-stock variants." +
         (kind ? " Filtered by stock status." : ""),
     };
   } else if (tab === "products" && params.get("kind") === "running-low") {
-    const products = await loadOutOfStockProducts(admin);
+    const variants = await loadOutOfStockVariants(admin);
     table = {
       title: "Running out soon",
-      description: "Currently out-of-stock products in your store",
-      label: "Products",
+      description: "Variants that are currently out of stock in your store",
+      label: "Variants",
       imageColumn: true,
-      columns: ["Product Title", "Inventory", "Status"],
-      rows: [...products].map(([id, product]) => ({
-        id,
-        image: product.imageUrl,
-        cells: [product.title, product.totalInventory, "Out of stock"],
+      columns: ["Product Title", "Variant", "Inventory", "Status"],
+      rows: variants.map((variant) => ({
+        id: variant.variantId,
+        image: variant.imageUrl,
+        cells: [
+          variant.productTitle,
+          variant.variantTitle,
+          variant.inventory,
+          "Out of stock",
+        ],
       })),
-      note: "Current inventory across all locations for active, inventory-tracked products with zero or fewer units. Independent of wishlist saves and selected dates.",
+      note: "Current inventory across all locations for active, inventory-tracked products, listed variant by variant — a product with one sold out variant shows up here even when its other variants are still in stock. Independent of wishlist saves and selected dates.",
     };
   } else if (tab === "shared") {
     const shares = await db.wishlistShare.findMany({

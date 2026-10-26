@@ -137,6 +137,31 @@
     if (submit) submit.textContent = settings.emailButton;
   }
 
+  // Liquid registers the Shopify embed and supplies its settings; the interactive
+  // modal itself belongs to JavaScript so it is not coupled to a theme's DOM.
+  function ensureModal() {
+    const existing = document.getElementById('ws-bis-modal');
+    if (existing) return existing;
+    const modal = document.createElement('div');
+    modal.className = 'ws-modal-overlay';
+    modal.id = 'ws-bis-modal';
+    modal.setAttribute('aria-hidden', 'true');
+    modal.innerHTML = `
+      <div class="ws-modal" role="dialog" aria-modal="true" aria-label="Back in stock notification">
+        <div class="ws-modal__header"><h3 class="ws-modal__title">Get notified when this is back</h3><button class="ws-modal__close" id="ws-bis-close" type="button" aria-label="Close">&times;</button></div>
+        <div class="ws-modal__body" id="ws-bis-form-body">
+          <div class="ws-modal__tabs" role="tablist" aria-label="Notification method"><button class="ws-modal__tab is-active" id="ws-bis-email-tab" type="button" role="tab" aria-selected="true" aria-controls="ws-bis-form">Email</button><button class="ws-modal__tab" id="ws-bis-sms-tab" type="button" role="tab" aria-selected="false" aria-controls="ws-bis-form">SMS</button></div>
+          <p class="ws-modal__intro" id="ws-bis-intro">Get notified via email when this product is back in stock</p><p class="ws-modal__msg" id="ws-bis-msg" role="alert" style="display:none"></p>
+          <form class="ws-modal__form" id="ws-bis-form"><input type="hidden" name="variantId" value=""><input type="hidden" name="productId" value=""><input type="hidden" name="channel" value="email"><div class="ws-hp" aria-hidden="true"><label for="ws-bis-website">Website</label><input type="text" name="website" id="ws-bis-website" tabindex="-1" autocomplete="off"></div><div class="ws-modal__field" id="ws-bis-email-field"><label class="ws-sr-only" for="ws-bis-email">Email address *</label><input type="email" name="email" id="ws-bis-email" required autocomplete="email"></div><div class="ws-modal__field ws-modal__phone-field" id="ws-bis-phone-field" hidden><label class="ws-sr-only" for="ws-bis-phone">Phone number *</label><input type="tel" name="phone" id="ws-bis-phone" autocomplete="tel"></div><button class="ws-btn ws-btn--primary ws-modal__submit" id="ws-bis-submit" type="submit">Email Me</button></form>
+          <p class="ws-modal__disclaimer" id="ws-bis-disclaimer">We will send you an email once the product becomes available. Your email address will not be shared with anyone else.</p>
+        </div>
+        <div class="ws-modal__success" id="ws-bis-success" style="display:none"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><h3 id="ws-bis-success-title">You're on the list!</h3><p id="ws-bis-success-msg">We'll email you when this is back in stock.</p><button class="ws-btn ws-btn--small ws-btn--danger" id="ws-bis-unsub" type="button" style="display:none">Unsubscribe</button></div>
+      </div>`;
+    document.body.appendChild(modal);
+    applyCustomizerSettings();
+    return modal;
+  }
+
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, (char) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -350,6 +375,16 @@
       const data = await resp.json();
 
       if (data.ok) {
+        const productId = body.productId || (document.getElementById('ws-bis-form')?.querySelector('input[name="productId"]') || {}).value || '';
+        const variantId = body.variantId || (document.getElementById('ws-bis-form')?.querySelector('input[name="variantId"]') || {}).value || '';
+        try {
+          await window.wsTrack?.('ALERT_SUBSCRIBE', {
+            productId: productId || undefined,
+            variantId: variantId || undefined,
+            channel: body.channel || undefined,
+            source: 'pdp',
+          });
+        } catch { /* tracking is non-fatal */ }
         const message = /confirm/i.test(data.message || '')
           ? data.message
           : SETTINGS().confirmation || data.message || "We'll email you when this is back in stock.";
@@ -426,20 +461,51 @@
   }
 
   function mainProductForm() {
-    const forms = Array.from(document.querySelectorAll('form[action*="/cart/add"]'));
-    if (!forms.length) return null;
-    return (
-      forms.find((f) => !f.closest('.card, .card-wrapper') && f.closest('#MainContent, main, .product')) ||
-      forms.find((f) => !f.closest('.card, .card-wrapper')) ||
-      forms[0]
+    const root = document.querySelector('#MainContent, main') || document;
+    const forms = Array.from(root.querySelectorAll('form'))
+      .filter((form) => !form.closest('.card, .card-wrapper'));
+    const cartForm = forms.find((form) =>
+      form.matches('form[action*="/cart/add"], form[data-type="add-to-cart-form"]') ||
+      form.querySelector('[name="add"]'),
     );
+    if (cartForm) return cartForm;
+
+    const quoteButton = Array.from(root.querySelectorAll('button, a, [role="button"]'))
+      .find((element) => /request\s+(a\s+)?quote/i.test(element.textContent || ''));
+    if (quoteButton) return quoteButton.closest('form') || quoteButton.parentElement;
+
+    return forms.find((form) =>
+      form.querySelector('[name="id"], [name="variant_id"], select[name*="option"], input[type="radio"][name*="option"]'),
+    ) || root.querySelector('.product__info-container, .product-information, .product__info');
   }
 
-  function currentVariantId(form) {
+  function currentVariantId(form, product) {
     const fromUrl = new URLSearchParams(location.search).get('variant');
     if (fromUrl) return fromUrl;
-    const input = form && form.querySelector('[name="id"]');
-    return input && input.value ? input.value : '';
+    const root = document.querySelector('#MainContent, main') || document;
+    const input = (form && form.querySelector('[name="id"], [name="variant_id"]')) ||
+      root.querySelector('[name="id"], [name="variant_id"]');
+    if (input && input.value) return input.value;
+
+    if (product && Array.isArray(product.variants)) {
+      const pickers = root.querySelectorAll('variant-selects, variant-radios, [data-variant-picker]');
+      for (const picker of pickers) {
+        const groups = picker.querySelectorAll('fieldset, .product-form__input');
+        const optionValues = Array.from(groups).map((group) => {
+          const select = group.querySelector('select');
+          const checked = group.querySelector('input[type="radio"]:checked');
+          const active = group.querySelector('[aria-checked="true"], [aria-pressed="true"], [data-selected="true"]');
+          return select?.value || checked?.value || active?.dataset.value || active?.textContent?.trim() || '';
+        }).filter(Boolean);
+        if (!optionValues.length) continue;
+        const variant = product.variants.find((candidate) =>
+          optionValues.every((value, index) => String(candidate.options?.[index]) === value),
+        );
+        if (variant) return String(variant.id);
+      }
+    }
+
+    return '';
   }
 
   function variantUnavailable(product, vid, form) {
@@ -515,8 +581,15 @@
   }
 
   let pdpDone = false;
+  let pdpWrapper = null;
+  let pdpRetryTimer = null;
   async function injectProductPage() {
-    if (!featureConfigReady || !isEnabled() || pdpDone || !SETTINGS().productButton) return;
+    if (pdpDone && (!pdpWrapper || pdpWrapper.isConnected)) return;
+    if (pdpDone) {
+      pdpDone = false;
+      pdpWrapper = null;
+    }
+    if (!featureConfigReady || !isEnabled() || !SETTINGS().productButton) return;
     const handle = pdpHandle();
     if (!handle) return;
     const form = mainProductForm();
@@ -535,7 +608,7 @@
     } catch { /* non-fatal */ }
 
     const vid =
-      currentVariantId(form) ||
+      currentVariantId(form, product) ||
       (product && product.variants && product.variants[0] ? String(product.variants[0].id) : '');
     const pid = product ? String(product.id) : '';
 
@@ -551,13 +624,15 @@
     if (!placed) {
       const anchor = (form.closest('product-form') || form);
       anchor.insertAdjacentElement('afterend', wrap);
+      pdpWrapper = wrap;
     }
 
-    if (!form.__wsBisBound) {
-      form.__wsBisBound = true;
-      form.addEventListener('change', () => {
+    const pickerRoot = document.querySelector('#MainContent, main') || document;
+    if (!pickerRoot.__wsBisBound) {
+      pickerRoot.__wsBisBound = true;
+      pickerRoot.addEventListener('change', () => {
         setTimeout(() => {
-          const v = currentVariantId(form);
+          const v = currentVariantId(form, product);
           const off = variantUnavailable(product, v, form);
           toggleThemeBuyButtons(form, off);
           if (placed) return;
@@ -574,6 +649,24 @@
     }
   }
 
+  function scheduleProductPageRetry() {
+    if (pdpDone && (!pdpWrapper || pdpWrapper.isConnected)) return;
+    if (pdpRetryTimer) clearTimeout(pdpRetryTimer);
+    pdpRetryTimer = setTimeout(() => {
+      pdpRetryTimer = null;
+      void injectProductPage();
+    }, 100);
+  }
+
+  function watchProductPage() {
+    if (!pdpHandle() || !window.MutationObserver) return;
+    const root = document.querySelector('#MainContent, main') || document.body;
+    new MutationObserver(scheduleProductPageRetry).observe(root, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
   /* ---------- Initialize (gated on the per-store config) ---------- */
   function init() {
     // The embed and the section block can both render the modal markup; keep only
@@ -582,6 +675,7 @@
     if (modals.length > 1) {
       for (let i = 1; i < modals.length; i++) modals[i].remove();
     }
+    ensureModal();
 
     document.addEventListener('click', (e) => {
       if (!featureConfigReady || !isEnabled()) return;
@@ -664,7 +758,8 @@
     // Product-page auto-injection of the notify button on out-of-stock variants.
     document.addEventListener('DOMContentLoaded', injectProductPage);
     if (document.readyState !== 'loading') injectProductPage();
-    document.addEventListener('shopify:section:load', injectProductPage);
+    document.addEventListener('shopify:section:load', scheduleProductPageRetry);
+    watchProductPage();
   }
 
   function boot() {

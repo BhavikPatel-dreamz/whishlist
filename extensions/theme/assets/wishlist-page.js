@@ -475,17 +475,14 @@
             window.location.assign('/cart');
           }
           setTimeout(() => renderDrawer(), 800);
-          // notify app of move-to-cart for metrics
+          // notify app of move-to-cart for analytics
           try {
             const card = btn.closest('.ws-item');
-            const cfg = CFG();
-            if (card && cfg && typeof fetch === 'function') {
-              fetch(`${cfg.proxyBase}/wishlist-event`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event: 'move_to_cart', productId: card.dataset.productId }),
-              }).catch(() => { });
-            }
+            await window.wsTrack?.('WISHLIST_ADD_TO_CART', {
+              productId: card?.dataset.productId || undefined,
+              variantId: btn.dataset.variantId || undefined,
+              source: 'wishlist',
+            });
           } catch (e) { }
           if (typeof fetch === 'function') {
             fetch('/cart.js').then((r) => r.json()).then((cart) => {
@@ -520,16 +517,13 @@
   }
 
   /* ---------- Render Page (horizontal rows) ---------- */
-  function trackPageView() {
+  async function trackPageView() {
     if (window.Shopify && window.Shopify.designMode) return;
     if (window.__wsWishlistPageViewTracked) return;
     window.__wsWishlistPageViewTracked = true;
-    fetch(`${CFG().proxyBase}/wishlist-event`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'page_view' }),
-      keepalive: true,
-    }).catch(() => { /* Analytics must not interrupt the wishlist. */ });
+    try {
+      await window.wsTrack?.('PRODUCT_VIEW', { source: 'pdp' });
+    } catch { /* Analytics must not interrupt the wishlist. */ }
   }
 
   let pageRenderVersion = 0;
@@ -610,17 +604,14 @@
           if (window.location.pathname !== '/cart') {
             window.location.assign('/cart');
           }
-          // notify app of move-to-cart for metrics
+          // notify app of move-to-cart for analytics
           try {
             const card = btn.closest('.ws-page-card');
-            const cfg = CFG();
-            if (card && cfg && typeof fetch === 'function') {
-              fetch(`${cfg.proxyBase}/wishlist-event`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event: 'move_to_cart', productId: card.dataset.productId }),
-              }).catch(() => { });
-            }
+            await window.wsTrack?.('WISHLIST_ADD_TO_CART', {
+              productId: card?.dataset.productId || undefined,
+              variantId: btn.dataset.variantId || undefined,
+              source: 'wishlist',
+            });
           } catch (e) { }
           if (typeof fetch === 'function') {
             fetch('/cart.js').then((r) => r.json()).then((cart) => {

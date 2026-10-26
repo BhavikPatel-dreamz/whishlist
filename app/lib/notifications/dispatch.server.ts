@@ -1,4 +1,5 @@
 import type { Shop, StockAlert } from "@prisma/client";
+import db from "../../db.server";
 import { resolveSettings } from "../shop.server";
 import { appOrigin } from "../app-url.server";
 import { signPayload } from "../crypto.server";
@@ -235,6 +236,28 @@ async function deliver(
     headerText: render(backInStockSettings?.headerText || "", emailVars),
   };
 
+  const channel = alert.channel === "sms" ? "SMS" : "EMAIL";
+  let logId: string | null = null;
+  try {
+    const log = await db.notificationLog.create({
+      data: {
+        shopId: alert.shopId,
+        kind: "RESTOCK",
+        channel,
+        subscriptionId: alert.id,
+        shopperId: alert.shopperId ?? alert.customerId ?? alert.contactKey,
+        productId: alert.productId,
+        variantId: alert.variantId,
+        status: "queued",
+        retryCount: alert.attempts,
+      },
+      select: { id: true },
+    });
+    logId = log.id;
+  } catch (error) {
+    console.error("[restock] unable to create notification log", error);
+  }
+
   const result =
     alert.channel === "sms"
       ? alert.phone
@@ -261,10 +284,26 @@ async function deliver(
           };
 
   if (!result.ok) {
+    if (logId) {
+      await db.notificationLog.update({
+        where: { id: logId },
+        data: {
+          status: "failed",
+          errorReason: result.error.slice(0, 500),
+          retryCount: alert.attempts,
+        },
+      });
+    }
     await markAlertFailed(alert.id, result.error, alert.attempts);
     return false;
   }
 
+  if (logId) {
+    await db.notificationLog.update({
+      where: { id: logId },
+      data: { status: "sent", sentAt: new Date(), errorReason: null },
+    });
+  }
   await markAlertSent(alert.id);
   return true;
 }
@@ -316,26 +355,30 @@ export async function retryStuckAlerts(params: {
   // `nodes()` accepts up to 250 ids; chunk to stay comfortably under that.
   // Chunks run concurrently (bounded) so a large sweep doesn't crawl.
   const chunks: string[][] = [];
-  for (let i = 0; i < variantIds.length; i += 100) chunks.push(variantIds.slice(i, i + 100));
+  for (let i = 0; i < variantIds.length; i += 100)
+    chunks.push(variantIds.slice(i, i + 100));
   let nextChunk = 0;
-  const workers = Array.from({ length: Math.min(3, chunks.length) }, async () => {
-    while (nextChunk < chunks.length) {
-      const chunk = chunks[nextChunk++];
-      const variants = await getVariantsByIds(admin, chunk);
-      for (const variant of variants) {
-        const dispatched = await dispatchRestockAlerts({
-          shop,
-          variant,
-          shopContext,
-        });
-        if (dispatched.claimed) {
-          result.variantsDispatched += 1;
-          result.sent += dispatched.sent;
-          result.failed += dispatched.failed;
+  const workers = Array.from(
+    { length: Math.min(3, chunks.length) },
+    async () => {
+      while (nextChunk < chunks.length) {
+        const chunk = chunks[nextChunk++];
+        const variants = await getVariantsByIds(admin, chunk);
+        for (const variant of variants) {
+          const dispatched = await dispatchRestockAlerts({
+            shop,
+            variant,
+            shopContext,
+          });
+          if (dispatched.claimed) {
+            result.variantsDispatched += 1;
+            result.sent += dispatched.sent;
+            result.failed += dispatched.failed;
+          }
         }
       }
-    }
-  });
+    },
+  );
   await Promise.all(workers);
 
   return result;

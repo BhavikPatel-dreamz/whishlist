@@ -32,11 +32,21 @@ export type MetricProduct = {
   currencyCode: string | null;
 };
 
+/** A product that has at least one out-of-stock variant, plus those variant titles. */
+export type OutOfStockVariantInfo = {
+  title: string;
+  imageUrl: string | null;
+  /** Titles of the variants that are out of stock, e.g. `["Honey", "Tan"]`. */
+  variants: string[];
+  /** Stock of the whole product, all variants together. */
+  stock?: number | null;
+};
+
 export function summarizeMetrics(
   items: MetricSave[],
   products: Map<string, MetricProduct>,
   names = new Map<string, string>(),
-  inventoryProducts = products,
+  outOfStockVariants?: Map<string, OutOfStockVariantInfo>,
 ) {
   const demand = new Map<string, { saves: number; shoppers: Set<string> }>();
   const shoppers = new Map<
@@ -84,21 +94,40 @@ export function summarizeMetrics(
         b.shoppers - a.shoppers ||
         a.productId.localeCompare(b.productId),
     );
-  const runningLow = [...inventoryProducts]
-    .filter(([, product]) => product.totalInventory <= 0)
-    .map(([productId, product]) => ({
-      productId,
-      title: product.title,
-      imageUrl: product.imageUrl,
-      stock: product.totalInventory,
-      shoppers: demand.get(productId)?.shoppers.size || 0,
-      saves: demand.get(productId)?.saves || 0,
-    }))
-    .sort(
-      (a, b) =>
-        a.title.localeCompare(b.title) ||
-        a.productId.localeCompare(b.productId),
-    );
+  // "Running out soon" is variant level: a product shows up as soon as one of its
+  // variants runs out, even when the other variants are still in stock.
+  const runningLow = outOfStockVariants
+    ? [...outOfStockVariants]
+        .map(([productId, info]) => ({
+          productId,
+          title: info.title,
+          imageUrl: info.imageUrl,
+          stock: info.stock ?? products.get(productId)?.totalInventory ?? null,
+          shoppers: demand.get(productId)?.shoppers.size || 0,
+          saves: demand.get(productId)?.saves || 0,
+          variants: info.variants,
+        }))
+        .sort(
+          (a, b) =>
+            a.title.localeCompare(b.title) ||
+            a.productId.localeCompare(b.productId),
+        )
+    : [...products]
+        .filter(([, product]) => product.totalInventory <= 0)
+        .map(([productId, product]) => ({
+          productId,
+          title: product.title,
+          imageUrl: product.imageUrl,
+          stock: product.totalInventory,
+          shoppers: demand.get(productId)?.shoppers.size || 0,
+          saves: demand.get(productId)?.saves || 0,
+          variants: [] as string[],
+        }))
+        .sort(
+          (a, b) =>
+            a.title.localeCompare(b.title) ||
+            a.productId.localeCompare(b.productId),
+        );
   const shopperRows = [...shoppers]
     .map(([, shopper], index) => {
       const value = new Map<string, number>();

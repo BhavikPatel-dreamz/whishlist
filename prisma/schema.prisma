@@ -81,6 +81,14 @@ model Shop {
   webhookEvents   WebhookEvent[]
   rateLimits      RateLimitBucket[]
   uiConfig        UIConfig?
+
+  // --- Analytics ---
+  settings        ShopSettings?
+  trackingEvents  TrackingEvent[]
+  notificationLogs NotificationLog[]
+  attributions    Attribution[]
+  inventoryCache  InventoryCache[]
+  dailyStats      DailyStat[]
 }
 
 /// A saved product. Keyed by Shopify customer id when logged in, else by a browser guest token.
@@ -95,6 +103,11 @@ model WishlistItem {
   listName   String   @default("My Wishlist")
   handle     String? // cached product handle for fast storefront links
   createdAt  DateTime @default(now())
+
+  // --- Analytics ---
+  shopperId  String? // unified identity: customer id when logged in, else the guest token
+  source     String? // where the save happened: pdp | collection | search | cart | other
+  device     String? // desktop | mobile | tablet
 
   @@unique([shopId, customerId, productId, variantId], name: "customer_product")
   @@unique([shopId, guestToken, productId, variantId], name: "guest_product")
@@ -149,6 +162,13 @@ model StockAlert {
   purchasedAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  // --- Analytics ---
+  shopperId    String? // unified identity: customer id when logged in, else the contact key
+  source       String? // where the signup happened: pdp | collection | search | cart | other
+  device       String? // desktop | mobile | tablet
+  confirmed    Boolean  @default(true) // double opt-in: false until the shopper confirms
+  pendingReason String? // out_of_stock | queued | unconfirmed
 
   @@unique([shopId, variantId, contactKey], name: "one_alert_per_contact_variant")
   @@index([shopId, variantId, status])
@@ -248,6 +268,7 @@ model WishlistShare {
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
   customerId String
   mode String
+  listName String?
   products Json
   createdAt DateTime @default(now())
   @@index([shopId, createdAt])
@@ -261,5 +282,192 @@ model WishlistList {
   owner String
   name String
   createdAt DateTime @default(now())
+
   @@unique([shopId, owner, name])
+}
+
+// ---------------------------------------------------------------------------
+// Analytics — see ANALYTICS_REPORTS_SPEC.md sections 4 and 7.
+// These tables are additive: the wishlist/back-in-stock tables above keep
+// serving the storefront, and the analytics tables serve the reports.
+// ---------------------------------------------------------------------------
+
+/// Per-store analytics settings (attribution windows, thresholds, timezone).
+model ShopSettings {
+  shopId             String   @id
+  shop               Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  wishlistWindowDays Int      @default(14)
+  restockWindowDays  Int      @default(7)
+  abandonedAfterDays Int      @default(30)
+  lowStockThreshold  Int      @default(5)
+  timezone           String   @default("UTC")
+  weeklyReportEmail  Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+/// Storefront events, appended on every tracked interaction.
+enum EventType {
+  PRODUCT_VIEW
+  WISHLIST_SAVE
+  WISHLIST_REMOVE
+  WISHLIST_ADD_TO_CART
+  WISHLIST_SHARE
+  WISHLIST_SHARE_VISIT
+  ALERT_FORM_VIEW
+  ALERT_SUBSCRIBE
+  NOTIFICATION_CLICK
+}
+
+/// Append-only event log for the storefront tracking endpoint.
+model TrackingEvent {
+  id         String    @id @default(uuid())
+  shopId     String
+  shop       Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopperId  String
+  customerId String?
+  type       EventType
+  productId  String?
+  variantId  String?
+  channel    String? // share channel: link | email | social
+  source     String?
+  device     String?
+  meta       Json?
+  createdAt  DateTime  @default(now())
+
+  @@index([shopId, type, createdAt])
+  @@index([shopId, productId, type])
+  @@index([shopId, shopperId, createdAt])
+}
+
+/// What a notification was about.
+enum NotifKind {
+  RESTOCK
+  WISHLIST_REMINDER
+  PRICE_DROP
+  LOW_STOCK_NUDGE
+}
+
+/// Delivery channel of a notification.
+enum Channel {
+  EMAIL
+  SMS
+  WHATSAPP
+  PUSH
+}
+
+/// One row per notification attempt, with its delivery timeline.
+model NotificationLog {
+  id                String    @id @default(uuid())
+  shopId            String
+  shop              Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  kind              NotifKind
+  channel           Channel
+  subscriptionId    String?
+  wishlistItemId    String?
+  shopperId         String
+  productId         String
+  variantId         String?
+  status            String // queued | sent | delivered | bounced | failed
+  errorReason       String?
+  retryCount        Int       @default(0)
+  restockedAt       DateTime?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  openedAt          DateTime?
+  clickedAt         DateTime?
+  unsubscribedAt    DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@index([shopId, kind, sentAt])
+  @@index([shopId, status, sentAt])
+  @@index([shopId, subscriptionId])
+}
+
+/// Which feature produced the attribution.
+enum AttrSource {
+  WISHLIST
+  RESTOCK_ALERT
+}
+
+/// Whether the attribution is proven (direct) or inferred (estimated).
+enum AttrType {
+  DIRECT
+  ESTIMATED
+}
+
+/// One attributed order line. `model` selects the attribution rule set:
+/// `last_click` keeps one row per line, `any_touch` keeps every qualifying touch.
+model Attribution {
+  id                String     @id @default(uuid())
+  shopId            String
+  shop              Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orderId           String
+  lineItemId        String
+  orderNumber       String
+  customerId        String?
+  shopperId         String?
+  productId         String
+  variantId         String?
+  source            AttrSource
+  type              AttrType
+  model             String     @default("last_click")
+  notificationLogId String?
+  wishlistItemId    String?
+  revenue           Decimal    @default(0) @db.Decimal(12, 2)
+  quantity          Int        @default(1)
+  orderedAt         DateTime
+  touchAt           DateTime // when the qualifying save/click happened
+
+  @@unique([shopId, lineItemId, source, model])
+  @@index([shopId, orderedAt])
+  @@index([shopId, productId, orderedAt])
+  @@index([shopId, source, type, orderedAt])
+}
+
+/// Cached variant inventory so reports never have to walk every product.
+model InventoryCache {
+  shopId           String
+  shop             Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  variantId        String
+  productId        String
+  quantity         Int      @default(0)
+  status           String   @default("in_stock") // in_stock | low_stock | out_of_stock
+  price            Decimal? @db.Decimal(12, 2)
+  updatedAt        DateTime @updatedAt
+  lastOutOfStockAt DateTime?
+  lastRestockedAt  DateTime?
+
+  @@id([shopId, variantId])
+  @@index([shopId, status])
+}
+
+/// One row per shop per day — the rollup every report summary reads from.
+model DailyStat {
+  shopId String
+  shop   Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  date   DateTime @db.Date
+
+  productViews          Int @default(0)
+  wishlistSaves         Int @default(0)
+  wishlistRemoves       Int @default(0)
+  uniqueSavers          Int @default(0)
+  wishlistAddToCart     Int @default(0)
+  shares                Int @default(0)
+  shareVisits           Int @default(0)
+  alertSubscriptions    Int @default(0)
+  pendingAlerts         Int @default(0)
+  notificationsSent     Int @default(0)
+  notificationsDelivered Int @default(0)
+  notificationsOpened   Int @default(0)
+  notificationClicks    Int @default(0)
+  unsubscribes          Int @default(0)
+  wishlistOrders        Int @default(0)
+  restockOrders         Int @default(0)
+  wishlistRevenueDirect    Decimal @default(0) @db.Decimal(12, 2)
+  wishlistRevenueEstimated Decimal @default(0) @db.Decimal(12, 2)
+  restockRevenueDirect     Decimal @default(0) @db.Decimal(12, 2)
+  restockRevenueEstimated  Decimal @default(0) @db.Decimal(12, 2)
+
+  @@id([shopId, date])
 }

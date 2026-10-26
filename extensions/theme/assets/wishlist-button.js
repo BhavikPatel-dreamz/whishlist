@@ -631,11 +631,14 @@
     const launchMode = c.launchFrom === 'header' || c.launchFrom === 'floating' || c.launchFrom === 'menu'
       ? c.launchFrom
       : 'floating';
+    const menuAvailable = Boolean(document.querySelector(
+      '.header__inline-menu > ul, .menu-drawer__navigation > .menu-drawer__menu, header-menu overflow-list, .menu-list--mobile > .menu-list__scroll-container > .menu-list__list'
+    ));
 
     // Launch choices are exclusive: the header icon is rendered only for the
     // Header mode. The theme-embed toggle remains the merchant's master gate.
     const showHeader = launchMode === 'header' && on('headerLink', false);
-    const showFloating = launchMode === 'floating';
+    const showFloating = launchMode === 'floating' || (launchMode === 'menu' && !menuAvailable);
     const showMenu = launchMode === 'menu';
 
     if (header) {
@@ -1146,28 +1149,57 @@
   }
 
   function mainProductForm() {
+    const root = document.querySelector('#MainContent, main') || document;
     const forms = Array.from(
       new Set(
-        document.querySelectorAll(
-          'form[action*="/cart/add"], form[data-type="add-to-cart-form"], product-form-component form, product-form form'
-        )
+        root.querySelectorAll('form')
       )
     );
-    if (!forms.length) return null;
     const notInCard = (f) =>
       !f.closest('.card, .card-wrapper, product-card, .product-card, [data-product-card]');
-    return (
-      forms.find((f) => notInCard(f) && f.closest('#MainContent, main, .product, .product-information, .shopify-section')) ||
-      forms.find(notInCard) ||
-      forms[0]
+    const productForms = forms.filter(notInCard);
+    const cartForm = productForms.find((form) =>
+      form.matches('form[action*="/cart/add"], form[data-type="add-to-cart-form"]') ||
+      form.querySelector('[name="add"]'),
     );
+    if (cartForm) return cartForm;
+
+    const quoteButton = Array.from(root.querySelectorAll('button, a, [role="button"]'))
+      .find((element) => /request\s+(a\s+)?quote/i.test(element.textContent || ''));
+    if (quoteButton) return quoteButton.closest('form') || quoteButton.parentElement;
+
+    return productForms.find((form) =>
+      form.querySelector('[name="id"], [name="variant_id"], select[name*="option"], input[type="radio"][name*="option"]'),
+    ) || root.querySelector('.product__info-container, .product-information, .product__info');
   }
 
-  function currentVariantId(form) {
+  function currentVariantId(form, product) {
     const fromUrl = new URLSearchParams(location.search).get('variant');
     if (fromUrl) return fromUrl;
-    const input = form && form.querySelector('[name="id"]');
-    return input && input.value ? input.value : '';
+    const root = productPageScope(form);
+    const input = (form && form.querySelector('[name="id"], [name="variant_id"]')) ||
+      root.querySelector('[name="id"], [name="variant_id"]');
+    if (input && input.value) return input.value;
+
+    if (product && Array.isArray(product.variants)) {
+      const pickers = root.querySelectorAll('variant-selects, variant-radios, [data-variant-picker]');
+      for (const picker of pickers) {
+        const groups = picker.querySelectorAll('fieldset, .product-form__input');
+        const optionValues = Array.from(groups).map((group) => {
+          const select = group.querySelector('select');
+          const checked = group.querySelector('input[type="radio"]:checked');
+          const active = group.querySelector('[aria-checked="true"], [aria-pressed="true"], [data-selected="true"]');
+          return select?.value || checked?.value || active?.dataset.value || active?.textContent?.trim() || '';
+        }).filter(Boolean);
+        if (!optionValues.length) continue;
+        const variant = product.variants.find((candidate) =>
+          optionValues.every((value, index) => String(candidate.options?.[index]) === value),
+        );
+        if (variant) return String(variant.id);
+      }
+    }
+
+    return '';
   }
 
   function productPageScope(form) {
@@ -1231,7 +1263,7 @@
 
       const pid = product ? String(product.id) : '';
       const vid =
-        currentVariantId(form) ||
+        currentVariantId(form, product) ||
         (product && product.variants && product.variants[0] ? String(product.variants[0].id) : '');
 
       const wrap = document.createElement('div');
@@ -1258,12 +1290,13 @@
       }
       refreshHeartStates();
 
-      if (!form.__wsWishlistBound) {
-        form.__wsWishlistBound = true;
-        form.addEventListener('change', () => {
+      const pickerRoot = document.querySelector('#MainContent, main') || document;
+      if (!pickerRoot.__wsWishlistBound) {
+        pickerRoot.__wsWishlistBound = true;
+        pickerRoot.addEventListener('change', () => {
           setTimeout(() => {
             const h = document.querySelector('#ws-pdp .wishlist-heart');
-            const nv = currentVariantId(form);
+            const nv = currentVariantId(form, product);
             if (h && nv) h.dataset.variantId = nv;
           }, 60);
         });
