@@ -24,7 +24,9 @@ export type AnalyticsParams = {
   groupBy: GroupBy;
   collectionId: string | null;
   productId: string | null;
+  customerType: string | null;
   status: string | null;
+  reason: string | null;
   channel: string | null;
   q: string | null;
   page: number;
@@ -161,7 +163,9 @@ export function parseAnalyticsParams(
     groupBy,
     collectionId: trimmed(params.get("collectionId")),
     productId: trimmed(params.get("productId")),
+    customerType: trimmed(params.get("customerType")),
     status: trimmed(params.get("status")),
+    reason: trimmed(params.get("reason")),
     channel: trimmed(params.get("channel")),
     q: trimmed(params.get("q")),
     page: parsePositiveInt(params.get("page"), 1, 100000),

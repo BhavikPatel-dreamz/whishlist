@@ -1,6 +1,6 @@
 /* Classic Analytics — exact replication of the HTML demo UI.
    Light/dark theme via CSS variables, matching the original colour palette. */
-:root {
+.ca-body {
   --ca-bg: #f1f2f4;
   --ca-sf: #fff;
   --ca-tx: #1f2328;
@@ -134,9 +134,9 @@ label.ca-cb {
   white-space: nowrap;
 }
 .ca-chip.on {
-  background: var(--ca-tx);
-  color: var(--ca-bg);
-  border-color: var(--ca-tx);
+  background: var(--ca-ac);
+  color: #fff;
+  border-color: var(--ca-ac);
 }
 .ca-card {
   background: var(--ca-sf);
@@ -150,6 +150,18 @@ label.ca-cb {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
   margin-top: 12px;
+}
+.ca-kpis--conversion {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.ca-kpis--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ca-report-intro {
+  margin: 12px 0;
+}
+.ca-report-intro .ca-mu + .ca-mu {
+  margin-top: 8px;
 }
 .ca-k {
   background: var(--ca-sf);
@@ -177,6 +189,16 @@ label.ca-cb {
 .ca-k-active {
   border-color: var(--ca-ac);
   box-shadow: inset 0 -2px 0 var(--ca-ac);
+}
+.ca-kpi-hint {
+  margin: 6px 2px 0;
+  font-size: 12px;
+}
+.ca-overview-detail .ca-row {
+  margin-bottom: 10px;
+}
+.ca-overview-detail .ca-table th {
+  cursor: default;
 }
 .ca-dl {
   font-size: 12px;
@@ -229,6 +251,30 @@ label.ca-cb {
   padding: 8px 10px;
   border-bottom: 1px solid var(--ca-bd);
   white-space: nowrap;
+}
+.ca-product-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 170px;
+}
+.ca-product-cell img,
+.ca-product-placeholder {
+  display: block;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--ca-bd);
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--ca-hv);
+}
+.ca-table--wishlisted td:nth-child(3) {
+  /* Variant names can be long; preserve the table's readable width while
+     allowing the existing horizontal scroll container to handle overflow. */
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ca-table th {
   font-weight: 600;
@@ -309,15 +355,216 @@ label.ca-cb {
 .ca-thead-th {
   cursor: pointer;
 }
-button:focus-visible,
-select:focus-visible,
-input:focus-visible {
+.ca-body button:focus-visible,
+.ca-body select:focus-visible,
+.ca-body input:focus-visible {
   outline: 2px solid var(--ca-bl);
   outline-offset: 1px;
+}
+.ca-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
 }
 @media (max-width: 560px) {
   .ca-w {
     padding: 12px;
   }
+  .ca-kpis--conversion {
+    grid-template-columns: 1fr;
+  }
 }
 
+/* ------------------------------------------------------------------ */
+/* Product drill-down drawer (Overview → Top 5 products by saves)      */
+/* ------------------------------------------------------------------ */
+.ca-clickable {
+  cursor: pointer;
+}
+.ca-clickable:hover td {
+  background: var(--ca-hv);
+}
+.ca-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ca-bl);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ca-link:hover {
+  text-decoration: underline;
+}
+.ca-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(16, 24, 40, 0.42);
+}
+.ca-drawer {
+  display: flex;
+  flex-direction: column;
+  width: min(820px, 100%);
+  height: 100%;
+  background: var(--ca-sf);
+  color: var(--ca-tx);
+  box-shadow: -12px 0 32px rgba(16, 24, 40, 0.18);
+  animation: ca-drawer-in 0.18s ease-out;
+}
+@keyframes ca-drawer-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0.6;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.ca-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--ca-bd);
+}
+.ca-drawer-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.ca-drawer-title img,
+.ca-drawer-thumb {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 8px;
+  border: 1px solid var(--ca-bd);
+  object-fit: cover;
+  background: var(--ca-hv);
+}
+.ca-drawer-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ca-mu);
+  font-size: 18px;
+}
+.ca-drawer-title h2 {
+  margin: 0;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ca-drawer-close {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--ca-bd);
+  background: var(--ca-sf);
+  color: var(--ca-tx);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ca-drawer-close:hover {
+  background: var(--ca-hv);
+}
+.ca-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 16px;
+  overflow-y: auto;
+}
+.ca-drawer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ca-mu);
+}
+.ca-drawer-link {
+  color: var(--ca-bl);
+  text-decoration: none;
+  font-weight: 600;
+}
+.ca-drawer-link:hover {
+  text-decoration: underline;
+}
+.ca-drawer-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.ca-kpi {
+  border: 1px solid var(--ca-bd);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--ca-hv);
+  min-width: 0;
+}
+.ca-kpi span {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ca-mu);
+}
+.ca-kpi strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ca-detail-section {
+  border-top: 1px solid var(--ca-bd);
+  padding-top: 16px;
+}
+.ca-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ca-detail-head .ca-h3 {
+  margin: 0;
+}
+.ca-detail-section .ca-tw {
+  margin-top: 8px;
+}
+.ca-table--compact th,
+.ca-table--compact td {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.ca-table--compact th {
+  cursor: default;
+}
+.ca-table--compact tfoot td {
+  border-bottom: 0;
+}
+.ca-drawer-empty {
+  margin: 8px 0 0;
+  padding: 12px;
+  border: 1px dashed var(--ca-bd);
+  border-radius: 8px;
+  color: var(--ca-mu);
+  font-size: 13px;
+}
+.ca-drawer-state {
+  margin: 0;
+  color: var(--ca-mu);
+  font-size: 13px;
+}

@@ -169,6 +169,7 @@ export type ProductSummary = {
   onlineStoreUrl: string | null;
   imageUrl: string | null;
   totalInventory: number;
+  totalVariants: number;
   minPrice: string | null;
   currencyCode: string | null;
   availableForSale: boolean;
@@ -265,6 +266,7 @@ export async function getProductsByIds(
             status: string;
             onlineStoreUrl: string | null;
             totalInventory: number | null;
+            totalVariants: number | null;
             featuredImage: { url: string } | null;
             priceRangeV2: {
               minVariantPrice: { amount: string; currencyCode: string };
@@ -295,6 +297,7 @@ export async function getProductsByIds(
              status
              onlineStoreUrl
              totalInventory
+             totalVariants
              featuredImage { url }
              priceRangeV2 { minVariantPrice { amount currencyCode } }
              variants(first: $variantLimit) {
@@ -328,6 +331,7 @@ export async function getProductsByIds(
             onlineStoreUrl: node.onlineStoreUrl,
             imageUrl: node.featuredImage?.url ?? null,
             totalInventory: node.totalInventory ?? 0,
+            totalVariants: node.totalVariants ?? variants.length,
             minPrice: node.priceRangeV2?.minVariantPrice?.amount ?? null,
             currencyCode:
               node.priceRangeV2?.minVariantPrice?.currencyCode ?? null,
@@ -383,6 +387,7 @@ export async function getFirstProduct(
         status: string;
         onlineStoreUrl: string | null;
         totalInventory: number | null;
+        totalVariants: number | null;
         featuredImage: { url: string } | null;
         priceRangeV2: {
           minVariantPrice: { amount: string; currencyCode: string };
@@ -411,6 +416,7 @@ export async function getFirstProduct(
            status
            onlineStoreUrl
            totalInventory
+           totalVariants
            featuredImage { url }
            priceRangeV2 { minVariantPrice { amount currencyCode } }
            variants(first: 10) {
@@ -441,6 +447,7 @@ export async function getFirstProduct(
     onlineStoreUrl: node.onlineStoreUrl,
     imageUrl: node.featuredImage?.url ?? null,
     totalInventory: node.totalInventory ?? 0,
+    totalVariants: node.totalVariants ?? variants.length,
     minPrice: node.priceRangeV2?.minVariantPrice?.amount ?? null,
     currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode ?? null,
     availableForSale: variants.some((variant) => variant.availableForSale),

@@ -110,7 +110,7 @@ type ShopifyOrderDetails = {
   email: string | null;
 };
 
-async function loadShopifyOrderDetails(
+export async function loadShopifyOrderDetails(
   admin: GraphqlClient,
   rawOrderIds: string[],
 ): Promise<Map<string, ShopifyOrderDetails>> {
@@ -505,34 +505,53 @@ async function overviewData(
   previous: DateRange | null,
   groupBy: AnalyticsParams["groupBy"],
 ): Promise<ReportData> {
-  const [
-    totals,
-    previousTotals,
-    currentSeries,
-    previousSeries,
+  const totals = await addWishlistOrderTotals(
+    shopId,
+    admin,
+    range,
+    await dailyTotals(shopId, range),
+  );
+  const previousTotals = previous
+    ? await addWishlistOrderTotals(
+        shopId,
+        admin,
+        previous,
+        await dailyTotals(shopId, previous),
+      )
+    : null;
+  const currentSeries = await dailySeries(shopId, range, groupBy);
+  const previousSeries = previous
+    ? await dailySeries(shopId, previous, groupBy)
+    : null;
+  const [pendingAlerts, totalAlertSubscriptions, previousAlertSubscriptions] =
+    await Promise.all([
+      db.stockAlert.count({ where: { shopId, status: "PENDING" } }),
+      // This is a current subscription snapshot, matching the "Total
+      // subscriptions" KPI on the Alert subscriptions report.
+      db.stockAlert.count({ where: { shopId } }),
+      previous
+        ? db.stockAlert.count({
+            where: {
+              shopId,
+              createdAt: { lt: rangeBounds(previous).lt },
+            },
+          })
+        : Promise.resolve(0),
+    ]);
+  const currentTrendExtras = await overviewTrendExtras(shopId, range, groupBy);
+  const previousTrendExtras = previous
+    ? await overviewTrendExtras(shopId, previous, groupBy)
+    : null;
+  const summary = {
+    ...totalsSummary(totals),
+    alertSubscriptions: totalAlertSubscriptions,
     pendingAlerts,
-    currentTrendExtras,
-    previousTrendExtras,
-  ] = await Promise.all([
-    dailyTotals(shopId, range).then((totals) =>
-      addWishlistOrderTotals(shopId, admin, range, totals),
-    ),
-    previous
-      ? dailyTotals(shopId, previous).then((totals) =>
-          addWishlistOrderTotals(shopId, admin, previous, totals),
-        )
-      : Promise.resolve(null),
-    dailySeries(shopId, range, groupBy),
-    previous ? dailySeries(shopId, previous, groupBy) : Promise.resolve(null),
-    db.stockAlert.count({ where: { shopId, status: "PENDING" } }),
-    overviewTrendExtras(shopId, range, groupBy),
-    previous
-      ? overviewTrendExtras(shopId, previous, groupBy)
-      : Promise.resolve(null),
-  ]);
-  const summary = { ...totalsSummary(totals), pendingAlerts };
+  };
   const previousSummary: Record<string, number> = previousTotals
-    ? totalsSummary(previousTotals)
+    ? {
+        ...totalsSummary(previousTotals),
+        alertSubscriptions: previousAlertSubscriptions,
+      }
     : {};
   const delta = previousTotals
     ? compareTotals(summary, previousSummary)
@@ -669,27 +688,44 @@ async function activityData(
   previous: DateRange | null,
   groupBy: AnalyticsParams["groupBy"],
 ): Promise<ReportData> {
-  const [totals, previousTotals, currentSeries, previousSeries] =
-    await Promise.all([
-      dailyTotals(shopId, range),
-      previous ? dailyTotals(shopId, previous) : Promise.resolve(null),
-      dailySeries(shopId, range, groupBy),
-      previous ? dailySeries(shopId, previous, groupBy) : Promise.resolve(null),
-    ]);
-  const series = currentSeries.map((row, index) => ({
-    date: row.bucket,
-    saves: row.wishlistSaves,
-    subscriptions: row.alertSubscriptions,
-    notificationsSent: row.notificationsSent,
-    ...(previousSeries
-      ? {
-          previousSaves: previousSeries[index]?.wishlistSaves ?? 0,
-          previousSubscriptions: previousSeries[index]?.alertSubscriptions ?? 0,
-          previousNotificationsSent:
-            previousSeries[index]?.notificationsSent ?? 0,
-        }
-      : {}),
-  }));
+  const [
+    totals,
+    previousTotals,
+    currentSeries,
+    previousSeries,
+    currentExtras,
+    previousExtras,
+  ] = await Promise.all([
+    dailyTotals(shopId, range),
+    previous ? dailyTotals(shopId, previous) : Promise.resolve(null),
+    dailySeries(shopId, range, groupBy),
+    previous ? dailySeries(shopId, previous, groupBy) : Promise.resolve(null),
+    overviewTrendExtras(shopId, range, groupBy),
+    previous
+      ? overviewTrendExtras(shopId, previous, groupBy)
+      : Promise.resolve(null),
+  ]);
+  const series = currentSeries.map((row, index) => {
+    const previousRow = previousSeries?.[index];
+    return {
+      date: row.bucket,
+      saves: row.wishlistSaves,
+      uniqueSavers: currentExtras.get(row.bucket)?.uniqueSavers ?? 0,
+      subscriptions: row.alertSubscriptions,
+      notificationsSent: row.notificationsSent,
+      ...(previousSeries
+        ? {
+            previousSaves: previousRow?.wishlistSaves ?? 0,
+            previousUniqueSavers:
+              previousRow && previousExtras
+                ? (previousExtras.get(previousRow.bucket)?.uniqueSavers ?? 0)
+                : 0,
+            previousSubscriptions: previousRow?.alertSubscriptions ?? 0,
+            previousNotificationsSent: previousRow?.notificationsSent ?? 0,
+          }
+        : {}),
+    };
+  });
   const summary = totalsSummary(totals);
   return {
     summary,
@@ -862,23 +898,29 @@ async function wishlistProductData(
   conversion: boolean,
 ): Promise<ReportData> {
   const bounds = rangeBounds(range);
-  const [events, uniqueRows, wishlistItems, attributions, wishlistOrders] =
-    await Promise.all([
-      db.trackingEvent.groupBy({
-        by: ["productId", "type"],
-        where: {
-          shopId,
-          createdAt: bounds,
-          productId: { not: null },
-          type: {
-            in: ["PRODUCT_VIEW", "WISHLIST_SAVE", "WISHLIST_ADD_TO_CART"],
-          },
+  const [
+    events,
+    uniqueRows,
+    wishlistedVariants,
+    wishlistItems,
+    attributions,
+    wishlistOrders,
+  ] = await Promise.all([
+    db.trackingEvent.groupBy({
+      by: ["productId", "type"],
+      where: {
+        shopId,
+        createdAt: bounds,
+        productId: { not: null },
+        type: {
+          in: ["PRODUCT_VIEW", "WISHLIST_SAVE", "WISHLIST_ADD_TO_CART"],
         },
-        _count: { _all: true },
-      }),
-      db.$queryRaw<
-        Array<{ productId: string; uniqueShoppers: number }>
-      >(Prisma.sql`
+      },
+      _count: { _all: true },
+    }),
+    db.$queryRaw<
+      Array<{ productId: string; uniqueShoppers: number }>
+    >(Prisma.sql`
       SELECT "productId", COUNT(DISTINCT "shopperId")::int AS "uniqueShoppers"
       FROM "TrackingEvent"
       WHERE "shopId" = ${shopId}
@@ -888,36 +930,47 @@ async function wishlistProductData(
         AND "createdAt" < ${bounds.lt}
       GROUP BY "productId"
     `),
-      db.wishlistItem.findMany({
-        where: { shopId, createdAt: bounds },
-        select: {
-          productId: true,
-          shopperId: true,
-          customerId: true,
-          guestToken: true,
-        },
-      }),
-      db.attribution.findMany({
-        where: {
-          shopId,
-          source: "WISHLIST",
-          model: "last_click",
-          orderedAt: bounds,
-        },
-        select: {
-          orderId: true,
-          productId: true,
-          orderedAt: true,
-          touchAt: true,
-          revenue: true,
-          type: true,
-        },
-      }),
-      db.wishlistOrder.findMany({
-        where: { shopId, createdAt: bounds },
-        select: { orderId: true, productId: true },
-      }),
-    ]);
+    db.trackingEvent.groupBy({
+      by: ["productId", "variantId"],
+      where: {
+        shopId,
+        type: "WISHLIST_SAVE",
+        createdAt: bounds,
+        productId: { not: null },
+        variantId: { not: null },
+      },
+    }),
+    db.wishlistItem.findMany({
+      where: { shopId, createdAt: bounds },
+      select: {
+        productId: true,
+        variantId: true,
+        shopperId: true,
+        customerId: true,
+        guestToken: true,
+      },
+    }),
+    db.attribution.findMany({
+      where: {
+        shopId,
+        source: "WISHLIST",
+        model: "last_click",
+        orderedAt: bounds,
+      },
+      select: {
+        orderId: true,
+        productId: true,
+        orderedAt: true,
+        touchAt: true,
+        revenue: true,
+        type: true,
+      },
+    }),
+    db.wishlistOrder.findMany({
+      where: { shopId, createdAt: bounds },
+      select: { orderId: true, productId: true },
+    }),
+  ]);
   const groups = new Map<
     string,
     {
@@ -957,9 +1010,27 @@ async function wishlistProductData(
   }
   for (const row of uniqueRows)
     groupFor(row.productId).uniqueShoppers = row.uniqueShoppers;
+  // Only variants that were actually wishlisted during this period belong in
+  // this report. Do not count every variant configured on the Shopify product.
+  const variantIdsByProduct = new Map<string, Set<string>>();
+  const addWishlistedVariant = (
+    productId: string,
+    variantId: string | null,
+  ) => {
+    if (!variantId) return;
+    const ids = variantIdsByProduct.get(productId) ?? new Set<string>();
+    ids.add(variantId);
+    variantIdsByProduct.set(productId, ids);
+  };
+  for (const row of wishlistedVariants) {
+    if (row.productId && row.variantId) {
+      addWishlistedVariant(row.productId, row.variantId);
+    }
+  }
   const wishlistCounts = new Map<string, number>();
   const wishlistShoppers = new Map<string, Set<string>>();
   for (const item of wishlistItems) {
+    addWishlistedVariant(item.productId, item.variantId);
     wishlistCounts.set(
       item.productId,
       (wishlistCounts.get(item.productId) ?? 0) + 1,
@@ -1004,11 +1075,26 @@ async function wishlistProductData(
   }
 
   const productIds = [...groups.keys()];
-  const products = await getProductsByIds(admin, productIds, 1).catch(
+  // Variant count and names are shown in this report, so fetch the variants
+  // instead of the default single-variant product summary.
+  const products = await getProductsByIds(admin, productIds, 250).catch(
     () => new Map<string, ProductSummary>(),
   );
   const rows = productIds.map((productId) => {
     const group = groups.get(productId)!;
+    const wishlistedVariantIds =
+      variantIdsByProduct.get(productId) ?? new Set();
+    const productVariants = products.get(productId)?.variants ?? [];
+    const matchedVariants = productVariants.filter((variant) =>
+      wishlistedVariantIds.has(variant.variantId),
+    );
+    const matchedIds = new Set(
+      matchedVariants.map((variant) => variant.variantId),
+    );
+    const variantNames = [
+      ...matchedVariants.map((variant) => variant.title),
+      ...[...wishlistedVariantIds].filter((id) => !matchedIds.has(id)),
+    ];
     const revenueType = revenueLabel(
       group.directRevenue,
       group.estimatedRevenue,
@@ -1042,11 +1128,10 @@ async function wishlistProductData(
       : {
           productId,
           title: products.get(productId)?.title ?? productId,
-          collection:
-            products
-              .get(productId)
-              ?.collections.map((item) => item.title)
-              .join(", ") || "—",
+          variantCount: wishlistedVariantIds.size,
+          variantNames: variantNames.join(", ") || "—",
+          // Kept for the collection filter; it is no longer a visible column.
+          collections: products.get(productId)?.collections ?? [],
           collectionIds:
             products
               .get(productId)
@@ -1062,6 +1147,23 @@ async function wishlistProductData(
           ),
         };
   });
+  if (conversion) {
+    const conversionRows = rows as Array<Record<string, unknown>>;
+    conversionRows.sort(
+      (left, right) =>
+        Number(right.conversionRate ?? 0) - Number(left.conversionRate ?? 0),
+    );
+    const bestCount = Math.max(1, Math.ceil(conversionRows.length * 0.25));
+    const averageCount = Math.ceil(conversionRows.length * 0.5);
+    conversionRows.forEach((row, index) => {
+      row.rank =
+        index < bestCount
+          ? "Best"
+          : index < bestCount + averageCount
+            ? "Average"
+            : "Needs attention";
+    });
+  }
   const saves = rows.reduce((sum, row) => sum + row.saves, 0);
   const purchases = rows.reduce((sum, row) => sum + row.purchases, 0);
   const totalViews = [...groups.values()].reduce(
@@ -1079,6 +1181,10 @@ async function wishlistProductData(
   ).size;
   const summary = {
     products: rows.length,
+    variantCount: [...variantIdsByProduct.values()].reduce(
+      (sum, variantIds) => sum + variantIds.size,
+      0,
+    ),
     saves,
     purchases,
     uniqueShoppers,
@@ -1150,19 +1256,21 @@ async function alertSubscriptionData(
   const recentCounts = new Map(
     recent.map((row) => [`${row.productId}:${row.variantId}`, row._count._all]),
   );
-  const rows = all.map((row) => {
-    const key = `${row.productId}:${row.variantId}`;
-    return {
-      productId: row.productId,
-      variantId: row.variantId,
-      title: row.productTitle ?? row.productId,
-      variantTitle: row.variantTitle ?? row.variantId,
-      totalSubscriptions: row.totalSubscriptions,
-      newSubscriptions: recentCounts.get(key) ?? 0,
-      notified: row.notified,
-      waiting: row.waiting,
-    };
-  });
+  const rows = all
+    .map((row) => {
+      const key = `${row.productId}:${row.variantId}`;
+      return {
+        productId: row.productId,
+        variantId: row.variantId,
+        title: row.productTitle ?? row.productId,
+        variantTitle: row.variantTitle ?? row.variantId,
+        totalSubscriptions: row.totalSubscriptions,
+        newSubscriptions: recentCounts.get(key) ?? 0,
+        notified: row.notified,
+        waiting: row.waiting,
+      };
+    })
+    .sort((left, right) => right.totalSubscriptions - left.totalSubscriptions);
   return {
     summary: {
       variants: rows.length,
@@ -1188,7 +1296,8 @@ async function pendingAlertData(
   const alerts = await db.stockAlert.findMany({
     where: {
       shopId,
-      status: params.status ?? "PENDING",
+      status: "PENDING",
+      ...(params.reason ? { pendingReason: params.reason } : {}),
       createdAt: rangeBounds(range),
     },
     orderBy: { createdAt: "desc" },
@@ -1231,12 +1340,22 @@ async function restockConversionData(
   shopId: string,
   range: DateRange,
 ): Promise<ReportData> {
+  const bounds = rangeBounds(range);
   const [alerts, notificationLogs] = await Promise.all([
     db.stockAlert.findMany({
-      where: { shopId, createdAt: rangeBounds(range) },
+      where: {
+        shopId,
+        OR: [
+          { createdAt: bounds },
+          { notifiedAt: bounds },
+          { convertedAt: bounds },
+          { purchasedAt: bounds },
+        ],
+      },
       select: {
         productId: true,
         productTitle: true,
+        createdAt: true,
         notifiedAt: true,
         convertedAt: true,
         purchasedAt: true,
@@ -1261,6 +1380,8 @@ async function restockConversionData(
       opened: number;
     }
   >();
+  const inRange = (date: Date | null) =>
+    date !== null && date >= bounds.gte && date < bounds.lt;
   for (const alert of alerts) {
     const group = groups.get(alert.productId) ?? {
       title: alert.productTitle ?? alert.productId,
@@ -1272,10 +1393,10 @@ async function restockConversionData(
       delivered: 0,
       opened: 0,
     };
-    group.subscribed++;
-    if (alert.notifiedAt) group.notified++;
-    if (alert.convertedAt) group.clicked++;
-    if (alert.purchasedAt) {
+    if (inRange(alert.createdAt)) group.subscribed++;
+    if (inRange(alert.notifiedAt)) group.notified++;
+    if (inRange(alert.convertedAt)) group.clicked++;
+    if (inRange(alert.purchasedAt)) {
       group.purchased++;
       group.revenue += Number(alert.purchaseRevenue ?? 0);
     }
@@ -1310,12 +1431,15 @@ async function restockConversionData(
     revenue: group.revenue,
     revenueLabel: "direct",
   }));
+  const subscribed = rows.reduce((sum, row) => sum + row.subscribed, 0);
+  const notified = rows.reduce((sum, row) => sum + row.notified, 0);
   return {
     summary: {
-      subscribed: rows.reduce((sum, row) => sum + row.subscribed, 0),
-      notified: rows.reduce((sum, row) => sum + row.notified, 0),
+      subscribed,
+      notified,
       clicked: rows.reduce((sum, row) => sum + row.clicked, 0),
       purchased: rows.reduce((sum, row) => sum + row.purchased, 0),
+      notificationRate: rates.notificationRate(notified, subscribed),
       revenue: rows.reduce((sum, row) => sum + row.revenue, 0),
     },
     delta: EMPTY_DELTA,
@@ -1327,6 +1451,7 @@ async function restockConversionData(
 
 async function notificationDeliveryData(
   shopId: string,
+  admin: GraphqlClient,
   range: DateRange,
   params: AnalyticsParams,
 ): Promise<ReportData> {
@@ -1335,54 +1460,147 @@ async function notificationDeliveryData(
   )
     ? (params.channel as "EMAIL" | "SMS" | "WHATSAPP" | "PUSH")
     : undefined;
-  const logs = await db.notificationLog.findMany({
-    where: {
-      shopId,
-      sentAt: rangeBounds(range),
-      ...(channel ? { channel } : {}),
-    },
-    select: {
-      channel: true,
-      status: true,
-      deliveredAt: true,
-      openedAt: true,
-      clickedAt: true,
-      unsubscribedAt: true,
-    },
-  });
+  const [logs, convertedAlerts] = await Promise.all([
+    db.notificationLog.findMany({
+      where: {
+        shopId,
+        OR: [{ sentAt: rangeBounds(range) }, { clickedAt: rangeBounds(range) }],
+        ...(channel ? { channel } : {}),
+      },
+      select: {
+        id: true,
+        subscriptionId: true,
+        productId: true,
+        channel: true,
+        status: true,
+        deliveredAt: true,
+        openedAt: true,
+        clickedAt: true,
+        unsubscribedAt: true,
+      },
+    }),
+    db.stockAlert.findMany({
+      where: {
+        shopId,
+        convertedAt: rangeBounds(range),
+        ...(channel ? { channel: channel.toLowerCase() } : {}),
+      },
+      select: {
+        id: true,
+        productId: true,
+        channel: true,
+      },
+    }),
+  ]);
+  const loggedAlertIds = new Set(
+    logs.flatMap((log) => (log.subscriptionId ? [log.subscriptionId] : [])),
+  );
+  const unloggedConversions = convertedAlerts.filter(
+    (alert) => !loggedAlertIds.has(alert.id),
+  );
+  const [products, purchases] = await Promise.all([
+    getProductsByIds(
+      admin,
+      [
+        ...new Set([
+          ...logs.map((log) => log.productId),
+          ...unloggedConversions.map((alert) => alert.productId),
+        ]),
+      ],
+      1,
+    ).catch(() => new Map<string, ProductSummary>()),
+    logs.length
+      ? db.attribution.findMany({
+          where: {
+            shopId,
+            source: "WISHLIST",
+            model: "last_click",
+            notificationLogId: { in: logs.map((log) => log.id) },
+            orderedAt: rangeBounds(range),
+          },
+          select: {
+            notificationLogId: true,
+            productId: true,
+            orderId: true,
+            revenue: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
   const groups = new Map<
     string,
     {
+      productId: string;
+      title: string;
+      imageUrl: string | null;
+      channel: string;
       sent: number;
       delivered: number;
       bounced: number;
       opened: number;
       clicked: number;
       unsubscribed: number;
+      orderIds: Set<string>;
+      revenue: number;
     }
   >();
-  for (const log of logs) {
-    const group = groups.get(log.channel) ?? {
+  const logsById = new Map(logs.map((log) => [log.id, log]));
+  const getGroup = (productId: string, channelName: string) => {
+    const key = `${productId}:${channelName}`;
+    const group = groups.get(key) ?? {
+      productId,
+      title: products.get(productId)?.title ?? productId,
+      imageUrl: products.get(productId)?.imageUrl ?? null,
+      channel: channelName,
       sent: 0,
       delivered: 0,
       bounced: 0,
       opened: 0,
       clicked: 0,
       unsubscribed: 0,
+      orderIds: new Set<string>(),
+      revenue: 0,
     };
+    groups.set(key, group);
+    return group;
+  };
+  for (const log of logs) {
+    const group = getGroup(log.productId, log.channel);
     group.sent++;
     if (log.deliveredAt || log.status === "delivered") group.delivered++;
     if (log.status === "bounced") group.bounced++;
     if (log.openedAt) group.opened++;
     if (log.clickedAt) group.clicked++;
     if (log.unsubscribedAt) group.unsubscribed++;
-    groups.set(log.channel, group);
   }
-  const rows = [...groups].map(([channel, group]) => ({
-    channel,
-    ...group,
+  for (const alert of unloggedConversions) {
+    getGroup(alert.productId, alert.channel.toUpperCase()).clicked++;
+  }
+  for (const purchase of purchases) {
+    const log = purchase.notificationLogId
+      ? logsById.get(purchase.notificationLogId)
+      : undefined;
+    if (!log) continue;
+    const group = getGroup(purchase.productId, log.channel);
+    group.orderIds.add(purchase.orderId);
+    group.revenue += Number(purchase.revenue);
+  }
+  const rows = [...groups.values()].map((group) => ({
+    productId: group.productId,
+    title: group.title,
+    imageUrl: group.imageUrl,
+    channel: group.channel,
+    sent: group.sent,
+    delivered: group.delivered,
+    bounced: group.bounced,
+    opened: group.opened,
+    clicked: group.clicked,
+    purchased: group.orderIds.size,
+    revenue: group.revenue,
+    unsubscribed: group.unsubscribed,
     openRate: rates.openRate(group.opened, group.delivered),
     clickRate: rates.clickRate(group.clicked, group.delivered),
+    purchaseRate: safeRate(group.orderIds.size, group.clicked),
     bounceRate: safeRate(group.bounced, group.sent),
   }));
   return {
@@ -1393,6 +1611,8 @@ async function notificationDeliveryData(
       opened: rows.reduce((sum, row) => sum + row.opened, 0),
       clicked: rows.reduce((sum, row) => sum + row.clicked, 0),
       unsubscribed: rows.reduce((sum, row) => sum + row.unsubscribed, 0),
+      purchased: new Set(purchases.map((purchase) => purchase.orderId)).size,
+      revenue: rows.reduce((sum, row) => sum + row.revenue, 0),
     },
     delta: EMPTY_DELTA,
     series: [],
@@ -1724,6 +1944,7 @@ async function wishlistToCartData(
     addsToCart: group.addsToCart,
     addToCartRate: rates.saveToCartRate(group.addsToCart, group.saves),
   }));
+  rows.sort((left, right) => right.addsToCart - left.addsToCart);
   return {
     summary: {
       saves: rows.reduce((s, r) => s + (r.saves as number), 0),
@@ -1742,21 +1963,22 @@ async function variantDemandData(
   range: DateRange,
 ): Promise<ReportData> {
   const bounds = rangeBounds(range);
-  const [events, uniqueRows, savedItems] = await Promise.all([
-    db.trackingEvent.groupBy({
-      by: ["productId", "variantId"],
-      where: {
-        shopId,
-        type: "WISHLIST_SAVE",
-        createdAt: bounds,
-        productId: { not: null },
-        variantId: { not: null },
-      },
-      _count: { _all: true },
-    }),
-    db.$queryRaw<
-      Array<{ productId: string; variantId: string; shoppers: number }>
-    >(Prisma.sql`
+  const [events, uniqueRows, savedItems, uniqueShopperRows] = await Promise.all(
+    [
+      db.trackingEvent.groupBy({
+        by: ["productId", "variantId"],
+        where: {
+          shopId,
+          type: "WISHLIST_SAVE",
+          createdAt: bounds,
+          productId: { not: null },
+          variantId: { not: null },
+        },
+        _count: { _all: true },
+      }),
+      db.$queryRaw<
+        Array<{ productId: string; variantId: string; shoppers: number }>
+      >(Prisma.sql`
       SELECT "productId", "variantId", COUNT(DISTINCT "shopperId")::int AS shoppers
       FROM "TrackingEvent"
       WHERE "shopId" = ${shopId} AND "type" = 'WISHLIST_SAVE'
@@ -1764,21 +1986,38 @@ async function variantDemandData(
         AND "createdAt" >= ${bounds.gte} AND "createdAt" < ${bounds.lt}
       GROUP BY "productId", "variantId"
     `),
-    db.wishlistItem.findMany({
-      where: {
-        shopId,
-        createdAt: bounds,
-        variantId: { not: null },
-      },
-      select: {
-        productId: true,
-        variantId: true,
-        shopperId: true,
-        customerId: true,
-        guestToken: true,
-      },
-    }),
-  ]);
+      db.wishlistItem.findMany({
+        where: {
+          shopId,
+          createdAt: bounds,
+          variantId: { not: null },
+        },
+        select: {
+          productId: true,
+          variantId: true,
+          shopperId: true,
+          customerId: true,
+          guestToken: true,
+        },
+      }),
+      db.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      SELECT COUNT(DISTINCT shopper)::int AS count
+      FROM (
+        SELECT COALESCE(NULLIF("shopperId", ''), "customerId") AS shopper
+        FROM "TrackingEvent"
+        WHERE "shopId" = ${shopId} AND "type" = 'WISHLIST_SAVE'
+          AND "productId" IS NOT NULL AND "variantId" IS NOT NULL
+          AND "createdAt" >= ${bounds.gte} AND "createdAt" < ${bounds.lt}
+        UNION
+        SELECT COALESCE(NULLIF("shopperId", ''), "customerId", "guestToken") AS shopper
+        FROM "WishlistItem"
+        WHERE "shopId" = ${shopId} AND "variantId" IS NOT NULL
+          AND "createdAt" >= ${bounds.gte} AND "createdAt" < ${bounds.lt}
+      ) AS shoppers
+      WHERE shopper IS NOT NULL
+    `),
+    ],
+  );
   const shoppersByVariant = new Map(
     uniqueRows.map((row) => [
       `${row.productId}:${row.variantId}`,
@@ -1832,7 +2071,11 @@ async function variantDemandData(
     };
   });
   return {
-    summary: { saves: rows.reduce((s, r) => s + (r.saves as number), 0) },
+    summary: {
+      variantCount: variantKeys.size,
+      saves: rows.reduce((sum, row) => sum + row.saves, 0),
+      uniqueShoppers: uniqueShopperRows[0]?.count ?? 0,
+    },
     delta: EMPTY_DELTA,
     series: [],
     rows,
@@ -2197,6 +2440,7 @@ async function lowStockDemandData(
   return {
     summary: {
       variants: rows.length,
+      quantity: rows.reduce((sum, row) => sum + row.quantity, 0),
       waiting: rows.reduce((sum, row) => sum + row.waiting, 0),
       demandGap: rows.reduce((sum, row) => sum + row.gap, 0),
     },
@@ -2285,6 +2529,8 @@ async function alertPurchasesData(
         products.get(attribution.productId)?.title ?? attribution.productId,
       value: Number(attribution.revenue),
       alertId: attribution.notificationLogId ?? "",
+      alertCause: "Restock notification click",
+      revenueType: "Direct",
     });
   }
   for (const purchase of alertPurchases) {
@@ -2303,6 +2549,8 @@ async function alertPurchasesData(
         purchase.productId,
       value: Number(purchase.purchaseRevenue ?? 0),
       alertId: purchase.id,
+      alertCause: "Back-in-stock alert",
+      revenueType: "Estimated",
     });
   }
   const rows = [...rowsByOrderProduct.values()].sort((left, right) =>
@@ -2582,46 +2830,99 @@ async function recurringCustomersData(
   range: DateRange,
 ): Promise<ReportData> {
   const bounds = rangeBounds(range);
-  const [saves, subscriptions, clicks, orders] = await Promise.all([
-    db.wishlistItem.groupBy({
-      by: ["customerId"],
+  const [saves, subscriptions, clicks, orders, savedOrders] = await Promise.all(
+    [
+      db.wishlistItem.groupBy({
+        by: ["customerId"],
+        where: {
+          shopId,
+          customerId: { not: null },
+          createdAt: bounds,
+        },
+        _count: { _all: true },
+        _max: { createdAt: true },
+      }),
+      db.stockAlert.groupBy({
+        by: ["customerId"],
+        where: {
+          shopId,
+          customerId: { not: null },
+          createdAt: bounds,
+        },
+        _count: { _all: true },
+        _max: { createdAt: true },
+      }),
+      db.notificationLog.findMany({
+        where: { shopId, clickedAt: bounds },
+        select: {
+          shopperId: true,
+          subscriptionId: true,
+          wishlistItemId: true,
+          clickedAt: true,
+        },
+      }),
+      db.attribution.findMany({
+        where: {
+          shopId,
+          model: "last_click",
+          orderedAt: bounds,
+          customerId: { not: null },
+        },
+        select: {
+          customerId: true,
+          orderId: true,
+          revenue: true,
+          orderedAt: true,
+        },
+      }),
+      db.wishlistOrder.findMany({
+        where: { shopId, createdAt: bounds },
+        select: { orderId: true, createdAt: true },
+      }),
+    ],
+  );
+  const [clickedAlerts, clickedWishlistItems] = await Promise.all([
+    db.stockAlert.findMany({
       where: {
         shopId,
-        customerId: { not: null },
-        createdAt: bounds,
+        id: {
+          in: [
+            ...new Set(
+              clicks.flatMap((click) =>
+                click.subscriptionId ? [click.subscriptionId] : [],
+              ),
+            ),
+          ],
+        },
       },
-      _count: { _all: true },
-      _max: { createdAt: true },
+      select: { id: true, customerId: true },
     }),
-    db.stockAlert.groupBy({
-      by: ["customerId"],
+    db.wishlistItem.findMany({
       where: {
         shopId,
-        customerId: { not: null },
-        createdAt: bounds,
+        id: {
+          in: [
+            ...new Set(
+              clicks.flatMap((click) =>
+                click.wishlistItemId ? [click.wishlistItemId] : [],
+              ),
+            ),
+          ],
+        },
       },
-      _count: { _all: true },
-      _max: { createdAt: true },
-    }),
-    db.notificationLog.groupBy({
-      by: ["shopperId"],
-      where: { shopId, clickedAt: bounds },
-      _count: { _all: true },
-      _max: { clickedAt: true },
-    }),
-    db.attribution.groupBy({
-      by: ["customerId"],
-      where: {
-        shopId,
-        model: "last_click",
-        orderedAt: bounds,
-        customerId: { not: null },
-      },
-      _count: { _all: true },
-      _sum: { revenue: true },
-      _max: { orderedAt: true },
+      select: { id: true, customerId: true },
     }),
   ]);
+  const customerBySubscription = new Map(
+    clickedAlerts.flatMap((alert) =>
+      alert.customerId ? [[alert.id, alert.customerId] as const] : [],
+    ),
+  );
+  const customerByWishlistItem = new Map(
+    clickedWishlistItems.flatMap((item) =>
+      item.customerId ? [[item.id, item.customerId] as const] : [],
+    ),
+  );
   type CustomerActivity = {
     customerId: string;
     saves: number;
@@ -2668,16 +2969,56 @@ async function recurringCustomersData(
     setLastActivity(row, subscription._max.createdAt);
   }
   for (const click of clicks) {
-    const row = getActivity(click.shopperId);
-    row.clicks = click._count._all;
-    setLastActivity(row, click._max.clickedAt);
+    const customerId =
+      (click.subscriptionId &&
+        customerBySubscription.get(click.subscriptionId)) ||
+      (click.wishlistItemId &&
+        customerByWishlistItem.get(click.wishlistItemId)) ||
+      (/^\d+$/.test(click.shopperId) ? click.shopperId : null);
+    if (!customerId || !click.clickedAt) continue;
+    const row = getActivity(customerId);
+    row.clicks++;
+    setLastActivity(row, click.clickedAt);
   }
+  const orderIdsByCustomer = new Map<string, Set<string>>();
+  const attributedOrderKeys = new Set<string>();
   for (const order of orders) {
     if (!order.customerId) continue;
     const row = getActivity(order.customerId);
-    row.orders = order._count._all;
-    row.spend = Number(order._sum.revenue ?? 0);
-    setLastActivity(row, order._max.orderedAt);
+    const orderIds =
+      orderIdsByCustomer.get(order.customerId) ?? new Set<string>();
+    orderIds.add(order.orderId);
+    orderIdsByCustomer.set(order.customerId, orderIds);
+    attributedOrderKeys.add(`${order.customerId}:${order.orderId}`);
+    row.spend += Number(order.revenue);
+    setLastActivity(row, order.orderedAt);
+  }
+  const shopifyOrderDetails = await loadShopifyOrderDetails(
+    admin,
+    savedOrders.map((order) => order.orderId),
+  );
+  const fallbackSpendKeys = new Set<string>();
+  for (const savedOrder of savedOrders) {
+    const orderId = savedOrder.orderId.split("/").pop()!;
+    const orderDetails = shopifyOrderDetails.get(orderId);
+    const customerId = orderDetails?.customerId;
+    if (!customerId) continue;
+    const row = getActivity(customerId);
+    const orderIds = orderIdsByCustomer.get(customerId) ?? new Set<string>();
+    orderIds.add(orderId);
+    orderIdsByCustomer.set(customerId, orderIds);
+    const orderKey = `${customerId}:${orderId}`;
+    if (
+      !attributedOrderKeys.has(orderKey) &&
+      !fallbackSpendKeys.has(orderKey)
+    ) {
+      row.spend += orderDetails.total;
+      fallbackSpendKeys.add(orderKey);
+    }
+    setLastActivity(row, savedOrder.createdAt);
+  }
+  for (const [customerId, orderIds] of orderIdsByCustomer) {
+    getActivity(customerId).orders = orderIds.size;
   }
   const activeCustomers = [...activity.values()]
     .filter(
@@ -2697,6 +3038,7 @@ async function recurringCustomersData(
     activeCustomers.slice(0, 250).map((row) => row.customerId),
   );
   const rows = activeCustomers.map((row) => ({
+    customerId: row.customerId,
     customer: names.get(row.customerId) ?? `Customer ${row.customerId}`,
     customerType: row.orders > 1 ? "Repeat" : "Engaged",
     saves: row.saves,
@@ -3029,69 +3371,109 @@ async function notificationLogData(
 ): Promise<ReportData> {
   const validStatuses = ["queued", "sent", "delivered", "bounced", "failed"];
   const status = validStatuses.find((value) => value === params.status);
-  const logs = await db.notificationLog.findMany({
-    where: {
-      shopId,
-      channel: "EMAIL",
-      sentAt: rangeBounds(range),
-      ...(status ? { status } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    select: {
-      id: true,
-      subscriptionId: true,
-      createdAt: true,
-      sentAt: true,
-      kind: true,
-      channel: true,
-      shopperId: true,
-      productId: true,
-      status: true,
-      errorReason: true,
-      retryCount: true,
-    },
-  });
-  const [alerts, products] = await Promise.all([
+  const bounds = rangeBounds(range);
+  const [logs, sentAlerts] = await Promise.all([
+    db.notificationLog.findMany({
+      where: {
+        shopId,
+        channel: "EMAIL",
+        sentAt: bounds,
+        ...(status ? { status } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: {
+        id: true,
+        subscriptionId: true,
+        createdAt: true,
+        sentAt: true,
+        kind: true,
+        channel: true,
+        shopperId: true,
+        productId: true,
+        status: true,
+        errorReason: true,
+        retryCount: true,
+      },
+    }),
     db.stockAlert.findMany({
       where: {
         shopId,
-        id: {
-          in: [
-            ...new Set(
-              logs.flatMap((log) =>
-                log.subscriptionId ? [log.subscriptionId] : [],
-              ),
-            ),
-          ],
-        },
+        channel: "email",
+        notifiedAt: bounds,
       },
-      select: { id: true, email: true, phone: true, contactKey: true },
+      orderBy: { notifiedAt: "desc" },
+      take: 200,
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        contactKey: true,
+        shopperId: true,
+        customerId: true,
+        productId: true,
+        productTitle: true,
+        status: true,
+        attempts: true,
+        lastError: true,
+        notifiedAt: true,
+      },
     }),
+  ]);
+  const logSubscriptionIds = new Set(
+    logs.flatMap((log) => (log.subscriptionId ? [log.subscriptionId] : [])),
+  );
+  const fallbackAlerts = sentAlerts.filter(
+    (alert) =>
+      !logSubscriptionIds.has(alert.id) &&
+      (!status || alert.status.toLowerCase() === status),
+  );
+  const [products] = await Promise.all([
     getProductsByIds(
       admin,
-      [...new Set(logs.map((log) => log.productId))],
+      [
+        ...new Set([
+          ...logs.map((log) => log.productId),
+          ...fallbackAlerts.map((alert) => alert.productId),
+        ]),
+      ],
       1,
     ).catch(() => new Map()),
   ]);
-  const recipientBySubscription = new Map(
-    alerts.map((alert) => [
-      alert.id,
-      alert.email ?? alert.phone ?? alert.contactKey,
-    ]),
-  );
-  const rows = logs.map((l) => ({
-    date: (l.sentAt ?? l.createdAt).toISOString(),
-    recipient:
-      recipientBySubscription.get(l.subscriptionId ?? "") ?? l.shopperId,
-    kind: l.kind,
-    channel: l.channel,
-    shopper: l.shopperId,
-    product: products.get(l.productId)?.title ?? l.productId,
-    status: l.status,
-    error: l.errorReason ?? "",
-    retries: l.retryCount,
-  }));
+  const alertById = new Map(sentAlerts.map((alert) => [alert.id, alert]));
+  const rows = [
+    ...logs.map((log) => {
+      const alert = log.subscriptionId
+        ? alertById.get(log.subscriptionId)
+        : undefined;
+      return {
+        date: (log.sentAt ?? log.createdAt).toISOString(),
+        recipient:
+          alert?.email ?? alert?.phone ?? alert?.contactKey ?? log.shopperId,
+        kind: log.kind,
+        channel: log.channel,
+        shopper: log.shopperId,
+        product: products.get(log.productId)?.title ?? log.productId,
+        status: log.status,
+        error: log.errorReason ?? "",
+        retries: log.retryCount,
+      };
+    }),
+    ...fallbackAlerts.map((alert) => ({
+      date: alert.notifiedAt!.toISOString(),
+      recipient: alert.email ?? alert.phone ?? alert.contactKey,
+      kind: "RESTOCK",
+      channel: "EMAIL",
+      shopper: alert.shopperId ?? alert.customerId ?? alert.contactKey,
+      product:
+        alert.productTitle ??
+        products.get(alert.productId)?.title ??
+        alert.productId,
+      status: alert.status.toLowerCase(),
+      error: alert.lastError ?? "",
+      retries: Math.max(0, alert.attempts - 1),
+    })),
+  ].sort((left, right) => right.date.localeCompare(left.date));
   return {
     summary: {
       total: rows.length,
@@ -3360,26 +3742,49 @@ async function customerValueData(
 
 const DAY_MS = 86400000;
 
-function applyFilters(rows: ReportRow[], params: AnalyticsParams) {
+function applyFilters(
+  rows: ReportRow[],
+  params: AnalyticsParams,
+  slug: ReportSlug,
+) {
   let filtered = rows;
-  if (params.productId) {
+  if (params.productId && filtered.some((row) => row.productId !== undefined)) {
     filtered = filtered.filter((row) => row.productId === params.productId);
   }
-  if (params.collectionId) {
+  if (slug === "wishlisted-products" && params.collectionId) {
     filtered = filtered.filter(
       (row) =>
         Array.isArray(row.collectionIds) &&
         row.collectionIds.includes(params.collectionId!),
     );
   }
-  if (params.channel) {
+  if (slug === "recurring-customers" && params.customerType) {
+    filtered = filtered.filter(
+      (row) =>
+        String(row.customerType ?? "").toLowerCase() ===
+        params.customerType!.toLowerCase(),
+    );
+  }
+  if (
+    [
+      "notification-delivery",
+      "notification-log",
+      "reminder-performance",
+    ].includes(slug) &&
+    params.channel
+  ) {
     filtered = filtered.filter(
       (row) =>
         String(row.channel ?? "").toLowerCase() ===
         params.channel!.toLowerCase(),
     );
   }
-  if (params.status) {
+  if (
+    slug === "notification-log" &&
+    ["queued", "sent", "delivered", "bounced", "failed"].includes(
+      params.status ?? "",
+    )
+  ) {
     filtered = filtered.filter(
       (row) =>
         String(row.status ?? "").toLowerCase() === params.status!.toLowerCase(),
@@ -3432,7 +3837,7 @@ export async function loadAnalyticsReport(
       data = await restockConversionData(shopId, range);
       break;
     case "notification-delivery":
-      data = await notificationDeliveryData(shopId, range, params);
+      data = await notificationDeliveryData(shopId, admin, range, params);
       break;
     case "shared-wishlists":
       data = await sharedWishlistsData(shopId, admin, range);
@@ -3509,6 +3914,33 @@ export async function loadAnalyticsReport(
         revenueLabel: REVENUE_LABEL.direct,
       };
   }
+  if (slug === "recurring-customers" && params.customerType) {
+    const customers = data.rows.filter(
+      (row) =>
+        String(row.customerType ?? "").toLowerCase() ===
+        params.customerType!.toLowerCase(),
+    );
+    data.summary = {
+      customers: customers.length,
+      saves: customers.reduce((sum, row) => sum + Number(row.saves ?? 0), 0),
+      subscriptions: customers.reduce(
+        (sum, row) => sum + Number(row.subscriptions ?? 0),
+        0,
+      ),
+      clicks: customers.reduce((sum, row) => sum + Number(row.clicks ?? 0), 0),
+      orders: customers.reduce((sum, row) => sum + Number(row.orders ?? 0), 0),
+      actions: customers.reduce(
+        (sum, row) =>
+          sum +
+          Number(row.saves ?? 0) +
+          Number(row.subscriptions ?? 0) +
+          Number(row.clicks ?? 0) +
+          Number(row.orders ?? 0),
+        0,
+      ),
+      spend: customers.reduce((sum, row) => sum + Number(row.spend ?? 0), 0),
+    };
+  }
   if (previous && Object.keys(data.delta).length === 0) {
     const previousParams = new URLSearchParams(searchParams);
     previousParams.set("from", previous.from);
@@ -3522,7 +3954,7 @@ export async function loadAnalyticsReport(
     );
     data.delta = compareTotals(data.summary, previousReport.response.summary);
   }
-  const allRows = applyFilters(data.rows, params);
+  const allRows = applyFilters(data.rows, params, slug);
   const page = paginate(allRows, params.page, params.pageSize);
   const response: ReportResponse = {
     report: slug,

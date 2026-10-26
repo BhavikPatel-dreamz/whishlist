@@ -27,11 +27,19 @@
   function getShopperId() {
     const cfg = CFG();
     if (cfg.customerId) return String(cfg.customerId);
-    let token = sessionStorage.getItem('ws_shopper_id');
+    const cookieToken = document.cookie
+      .split('; ')
+      .find((cookie) => cookie.startsWith('ws_shopper_id='))
+      ?.slice('ws_shopper_id='.length);
+    let token = cookieToken ? decodeURIComponent(cookieToken) : null;
+    if (!token) token = sessionStorage.getItem('ws_shopper_id');
     if (!token) {
       token = crypto.randomUUID();
-      try { sessionStorage.setItem('ws_shopper_id', token); } catch { /* ignore */ }
     }
+    try { sessionStorage.setItem('ws_shopper_id', token); } catch { /* ignore */ }
+    try {
+      document.cookie = `ws_shopper_id=${encodeURIComponent(token)}; Path=/; Max-Age=31536000; SameSite=Lax; Secure`;
+    } catch { /* ignore */ }
     return token;
   }
 

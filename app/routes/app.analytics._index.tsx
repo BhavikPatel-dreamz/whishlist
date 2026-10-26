@@ -12,11 +12,19 @@ import {
 import { toCsv } from "../lib/reports";
 import { loadAnalyticsReport } from "../models/analytics-reports.server";
 
+const HIDDEN_REPORTS = new Set([
+  "removed-abandoned",
+  "save-sources",
+  "reminder-performance",
+]);
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const { admin, shop } = await requireAdminShop(request);
   const params = new URL(request.url).searchParams;
   const requestedSlug = params.get("report") ?? "overview";
-  const slug = isReportSlug(requestedSlug) ? requestedSlug : "overview";
+  const slug = isReportSlug(requestedSlug) && !HIDDEN_REPORTS.has(requestedSlug)
+    ? requestedSlug
+    : "overview";
   params.delete("report");
   if (!params.has("compare")) params.set("compare", "true");
   if (!params.has("pageSize")) params.set("pageSize", "8");

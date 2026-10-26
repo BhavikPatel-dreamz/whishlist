@@ -15,10 +15,16 @@
  *  - Toast notifications
  *  - Light / dark theme (system default honoured)
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigation, useSearchParams } from "@remix-run/react";
 import { downloadCsv } from "../../lib/download.client";
 import { REPORT_CSV_ROW_KEYS, type ReportSlug } from "../../lib/report-contract";
+import type { CustomerValueSegment } from "../../lib/customer-value-detail";
+import type { OverviewDetailMetric } from "../../lib/overview-detail";
+import { CustomerValueDetailDrawer } from "./CustomerValueDetailDrawer";
+import { OverviewMetricDetail } from "./OverviewMetricDetail";
+import { ProductDetailDrawer } from "./ProductDetailDrawer";
+import { RecurringCustomerDetailDrawer } from "./RecurringCustomerDetailDrawer";
 
 const DAY_MS = 86400000;
 
@@ -29,12 +35,11 @@ const DAY_MS = 86400000;
 const GROUPS = [
   { label: "Overview", slug: "overview", reports: [
     "overview", "activity-trends", "conversion-funnel",
-    "revenue-attribution", "attribution-models", "customer-value",
+    "revenue-attribution", "customer-value",
   ]},
   { label: "Wishlist", slug: "wishlist", reports: [
     "wishlisted-products", "shared-wishlists", "wishlist-orders",
-    "wishlist-conversion", "removed-abandoned", "wishlist-to-cart",
-    "variant-demand", "save-sources", "reminder-performance",
+    "wishlist-conversion", "wishlist-to-cart", "variant-demand",
     "guest-to-customer",
   ]},
   { label: "Back in Stock", slug: "back-in-stock", reports: [
@@ -86,6 +91,7 @@ const REPORT_TITLES: Record<string, string> = {
 
 const GROUP_OF: Record<string, number> = {};
 GROUPS.forEach((g, gi) => g.reports.forEach((s) => { GROUP_OF[s] = gi; }));
+GROUP_OF["notification-delivery"] = 2;
 
 type AnalyticsRow = Record<string, unknown>;
 type AnalyticsReport = {
@@ -157,12 +163,12 @@ function fmtH(v: number): string {
  */
 const BADGE_KEYS = new Set([
   "status", "type", "flag", "state", "rep", "reason", "via", "perf",
-  "channel", "kind", "revenueLabel", "freq", "model", "win", "customerType",
+  "channel", "kind", "revenuelabel", "revenuetype", "rank", "freq", "model", "win", "customertype",
 ]);
 const TEXT_KEYS = new Set([
   "source", "title", "label", "shopper", "cust", "customer", "prod",
   "product", "ord", "order", "variant", "name", "email", "phone",
-  "contact", "error", "freq", "to", "segment", "tab", "window", "week",
+  "variantnames", "contact", "error", "freq", "to", "segment", "tab", "window", "week",
 ]);
 function inferFormat(key: string): "n" | "p" | "$" | "b" | "d" | "t" | "x" | "m" | "h" {
   const k = key.toLowerCase();
@@ -170,7 +176,7 @@ function inferFormat(key: string): "n" | "p" | "$" | "b" | "d" | "t" | "x" | "m"
   if (TEXT_KEYS.has(k)) return "t";
   if (k.includes("rate") || k.endsWith("pct") || k === "share" || k === "okrate" || k === "v2o" || k === "s2c" || k === "mergerate" || k === "confirmationrate" || k === "visittoorderrate") return "p";
   if (k.includes("revenue") || k.includes("value") || k.includes("spend") || k.includes("price") || k.includes("missed") || k === "aov" || k === "rpo" || k === "brev") return "$";
-  if (k === "days") return "x";
+  if (k === "days" || k.includes("days")) return "x";
   if (k === "hrs") return "h";
   if (k === "nt" || k === "ntm" || k === "tp" || k === "tpm" || k.includes("min")) return "m";
   if (k.includes("date") || k.endsWith("at") || k === "last" || k === "next" || k.includes("sync") || k === "lastactivity" || k === "signedup") return "d";
@@ -229,13 +235,18 @@ function trendChart(
 ): JSX.Element | null {
   if (!series || series.length === 0) return null;
 
+  // The Overview KPI is called "Subscriptions" but its series key is
+  // "subscriptions". Normalise it so clicking that card still renders a chart.
+  const metricKey =
+    selectedMetric === "alertSubscriptions" ? "subscriptions" : selectedMetric;
+
   const W = 640, H = 210, m = 34;
   const labels = series.map((r) => String(r.date ?? ""));
   const n = labels.length;
 
   // Collect numeric series (skip the date column).
   const metricKeys = Object.keys(series[0]).filter(
-    (key) => key === selectedMetric,
+    (key) => key === metricKey,
   );
   const chartValues = (
     rows: Array<Record<string, string | number>>,
@@ -384,9 +395,18 @@ export type ClassicAnalyticsProps = {
 
 export function ClassicAnalytics({ report, topProducts, productBreakdown, collectionOptions }: ClassicAnalyticsProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedTrendMetric, setSelectedTrendMetric] = useState("saves");
+  const [selectedTrendMetric, setSelectedTrendMetric] = useState<OverviewDetailMetric>("saves");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+  const [detailProductId, setDetailProductId] = useState<string | null>(null);
+  const [detailVariantId, setDetailVariantId] = useState<string | undefined>();
+  const [customerValueSegment, setCustomerValueSegment] = useState<CustomerValueSegment | null>(null);
+  const [recurringCustomerId, setRecurringCustomerId] = useState<string | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+  const closeDetail = useCallback(() => {
+    setDetailProductId(null);
+    setDetailVariantId(undefined);
+  }, []);
   const navigation = useNavigation();
   const slug = report.report;
   const group = GROUP_OF[slug] ?? 0;
@@ -396,11 +416,25 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
   const groupBy = searchParams.get("groupBy") ?? "day";
   const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS) + 1;
   const [q, setQ] = useState(searchParams.get("q") ?? "");
-  const so = searchParams.get("sort");
+  const so = searchParams.get("sort") ?? (
+    slug === "wishlist-conversion"
+      ? "conversionRate"
+      : slug === "wishlist-to-cart"
+        ? "addsToCart"
+        : slug === "alert-subscriptions"
+          ? "totalSubscriptions"
+          : slug === "pending-alerts" || slug === "alert-purchases"
+            ? "date"
+        : null
+  );
   const dir = searchParams.get("order") === "asc" ? 1 : -1;
   const pg = report.pagination.page;
   const filterKey = ["notification-delivery", "notification-log", "reminder-performance"].includes(slug)
     ? "channel"
+    : slug === "recurring-customers"
+      ? "customerType"
+    : slug === "pending-alerts"
+      ? "reason"
     : "status";
   const filterValue = searchParams.get(filterKey) ?? "";
   const collectionFilter = searchParams.get("collectionId") ?? "";
@@ -408,8 +442,10 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
   const attributionWindowFilter = searchParams.get("windowDays") ?? "";
   const filterOptions = ["notification-delivery", "reminder-performance"].includes(slug)
     ? ["EMAIL", "SMS", "WHATSAPP", "PUSH"]
+    : slug === "recurring-customers"
+      ? ["Repeat", "Engaged"]
     : slug === "pending-alerts"
-      ? ["PENDING", "SENDING", "FAILED", "CANCELLED"]
+      ? ["out_of_stock", "queued", "unconfirmed"]
       : [];
   const data = report;
   const rows = report.rows;
@@ -438,7 +474,9 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
     report: nextSlug === "overview" ? undefined : nextSlug,
     q: undefined,
     status: undefined,
+    reason: undefined,
     channel: undefined,
+    customerType: undefined,
     productId: undefined,
     collectionId: undefined,
     model: undefined,
@@ -484,7 +522,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
   };
 
   const reportSlugs = currentGroup.reports;
-  const reportTitle = REPORT_TITLES[slug] ?? slug;
 
   /* ---- Build column definitions from the API response ---- */
   const reportRows: AnalyticsRow[] = rows;
@@ -494,16 +531,64 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
     const key = rowKeys[i] ?? (firstRow ? Object.keys(firstRow)[i] : `col${i}`);
     return { key, label: String(label), format: inferFormat(key) };
   });
+  const hiddenRestockColumns = new Set([
+    "openRate",
+    "clickRate",
+    "conversionRate",
+    "revenue",
+    "revenueLabel",
+  ]);
+  const hiddenNotificationLogColumns = new Set(["error", "retries"]);
+  const visibleColDefs = slug === "restock-conversion"
+    ? colDefs.filter((column) => !hiddenRestockColumns.has(column.key))
+    : slug === "notification-log"
+      ? colDefs.filter((column) => !hiddenNotificationLogColumns.has(column.key))
+      : colDefs;
 
-  const totalRow = colDefs
-    .filter((c) => c.format === "n" || c.format === "$" || c.format === "p")
+  const totalRow = visibleColDefs
+    .filter((c) =>
+      (c.format === "n" || c.format === "$" || c.format === "p") &&
+      !(slug === "restock-conversion" && c.key === "purchased"),
+    )
     .slice(0, 4);
 
   /* ---- Renderers ---- */
 
   const renderKpis = () => {
+    if (slug === "notification-log") {
+      return (
+        <div className="ca-kpis ca-kpis--single" style={{ margin: 0 }}>
+          <div className="ca-k">
+            <span className="ca-mu">Total recipients</span>
+            <b>{fmtN(summary.total ?? 0)}</b>
+          </div>
+        </div>
+      );
+    }
+
+    if (slug === "notification-delivery") {
+      const metrics: Array<[string, string, "n" | "$"]> = [
+        ["Notifications sent", "sent", "n"],
+        ["Delivered", "delivered", "n"],
+        ["Clicked", "clicked", "n"],
+        ["Purchases", "purchased", "n"],
+        ["Purchase revenue", "revenue", "$"],
+        ["Bounced", "bounced", "n"],
+      ];
+      return (
+        <div className="ca-kpis" style={{ margin: 0 }}>
+          {metrics.map(([label, key, format]) => (
+            <div className="ca-k" key={key}>
+              <span className="ca-mu">{label}</span>
+              <b>{format === "$" ? fmt$(summary[key] ?? 0) : fmtN(summary[key] ?? 0)}</b>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     if (slug === "overview") {
-      const K = [
+      const K: Array<[string, OverviewDetailMetric, "n" | "$" | "p"]> = [
         ["Saves", "saves", "n"],
         ["Unique savers", "uniqueSavers", "n"],
         ["Subscriptions", "alertSubscriptions", "n"],
@@ -515,41 +600,53 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
         ["Overall conversion", "wishlistConversionRate", "p"],
       ];
       return (
-        <div className="ca-kpis">
-          {K.map(([label, key, format]) => {
-            const val = summary[key] ?? 0;
-            const prev = delta[key] !== undefined ? summary[key] / (1 + delta[key]) : null;
-            const content = (
-              <>
-                <span className="ca-mu">{label}</span>
-                <b>
-                  {format === "p" ? fmtP(val) : format === "$" ? fmt$(val) : fmtN(val)}
-                  {deltaHtml(val, prev)}
-                </b>
-              </>
-            );
-            return (
-              <button
-                type="button"
-                className={`ca-k ca-k-button${selectedTrendMetric === key ? " ca-k-active" : ""}`}
-                key={key}
-                aria-pressed={selectedTrendMetric === key}
-                onClick={() => setSelectedTrendMetric(key)}
-              >
-                {content}
-              </button>
-            );
-          })}
-        </div>
+        <>
+          <div className="ca-kpis">
+            {K.map(([label, key, format]) => {
+              const val = summary[key] ?? 0;
+              const prev = delta[key] !== undefined ? summary[key] / (1 + delta[key]) : null;
+              const content = (
+                <>
+                  <span className="ca-mu">{label}</span>
+                  <b>
+                    {format === "p" ? fmtP(val) : format === "$" ? fmt$(val) : fmtN(val)}
+                    {deltaHtml(val, prev)}
+                  </b>
+                </>
+              );
+              return (
+                <button
+                  type="button"
+                  className={`ca-k ca-k-button${selectedTrendMetric === key ? " ca-k-active" : ""}`}
+                  key={key}
+                  aria-pressed={selectedTrendMetric === key}
+                  title={`Show the top 5 breakdown for ${label.toLowerCase()}`}
+                  onClick={() => {
+                    setSelectedTrendMetric(key);
+                    window.requestAnimationFrame(() => {
+                      detailRef.current?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "nearest",
+                      });
+                    });
+                  }}
+                >
+                  {content}
+                </button>
+              );
+            })}
+          </div>
+          <p className="ca-mu ca-kpi-hint">
+            Click a card to see its Top 5 breakdown below.
+          </p>
+        </>
       );
     }
 
     if (slug === "alert-subscriptions") {
       const metrics: Array<[string, string]> = [
-        ["Total variants", "variants"],
         ["Total subscriptions", "subscriptions"],
-        ["New in period", "newSubscriptions"],
-        ["Notified", "notified"],
+        ["Total new in range", "newSubscriptions"],
       ];
       return (
         <div className="ca-kpis" style={{ margin: 0 }}>
@@ -559,6 +656,17 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
               <b>{fmtN(summary[key] ?? 0)}</b>
             </div>
           ))}
+        </div>
+      );
+    }
+
+    if (slug === "alert-purchases") {
+      return (
+        <div className="ca-kpis ca-kpis--single" style={{ margin: 0 }}>
+          <div className="ca-k">
+            <span className="ca-mu">Total value</span>
+            <b>{fmt$(summary.value ?? 0)}{deltaHtml(summary.value ?? 0, delta.value !== undefined ? (summary.value ?? 0) / (1 + delta.value) : null)}</b>
+          </div>
         </div>
       );
     }
@@ -649,6 +757,89 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
       );
     }
 
+    if (slug === "wishlist-conversion") {
+      const metrics: Array<[string, string]> = [
+        ["Total saves", "saves"],
+        ["Total purchases", "purchases"],
+      ];
+      return (
+        <div className="ca-kpis ca-kpis--conversion" style={{ margin: 0 }}>
+          {metrics.map(([label, key]) => {
+            const value = summary[key] ?? 0;
+            const previous = delta[key] !== undefined
+              ? value / (1 + delta[key])
+              : null;
+            return (
+              <div className="ca-k" key={key}>
+                <span className="ca-mu">{label}</span>
+                <b>{fmtN(value)}{deltaHtml(value, previous)}</b>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    if (slug === "wishlist-to-cart") {
+      const metrics: Array<[string, string]> = [
+        ["Total saves", "saves"],
+        ["Total added to cart", "addsToCart"],
+      ];
+      return (
+        <div className="ca-kpis ca-kpis--conversion" style={{ margin: 0 }}>
+          {metrics.map(([label, key]) => {
+            const value = summary[key] ?? 0;
+            const previous = delta[key] !== undefined
+              ? value / (1 + delta[key])
+              : null;
+            return (
+              <div className="ca-k" key={key}>
+                <span className="ca-mu">{label}</span>
+                <b>{fmtN(value)}{deltaHtml(value, previous)}</b>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    if (slug === "variant-demand") {
+      const metrics: Array<[string, string]> = [
+        ["Total variant", "variantCount"],
+        ["Total saves", "saves"],
+        ["Total unique shoppers", "uniqueShoppers"],
+      ];
+      return (
+        <div className="ca-kpis" style={{ margin: 0 }}>
+          {metrics.map(([label, key]) => (
+            <div className="ca-k" key={key}>
+              <span className="ca-mu">{label}</span>
+              <b>{fmtN(summary[key] ?? 0)}</b>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (slug === "low-stock-demand") {
+      const metrics: Array<[string, string]> = [
+        ["Total variant", "variants"],
+        ["Total quantity", "quantity"],
+        ["Total waiting", "waiting"],
+        ["Total gap", "demandGap"],
+      ];
+      return (
+        <div className="ca-kpis" style={{ margin: 0 }}>
+          {metrics.map(([label, key]) => (
+            <div className="ca-k" key={key}>
+              <span className="ca-mu">{label}</span>
+              <b>{fmtN(summary[key] ?? 0)}</b>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     // Table reports: show totals for the first few numeric summary metrics.
     const kpis = totalRow.map((c) => {
       const val = summary[c.key] ?? 0;
@@ -694,11 +885,11 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
               className="ca-select"
               value={filterValue}
               onChange={(event) => updateParams({ [filterKey]: event.target.value || undefined, page: "1" })}
-              aria-label={filterKey === "channel" ? "Filter by channel" : "Filter by status"}
+              aria-label={filterKey === "channel" ? "Filter by channel" : filterKey === "reason" ? "Filter by pending reason" : filterKey === "customerType" ? "Filter by customer type" : "Filter by status"}
             >
-              <option value="">All</option>
+              <option value="">{filterKey === "reason" ? "All reasons" : filterKey === "customerType" ? "All types" : "All"}</option>
               {filterOptions.map((v) => (
-                <option key={v} value={v}>{v}</option>
+                <option key={v} value={v}>{v.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}</option>
               ))}
             </select>
           )}
@@ -743,10 +934,10 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
           <span className="ca-mu">{rows.length} rows</span>
         </div>
         <div className="ca-tw">
-          <table className="ca-table">
+          <table className={`ca-table${slug === "wishlisted-products" ? " ca-table--wishlisted" : ""}`}>
             <thead>
               <tr>
-                {colDefs.map((c) => {
+                {visibleColDefs.map((c) => {
                   const active = so === c.key;
                   return (
                     <th
@@ -765,18 +956,44 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                     </th>
                   );
                 })}
-                {slug === "wishlisted-products" && <th>Variants</th>}
+                {slug === "revenue-attribution" && <th>Details</th>}
+                {slug === "alert-subscriptions" && <th>Details</th>}
+                {slug === "variant-demand" && <th>Details</th>}
+                {slug === "customer-value" && <th>Details</th>}
+                {slug === "recurring-customers" && <th>Details</th>}
+                {slug === "wishlisted-products" && <th>Details</th>}
               </tr>
             </thead>
             <tbody>
               {rows.map((row, index) => (
-                <tr key={String(row[colDefs[0]?.key ?? "id"] ?? index)}>
-                  {colDefs.map((c) => (
+                <tr key={slug === "notification-delivery"
+                  ? `${String(row.productId)}:${String(row.channel)}`
+                  : slug === "wishlisted-products"
+                    ? String(row.productId)
+                  : slug === "alert-subscriptions"
+                    ? `${String(row.productId)}:${String(row.variantId)}`
+                  : slug === "variant-demand"
+                    ? `${String(row.productId)}:${String(row.variantId)}`
+                  : slug === "customer-value"
+                    ? String(row.segment)
+                  : slug === "recurring-customers"
+                    ? String(row.customerId)
+                    : String(row[colDefs[0]?.key ?? "id"] ?? index)}>
+                  {visibleColDefs.map((c) => (
                     <td
                       key={c.key}
                       className={`ca-n ${c.format === "n" || c.format === "$" || c.format === "p" ? "ca-n" : ""}`}
                     >
-                      {slug === "attribution-models" && c.key === "model" ? (
+                      {slug === "notification-delivery" && c.key === "title" ? (
+                        <span className="ca-product-cell">
+                          {typeof row.imageUrl === "string" && row.imageUrl ? (
+                            <img src={row.imageUrl} alt="" loading="lazy" />
+                          ) : (
+                            <span className="ca-product-placeholder" aria-hidden="true" />
+                          )}
+                          <span>{String(row.title ?? "")}</span>
+                        </span>
+                      ) : slug === "attribution-models" && c.key === "model" ? (
                         <button
                           type="button"
                           className="ca-btn"
@@ -791,14 +1008,93 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                       ) : formatCell(row[c.key], c.format)}
                     </td>
                   ))}
+                  {slug === "revenue-attribution" && (
+                    <td>
+                      <button
+                        type="button"
+                        className="ca-btn"
+                        onClick={() =>
+                          selectReport(
+                            row.source === "WISHLIST"
+                              ? "wishlist-orders"
+                              : "alert-purchases",
+                          )
+                        }
+                      >
+                        Details
+                      </button>
+                    </td>
+                  )}
+                  {slug === "alert-subscriptions" && (
+                    <td>
+                      <button
+                        type="button"
+                        className="ca-btn"
+                        aria-label={`View subscribers for ${String(row.title ?? "product")} - ${String(row.variantTitle ?? "variant")}`}
+                        onClick={() => {
+                          setDetailVariantId(String(row.variantId));
+                          setDetailProductId(String(row.productId));
+                        }}
+                      >
+                        Details
+                      </button>
+                    </td>
+                  )}
+                  {slug === "variant-demand" && (
+                    <td>
+                      <button
+                        type="button"
+                        className="ca-btn"
+                        aria-label={`View details for ${String(row.title ?? "product")} - ${String(row.variantTitle ?? "variant")}`}
+                        onClick={() => {
+                          setDetailVariantId(String(row.variantId));
+                          setDetailProductId(String(row.productId));
+                        }}
+                      >
+                        Details
+                      </button>
+                    </td>
+                  )}
+                  {slug === "customer-value" && (
+                    <td>
+                      <button
+                        type="button"
+                        className="ca-btn"
+                        aria-label={`View details for ${String(row.segment ?? "customer segment")}`}
+                        onClick={() =>
+                          setCustomerValueSegment(
+                            row.segment === "Guest customers" ? "guest" : "logged-in",
+                          )
+                        }
+                      >
+                        Details
+                      </button>
+                    </td>
+                  )}
+                  {slug === "recurring-customers" && (
+                    <td>
+                      <button
+                        type="button"
+                        className="ca-btn"
+                        aria-label={`View details for ${String(row.customer ?? "customer")}`}
+                        onClick={() => setRecurringCustomerId(String(row.customerId))}
+                      >
+                        Details
+                      </button>
+                    </td>
+                  )}
                   {slug === "wishlisted-products" && (
                     <td>
                       <button
                         type="button"
                         className="ca-btn"
-                        onClick={() => selectReport("variant-demand", { productId: String(row.productId ?? "") })}
+                        aria-label={`View wishlist details for ${String(row.title ?? "product")}`}
+                        onClick={() => {
+                          setDetailVariantId(undefined);
+                          setDetailProductId(String(row.productId));
+                        }}
                       >
-                        View variants
+                        Details
                       </button>
                     </td>
                   )}
@@ -832,7 +1128,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
     const totals: Record<string, number> = summary;
     const wishlist: [string, number][] = [
       ["Product views", totals.productViews ?? 0],
-      ["Saved", totals.wishlistSaves ?? 0],
+      ["Saved", totals.saves ?? 0],
       ["Added to cart", totals.wishlistAddToCart ?? 0],
       ["Purchased", totals.wishlistOrders ?? 0],
     ];
@@ -853,8 +1149,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
       return stages.map(([label, count], i) => {
         const c = clamped[i];
         const prev = i === 0 ? c : clamped[i - 1];
-        const rate = i === 0 ? 1 : safeRate(c, prev);
-        const drop = i === 0 ? 0 : Math.max(0, prev - c);
         const width = clamped[0] > 0 ? Math.max(1, (c / clamped[0]) * 100) : 0;
         const pRate = prev === 0 ? 1 : safeRate(clamped[i], clamped[i > 0 ? i - 1 : i]);
         const pDrop = i > 0 ? Math.max(0, clamped[i - 1] - clamped[i]) : 0;
@@ -889,7 +1183,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
             </div>
           ))}
         </div>
-        <div className="ca-card">
+        {/* <div className="ca-card">
           <div className="ca-row">
             <h3 className="ca-h3">Wishlist product breakdown</h3>
             <button
@@ -930,7 +1224,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
           ) : (
             <p className="ca-mu">No wishlist product activity in this period.</p>
           )}
-        </div>
+        </div> */}
       </>
     );
   };
@@ -1022,29 +1316,18 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                   summary[selectedTrendMetric] ?? 0,
                 )}
               </div>
-              <div className="ca-two">
-                <div className="ca-card">
-                  <h3 className="ca-h3">Top 5 products by saves</h3>
-                  <div className="ca-tw">
-                    <table className="ca-table">
-                      <tr>
-                        <th>Product</th>
-                        <th className="ca-n">Saves</th>
-                        <th className="ca-n">Conversion</th>
-                      </tr>
-                      {topProducts.map((row, index) => (
-                        <tr key={String(row.productId ?? index)}>
-                          <td>{String(row.title ?? row.productId ?? "")}</td>
-                          <td className="ca-n">{fmtN(Number(row.saves ?? 0))}</td>
-                          <td className="ca-n">{fmtP(Number(row.conversionRate ?? row.conv ?? 0))}</td>
-                        </tr>
-                      ))}
-                      {topProducts.length === 0 && (
-                        <tr><td colSpan={3}>No product activity in this date range.</td></tr>
-                      )}
-                    </table>
-                  </div>
-                </div>
+              <div className="ca-two" ref={detailRef}>
+                <OverviewMetricDetail
+                  metric={selectedTrendMetric}
+                  from={from}
+                  to={to}
+                  topProducts={topProducts}
+                  onOpenProduct={(productId) => {
+                    setDetailVariantId(undefined);
+                    setDetailProductId(productId);
+                  }}
+                  onOpenReport={(nextSlug) => selectReport(nextSlug)}
+                />
                 {/* <div className="ca-card">
                   <h3 className="ca-h3">Go to a detail report</h3>
                   <div className="ca-sub" style={{ flexWrap: "wrap" }}>
@@ -1075,16 +1358,31 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
               <div className="ca-card">
                 <div className="ca-row">
                   <h3 className="ca-h3">Activity by {groupBy}</h3>
-                  <select
-                    className="ca-select"
-                    value={groupBy}
-                    onChange={(event) => updateParams({ groupBy: event.target.value, page: "1" })}
-                    aria-label="Group by"
-                  >
-                    <option value="day">Day</option>
-                    <option value="week">Week</option>
-                    <option value="month">Month</option>
-                  </select>
+                  <div className="ca-ctl">
+                    <select
+                      className="ca-select"
+                      value={selectedTrendMetric}
+                      onChange={(event) =>
+                        setSelectedTrendMetric(event.target.value as OverviewDetailMetric)
+                      }
+                      aria-label="Activity metric"
+                    >
+                      <option value="saves">Saves</option>
+                      <option value="uniqueSavers">Unique savers</option>
+                      <option value="alertSubscriptions">Subscriptions</option>
+                      <option value="notificationsSent">Notifications sent</option>
+                    </select>
+                    <select
+                      className="ca-select"
+                      value={groupBy}
+                      onChange={(event) => updateParams({ groupBy: event.target.value, page: "1" })}
+                      aria-label="Group by"
+                    >
+                      <option value="day">Day</option>
+                      <option value="week">Week</option>
+                      <option value="month">Month</option>
+                    </select>
+                  </div>
                 </div>
                 {trendChart(
                   series,
@@ -1100,7 +1398,41 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
             </>
           ) : (
             <>
-              {data?.revenueLabel && (
+              {slug === "wishlist-conversion" && (
+                <div className="ca-report-intro">
+                  <h2 className="ca-h2">Wishlist conversion</h2>
+                  <p className="ca-mu">Which saved products actually sell</p>
+                  <p className="ca-mu">
+                    Revenue label: <span className="ca-badge ca-a">Estimated</span> unless the row is marked Direct.
+                  </p>
+                </div>
+              )}
+              {slug === "wishlist-to-cart" && (
+                <div className="ca-report-intro">
+                  <h2 className="ca-h2">Wishlist to cart</h2>
+                  <p className="ca-mu">How many saved items move into the cart</p>
+                </div>
+              )}
+              {slug === "alert-subscriptions" && (
+                <div className="ca-report-intro">
+                  <h2 className="ca-h2">Alert subscriptions</h2>
+                  <p className="ca-mu">Back-in-stock sign-ups by variant</p>
+                </div>
+              )}
+              {slug === "pending-alerts" && (
+                <div className="ca-report-intro">
+                  <h2 className="ca-h2">Pending alerts</h2>
+                  <p className="ca-mu">Shoppers still waiting for a restock</p>
+                </div>
+              )}
+              {slug === "alert-purchases" && (
+                <div className="ca-report-intro">
+                  <h2 className="ca-h2">Alert purchases</h2>
+                  <p className="ca-mu">Orders that followed a restock alert</p>
+                  <p className="ca-mu">Revenue label: <span className="ca-badge ca-a">Estimated</span> unless the row is marked Direct.</p>
+                </div>
+              )}
+              {data?.revenueLabel && !["wishlist-conversion", "wishlist-to-cart", "alert-subscriptions", "pending-alerts", "alert-purchases"].includes(slug) && (
                 <p className="ca-mu">
                   Revenue label:{" "}
                   <span className={`ca-badge ca-${data.revenueLabel === "estimated" ? "a" : data.revenueLabel === "direct" ? "b" : "g"}`}>
@@ -1124,6 +1456,31 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
           selected date range.
         </p>
       </div>
+      {detailProductId && (
+        <ProductDetailDrawer
+          productId={detailProductId}
+          variantId={detailVariantId}
+          from={from}
+          to={to}
+          onClose={closeDetail}
+        />
+      )}
+      {customerValueSegment && (
+        <CustomerValueDetailDrawer
+          segment={customerValueSegment}
+          from={from}
+          to={to}
+          onClose={() => setCustomerValueSegment(null)}
+        />
+      )}
+      {recurringCustomerId && (
+        <RecurringCustomerDetailDrawer
+          customerId={recurringCustomerId}
+          from={from}
+          to={to}
+          onClose={() => setRecurringCustomerId(null)}
+        />
+      )}
     </div>
   );
 }
