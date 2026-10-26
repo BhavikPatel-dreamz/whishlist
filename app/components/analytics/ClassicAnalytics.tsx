@@ -963,7 +963,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
               <input
                 type="checkbox"
                 checked={compare}
-                onChange={(e) => updateParams({ compare: e.target.checked ? "true" : undefined, page: "1" })}
+                onChange={(e) => updateParams({ compare: e.target.checked ? "true" : "false", page: "1" })}
               />
               Compare to previous period
             </label>
@@ -1045,7 +1045,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                     </table>
                   </div>
                 </div>
-                <div className="ca-card">
+                {/* <div className="ca-card">
                   <h3 className="ca-h3">Go to a detail report</h3>
                   <div className="ca-sub" style={{ flexWrap: "wrap" }}>
                     {["wishlist-conversion", "restock-conversion", "revenue-attribution", "low-stock-demand", "notification-delivery"].map((s) => (
@@ -1067,7 +1067,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                     <span className="ca-badge ca-b">Direct</span>{" "}
                     combined.
                   </p>
-                </div>
+                </div> */}
               </div>
             </>
           ) : slug === "activity-trends" ? (

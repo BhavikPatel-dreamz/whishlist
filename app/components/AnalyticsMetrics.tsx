@@ -176,7 +176,7 @@ export function AnalyticsMetrics({
   /* ---- report links ---- */
   const reportUrl = (slug: string, from: string, to: string) => {
     const params = new URLSearchParams({ report: slug, from, to });
-    return `/app/analytics/polaris?${params.toString()}`;
+    return `/app/analytics?${params.toString()}`;
   };
   const wishlistReport = (kind: string) => {
     const slug =

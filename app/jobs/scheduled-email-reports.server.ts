@@ -41,7 +41,7 @@ function buildEmailHtml({
     (s.wishlistRevenueEstimated ?? 0) +
     (s.restockRevenueDirect ?? 0) +
     (s.restockRevenueEstimated ?? 0);
-  const adminUrl = `${appOrigin()}/app/analytics/polaris`;
+  const adminUrl = `${appOrigin()}/app/analytics`;
 
   return `
 <!DOCTYPE html>
@@ -87,7 +87,7 @@ function buildEmailHtml({
         <div class="kpi">
           <div class="label">Wishlist Saves</div>
           <div class="value">${(s.saves ?? 0).toLocaleString()}</div>
-          <div class="delta ${(s.saveRate ?? 0) > 0 ? 'up' : 'neutral'}">${formatPercent(s.saveRate ?? 0)} save rate</div>
+          <div class="delta ${(s.saveRate ?? 0) > 0 ? "up" : "neutral"}">${formatPercent(s.saveRate ?? 0)} save rate</div>
         </div>
         <div class="kpi">
           <div class="label">Alert Subscriptions</div>
@@ -99,7 +99,7 @@ function buildEmailHtml({
         </div>
         <div class="kpi">
           <div class="label">Attributed Revenue</div>
-          <div class="value">${roundMoney(totalRevenue).toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</div>
+          <div class="value">${roundMoney(totalRevenue).toLocaleString("en-US", { style: "currency", currency: "USD" })}</div>
         </div>
       </div>
       <div class="section">
@@ -109,15 +109,20 @@ function buildEmailHtml({
             <tr><th>Product</th><th>Saves</th><th>Conversion</th></tr>
           </thead>
           <tbody>
-            ${(overview.rows ?? [])
-              .slice(0, 5)
-              .map((row: any) => `
+            ${
+              (overview.rows ?? [])
+                .slice(0, 5)
+                .map(
+                  (row: any) => `
                 <tr>
-                  <td>${row.title || row.productId || 'Unknown'}</td>
+                  <td>${row.title || row.productId || "Unknown"}</td>
                   <td>${row.saves ?? 0}</td>
                   <td>${formatPercent(row.conversionRate ?? 0)}</td>
                 </tr>
-              `).join('') || '<tr><td colspan="3">No data</td></tr>'}
+              `,
+                )
+                .join("") || '<tr><td colspan="3">No data</td></tr>'
+            }
           </tbody>
         </table>
       </div>
@@ -135,7 +140,11 @@ function buildEmailHtml({
 /**
  * Sends the scheduled analytics email to one shop.
  */
-async function sendShopReport(shopId: string, shopDomain: string, admin: any): Promise<EmailResult> {
+async function sendShopReport(
+  shopId: string,
+  shopDomain: string,
+  admin: any,
+): Promise<EmailResult> {
   const settings = await getShopSettings(shopId);
   if (!settings?.weeklyReportEmail) {
     return { shop: shopDomain, sent: false };
@@ -147,16 +156,20 @@ async function sendShopReport(shopId: string, shopDomain: string, admin: any): P
   });
   const to = shopRow?.senderEmail;
   if (!to) {
-    return { shop: shopDomain, sent: false, error: 'No sender email on file' };
+    return { shop: shopDomain, sent: false, error: "No sender email on file" };
   }
 
   const now = new Date();
-  const toDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const toDate = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  )
     .toISOString()
     .slice(0, 10);
   const fromDate = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6),
-  ).toISOString().slice(0, 10);
+  )
+    .toISOString()
+    .slice(0, 10);
 
   const range = { from: fromDate, to: toDate };
 
@@ -179,7 +192,7 @@ async function sendShopReport(shopId: string, shopDomain: string, admin: any): P
     where: { id: shopId },
   });
   if (!shopForSettings) {
-    return { shop: shopDomain, sent: false, error: 'Shop not found' };
+    return { shop: shopDomain, sent: false, error: "Shop not found" };
   }
 
   const emailSettings = resolveSettings(shopForSettings);
@@ -207,12 +220,17 @@ async function sendShopReport(shopId: string, shopDomain: string, admin: any): P
  * Cron entry point: sends weekly analytics emails to all opted-in shops.
  * Protected by CRON_SECRET.
  */
-export async function runScheduledEmailReports(request: Request): Promise<Response> {
+export async function runScheduledEmailReports(
+  request: Request,
+): Promise<Response> {
   if (request.method !== "POST") {
-    return new Response(JSON.stringify({ ok: false, error: "method_not_allowed" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ ok: false, error: "method_not_allowed" }),
+      {
+        status: 405,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 
   const secret = process.env.CRON_SECRET;
@@ -223,7 +241,10 @@ export async function runScheduledEmailReports(request: Request): Promise<Respon
     });
   }
 
-  const provided = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  const provided = (request.headers.get("authorization") || "").replace(
+    /^Bearer\s+/i,
+    "",
+  );
   if (!provided || provided.length !== secret.length) {
     return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
       status: 401,
@@ -233,7 +254,10 @@ export async function runScheduledEmailReports(request: Request): Promise<Respon
 
   let valid = true;
   for (let i = 0; i < secret.length; i++) {
-    if (provided[i] !== secret[i]) { valid = false; break; }
+    if (provided[i] !== secret[i]) {
+      valid = false;
+      break;
+    }
   }
   if (!valid) {
     return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {

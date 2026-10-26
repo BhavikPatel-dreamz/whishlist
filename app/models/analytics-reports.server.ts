@@ -2732,17 +2732,145 @@ async function topIntentCustomersData(
   admin: GraphqlClient,
   range: DateRange,
 ): Promise<ReportData> {
-  const activity = await recurringCustomersData(shopId, admin, range);
-  const rows = activity.rows
-    .filter((row) => row.orders === 0)
-    .map((row) => ({
-      customer: row.customer,
-      saves: row.saves,
-      subscriptions: row.subscriptions,
-      intentScore:
-        Number(row.saves) + Number(row.subscriptions) + Number(row.clicks),
-      lastActivity: row.lastActivity,
-    }));
+  const bounds = rangeBounds(range);
+  const [wishlistItems, alerts, clicks, attributions] = await Promise.all([
+    db.wishlistItem.findMany({
+      where: { shopId, createdAt: bounds },
+      select: {
+        customerId: true,
+        shopperId: true,
+        guestToken: true,
+        createdAt: true,
+      },
+    }),
+    db.stockAlert.findMany({
+      where: { shopId, createdAt: bounds },
+      select: {
+        customerId: true,
+        shopperId: true,
+        contactKey: true,
+        createdAt: true,
+      },
+    }),
+    db.notificationLog.groupBy({
+      by: ["shopperId"],
+      where: { shopId, clickedAt: bounds },
+      _count: { _all: true },
+      _max: { clickedAt: true },
+    }),
+    db.attribution.findMany({
+      where: { shopId, model: "last_click", orderedAt: bounds },
+      select: {
+        customerId: true,
+        shopperId: true,
+        orderId: true,
+        orderedAt: true,
+      },
+    }),
+  ]);
+  const identityOf = (
+    customerId: string | null,
+    shopperId: string | null,
+    fallback?: string | null,
+  ) => {
+    if (customerId) return `customer:${customerId}`;
+    const id = shopperId ?? fallback;
+    if (!id) return null;
+    return /^\d+$/.test(id) ? `customer:${id}` : `guest:${id}`;
+  };
+  const activity = new Map<
+    string,
+    {
+      customerId: string | null;
+      saves: number;
+      subscriptions: number;
+      clicks: number;
+      orders: Set<string>;
+      lastActivity: Date | null;
+    }
+  >();
+  const getShopper = (identity: string, customerId: string | null) => {
+    const shopper = activity.get(identity) ?? {
+      customerId,
+      saves: 0,
+      subscriptions: 0,
+      clicks: 0,
+      orders: new Set<string>(),
+      lastActivity: null,
+    };
+    if (customerId) shopper.customerId = customerId;
+    activity.set(identity, shopper);
+    return shopper;
+  };
+  const addActivity = (
+    shopper: ReturnType<typeof getShopper>,
+    date: Date | null,
+  ) => {
+    if (date && (!shopper.lastActivity || date > shopper.lastActivity)) {
+      shopper.lastActivity = date;
+    }
+  };
+  for (const item of wishlistItems) {
+    const identity = identityOf(
+      item.customerId,
+      item.shopperId,
+      item.guestToken,
+    );
+    if (!identity) continue;
+    const shopper = getShopper(identity, item.customerId);
+    shopper.saves++;
+    addActivity(shopper, item.createdAt);
+  }
+  for (const alert of alerts) {
+    const identity = identityOf(
+      alert.customerId,
+      alert.shopperId,
+      alert.contactKey,
+    );
+    if (!identity) continue;
+    const shopper = getShopper(identity, alert.customerId);
+    shopper.subscriptions++;
+    addActivity(shopper, alert.createdAt);
+  }
+  for (const click of clicks) {
+    const identity = identityOf(null, click.shopperId);
+    if (!identity) continue;
+    const shopper = getShopper(identity, null);
+    shopper.clicks += click._count._all;
+    addActivity(shopper, click._max.clickedAt);
+  }
+  for (const attribution of attributions) {
+    const identity = identityOf(attribution.customerId, attribution.shopperId);
+    if (!identity) continue;
+    const shopper = getShopper(identity, attribution.customerId);
+    shopper.orders.add(attribution.orderId);
+    addActivity(shopper, attribution.orderedAt);
+  }
+  const customerIds = [
+    ...new Set(
+      [...activity.values()].flatMap((shopper) =>
+        shopper.customerId ? [shopper.customerId] : [],
+      ),
+    ),
+  ];
+  const customerNames = await getCustomerNamesByIds(admin, customerIds);
+  const rows = [...activity.entries()]
+    .filter(([, shopper]) => shopper.orders.size === 0)
+    .map(([identity, shopper], index) => ({
+      customer: shopper.customerId
+        ? (customerNames.get(shopper.customerId) ??
+          `Customer ${shopper.customerId}`)
+        : `Guest shopper ${index + 1}`,
+      saves: shopper.saves,
+      subscriptions: shopper.subscriptions,
+      intentScore: shopper.saves + shopper.subscriptions + shopper.clicks,
+      lastActivity: shopper.lastActivity?.toISOString() ?? "",
+    }))
+    .filter((row) => row.intentScore > 0)
+    .sort(
+      (left, right) =>
+        right.intentScore - left.intentScore || right.saves - left.saves,
+    );
   return {
     summary: {
       customers: rows.length,
@@ -2756,7 +2884,7 @@ async function topIntentCustomersData(
     delta: EMPTY_DELTA,
     series: [],
     rows,
-    revenueLabel: activity.revenueLabel,
+    revenueLabel: REVENUE_LABEL.mixed,
   };
 }
 

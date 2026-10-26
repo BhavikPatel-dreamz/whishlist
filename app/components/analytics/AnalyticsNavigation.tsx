@@ -107,7 +107,7 @@ export function AnalyticsNavigation({ activeSlug }: { activeSlug: ReportSlug }) 
     }
     const suffix = params.size ? `?${params.toString()}` : "";
     return slug === "overview"
-      ? `/app/analytics/polaris${suffix}`
+      ? `/app/analytics${suffix}`
       : `/app/analytics/report/${slug}${suffix}`;
   };
 

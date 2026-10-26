@@ -55,7 +55,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   const { admin, shop } = await requireAdminShop(request);
   const slug = params.slug;
   if (!slug || !isReportSlug(slug)) {
-    return redirect(`/app/analytics/polaris`);
+    return redirect(`/app/analytics`);
   }
 
   const url = new URL(request.url);
