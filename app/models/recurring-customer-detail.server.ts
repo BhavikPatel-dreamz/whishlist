@@ -19,39 +19,53 @@ export async function loadRecurringCustomerDetail(
   range: DateRange,
 ): Promise<RecurringCustomerDetail> {
   const bounds = rangeBounds(range);
-  const [saves, subscriptions, clicks, attributions, savedOrders] =
-    await Promise.all([
-      db.wishlistItem.count({
-        where: { shopId, customerId, createdAt: bounds },
-      }),
-      db.stockAlert.count({ where: { shopId, customerId, createdAt: bounds } }),
-      db.notificationLog.findMany({
-        where: { shopId, clickedAt: bounds },
-        select: {
-          shopperId: true,
-          subscriptionId: true,
-          wishlistItemId: true,
-        },
-      }),
-      db.attribution.findMany({
-        where: { shopId, customerId, model: "last_click", orderedAt: bounds },
-        select: {
-          orderId: true,
-          orderNumber: true,
-          productId: true,
-          variantId: true,
-          source: true,
-          quantity: true,
-          revenue: true,
-          orderedAt: true,
-        },
-        orderBy: [{ orderedAt: "desc" }, { orderId: "asc" }],
-      }),
-      db.wishlistOrder.findMany({
-        where: { shopId, createdAt: bounds },
-        select: { orderId: true, productId: true, createdAt: true },
-      }),
-    ]);
+  const [
+    saves,
+    subscriptions,
+    clicks,
+    trackingClicks,
+    attributions,
+    savedOrders,
+  ] = await Promise.all([
+    db.wishlistItem.count({
+      where: { shopId, customerId, createdAt: bounds },
+    }),
+    db.stockAlert.count({ where: { shopId, customerId, createdAt: bounds } }),
+    db.notificationLog.findMany({
+      where: { shopId, clickedAt: bounds },
+      select: {
+        shopperId: true,
+        subscriptionId: true,
+        wishlistItemId: true,
+      },
+    }),
+    db.trackingEvent.count({
+      where: {
+        shopId,
+        customerId,
+        type: "NOTIFICATION_CLICK",
+        createdAt: bounds,
+      },
+    }),
+    db.attribution.findMany({
+      where: { shopId, customerId, model: "last_click", orderedAt: bounds },
+      select: {
+        orderId: true,
+        orderNumber: true,
+        productId: true,
+        variantId: true,
+        source: true,
+        quantity: true,
+        revenue: true,
+        orderedAt: true,
+      },
+      orderBy: [{ orderedAt: "desc" }, { orderId: "asc" }],
+    }),
+    db.wishlistOrder.findMany({
+      where: { shopId, createdAt: bounds },
+      select: { orderId: true, productId: true, createdAt: true },
+    }),
+  ]);
 
   const [clickedAlerts, clickedWishlistItems] = await Promise.all([
     db.stockAlert.findMany({
@@ -91,7 +105,7 @@ export async function loadRecurringCustomerDetail(
   const customerByItem = new Map(
     clickedWishlistItems.map((item) => [item.id, item.customerId]),
   );
-  const clickCount = clicks.filter(
+  const logClickCount = clicks.filter(
     (click) =>
       (click.subscriptionId &&
         customerByAlert.get(click.subscriptionId) === customerId) ||
@@ -99,6 +113,7 @@ export async function loadRecurringCustomerDetail(
         customerByItem.get(click.wishlistItemId) === customerId) ||
       click.shopperId === customerId,
   ).length;
+  const clickCount = Math.max(logClickCount, trackingClicks);
 
   const shopifyOrders = await loadShopifyOrderDetails(
     admin,

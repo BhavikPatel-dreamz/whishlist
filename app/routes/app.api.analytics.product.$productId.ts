@@ -5,8 +5,8 @@ import { paramsRange, parseAnalyticsParams } from "../lib/analytics-params";
 import { loadProductDetail } from "../models/product-detail.server";
 
 /**
- * Product drill-down for the Overview's "Top 5 products by saves" card.
- * Loaded on demand by the slide-over drawer so the Overview stays untouched.
+ * Product drill-down for analytics product rows and metric breakdowns.
+ * Loaded on demand by the full-page product details route.
  */
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const { admin, shop } = await requireAdminShop(request);

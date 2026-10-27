@@ -258,11 +258,11 @@ async function uniqueSaversDetail(
 
   return {
     metric: "uniqueSavers",
-    title: "Top 5 unique savers",
+    title: "Top 5 customer ",
     description:
       "Customers and guest devices with the most wishlist saves in the selected period.",
     columns: [
-      { label: "Shopper" },
+      { label: "Customer name" },
       { label: "Saves", align: "right" },
       { label: "Products", align: "right" },
       { label: "Last saved", align: "right" },
@@ -544,16 +544,19 @@ async function notificationClicksDetail(
     ),
     ...fallbackAlerts.flatMap((alert) =>
       alert.convertedAt
-        ? [{
-            source: {
-              productId: alert.productId,
-              subscriptionId: alert.id,
-              shopperId: alert.shopperId ?? alert.customerId ?? alert.contactKey,
-              channel: alert.channel,
-              status: alert.status,
+        ? [
+            {
+              source: {
+                productId: alert.productId,
+                subscriptionId: alert.id,
+                shopperId:
+                  alert.shopperId ?? alert.customerId ?? alert.contactKey,
+                channel: alert.channel,
+                status: alert.status,
+              },
+              clickedAt: alert.convertedAt,
             },
-            clickedAt: alert.convertedAt,
-          }]
+          ]
         : [],
     ),
   ]

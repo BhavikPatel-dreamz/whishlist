@@ -11,7 +11,6 @@ import {
   InlineStack,
   Grid,
   Text,
-  Badge,
   BlockStack,
   TextField,
 } from "@shopify/polaris";
@@ -80,9 +79,6 @@ export function ReportViewer({
       <Text as="p" variant="bodyMd" fontWeight="semibold">
         {title}
       </Text>
-      {data.revenueLabel && (
-        <Badge tone="info">{`${data.revenueLabel} revenue`}</Badge>
-      )}
       {kpiMetrics.length > 0 && (
         <Grid>
           {kpiMetrics.map(([key, value]) => (

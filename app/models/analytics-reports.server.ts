@@ -1327,8 +1327,11 @@ async function pendingAlertData(
     signedUpAt: alert.createdAt.toISOString(),
     pendingReason: alert.pendingReason ?? "out_of_stock",
   }));
+  const pendingVariants = new Set(
+    alerts.map((alert) => `${alert.productId}:${alert.variantId}`),
+  ).size;
   return {
-    summary: { pendingAlerts: rows.length },
+    summary: { pendingVariants, pendingAlerts: rows.length },
     delta: EMPTY_DELTA,
     series: [],
     rows,
@@ -2830,8 +2833,8 @@ async function recurringCustomersData(
   range: DateRange,
 ): Promise<ReportData> {
   const bounds = rangeBounds(range);
-  const [saves, subscriptions, clicks, orders, savedOrders] = await Promise.all(
-    [
+  const [saves, subscriptions, clicks, trackingClicks, orders, savedOrders] =
+    await Promise.all([
       db.wishlistItem.groupBy({
         by: ["customerId"],
         where: {
@@ -2861,6 +2864,12 @@ async function recurringCustomersData(
           clickedAt: true,
         },
       }),
+      db.trackingEvent.groupBy({
+        by: ["customerId", "shopperId"],
+        where: { shopId, type: "NOTIFICATION_CLICK", createdAt: bounds },
+        _count: { _all: true },
+        _max: { createdAt: true },
+      }),
       db.attribution.findMany({
         where: {
           shopId,
@@ -2879,8 +2888,7 @@ async function recurringCustomersData(
         where: { shopId, createdAt: bounds },
         select: { orderId: true, createdAt: true },
       }),
-    ],
-  );
+    ]);
   const [clickedAlerts, clickedWishlistItems] = await Promise.all([
     db.stockAlert.findMany({
       where: {
@@ -2979,6 +2987,33 @@ async function recurringCustomersData(
     const row = getActivity(customerId);
     row.clicks++;
     setLastActivity(row, click.clickedAt);
+  }
+  const trackingClicksByCustomer = new Map<
+    string,
+    { count: number; lastActivity: Date | null }
+  >();
+  for (const click of trackingClicks) {
+    const customerId =
+      click.customerId ??
+      (/^\d+$/.test(click.shopperId) ? click.shopperId : null);
+    if (!customerId) continue;
+    const current = trackingClicksByCustomer.get(customerId) ?? {
+      count: 0,
+      lastActivity: null,
+    };
+    current.count += click._count._all;
+    if (
+      click._max.createdAt &&
+      (!current.lastActivity || click._max.createdAt > current.lastActivity)
+    ) {
+      current.lastActivity = click._max.createdAt;
+    }
+    trackingClicksByCustomer.set(customerId, current);
+  }
+  for (const [customerId, clickData] of trackingClicksByCustomer) {
+    const row = getActivity(customerId);
+    row.clicks = Math.max(row.clicks, clickData.count);
+    setLastActivity(row, clickData.lastActivity);
   }
   const orderIdsByCustomer = new Map<string, Set<string>>();
   const attributedOrderKeys = new Set<string>();
@@ -3447,6 +3482,7 @@ async function notificationLogData(
         ? alertById.get(log.subscriptionId)
         : undefined;
       return {
+        productId: log.productId,
         date: (log.sentAt ?? log.createdAt).toISOString(),
         recipient:
           alert?.email ?? alert?.phone ?? alert?.contactKey ?? log.shopperId,
@@ -3460,6 +3496,7 @@ async function notificationLogData(
       };
     }),
     ...fallbackAlerts.map((alert) => ({
+      productId: alert.productId,
       date: alert.notifiedAt!.toISOString(),
       recipient: alert.email ?? alert.phone ?? alert.contactKey,
       kind: "RESTOCK",

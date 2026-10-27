@@ -60,13 +60,11 @@ const GROUPS: { label: string; reports: ReportSlug[] }[] = [
       "variant-demand",
       "save-sources",
       "reminder-performance",
-      "guest-to-customer",
     ],
   },
   {
     label: "Back in Stock",
     reports: [
-      "stock-list",
       "alert-subscriptions",
       "pending-alerts",
       "alert-purchases",

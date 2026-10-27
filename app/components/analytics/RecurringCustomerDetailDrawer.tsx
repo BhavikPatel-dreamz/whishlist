@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useFetcher } from "@remix-run/react";
 import type { RecurringCustomerDetail } from "../../lib/recurring-customer-detail";
+import "./product-detail.css";
 
 type FetcherData = RecurringCustomerDetail | { error: string };
 
@@ -16,19 +17,18 @@ function fmtMoney(value: number) {
   return `$${Math.round(value).toLocaleString("en-US")}`;
 }
 
-export function RecurringCustomerDetailDrawer({
+export function RecurringCustomerDetailPage({
   customerId,
   from,
   to,
-  onClose,
+  onBack,
 }: {
   customerId: string;
   from: string;
   to: string;
-  onClose: () => void;
+  onBack: () => void;
 }) {
   const fetcher = useFetcher<FetcherData>();
-  const closeRef = useRef<HTMLButtonElement>(null);
   const loadedKey = useRef<string | null>(null);
   const url = `/app/api/analytics/recurring-customer-detail?customerId=${encodeURIComponent(customerId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
 
@@ -37,20 +37,6 @@ export function RecurringCustomerDetailDrawer({
     loadedKey.current = url;
     fetcher.load(url);
   }, [url, fetcher]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [onClose]);
 
   const detail = isDetail(fetcher.data) ? fetcher.data : null;
   const error = fetcher.data && "error" in fetcher.data ? fetcher.data.error : null;
@@ -66,60 +52,56 @@ export function RecurringCustomerDetailDrawer({
     : [];
 
   return (
-    <div
-      className="ca-drawer-backdrop"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <aside
-        className="ca-drawer"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ca-recurring-customer-title"
-      >
-        <header className="ca-drawer-head">
-          <div className="ca-drawer-title">
-            <div>
-              <h2 id="ca-recurring-customer-title">
-                {detail?.customer ?? "Customer details"}
-              </h2>
-              <p className="ca-mu">{from} to {to} · customer activity and purchases</p>
-            </div>
+    <div className="pd">
+      <main className="pd-wrap">
+        <button type="button" className="pd-back" onClick={onBack}>
+          &larr; Back to analytics
+        </button>
+        <header className="pd-head">
+          <span className="pd-thumb pd-customer-mark" aria-hidden="true">
+            {detail?.customer.slice(0, 1).toUpperCase() ?? "C"}
+          </span>
+          <div>
+            <h1>{detail?.customer ?? "Customer details"}</h1>
+            <p className="pd-sub">
+              {from} to {to} · customer activity and purchases
+            </p>
           </div>
-          <button
-            ref={closeRef}
-            type="button"
-            className="ca-drawer-close"
-            onClick={onClose}
-            aria-label="Close customer details"
-          >
-            ✕
-          </button>
         </header>
-        <div className="ca-drawer-body">
-          {loading && <p className="ca-drawer-state" role="status">Loading customer details…</p>}
-          {error && (
-            <div className="ca-drawer-state ca-r" role="alert">
-              {error}{" "}
-              <button type="button" className="ca-link" onClick={() => fetcher.load(url)}>
-                Try again
-              </button>
+
+        {loading && (
+          <p className="pd-state" role="status">
+            Loading customer details…
+          </p>
+        )}
+        {error && (
+          <p className="pd-state pd-state--err" role="alert">
+            {error}{" "}
+            <button type="button" className="pd-back" onClick={() => fetcher.load(url)}>
+              Try again
+            </button>
+          </p>
+        )}
+        {detail && (
+          <>
+            <div className="pd-kpis">
+              {metrics.map(([label, value]) => (
+                <div className="pd-kpi pd-kpi--static" key={label}>
+                  <span>{label}</span>
+                  <strong>{typeof value === "number" ? fmtN(value) : value}</strong>
+                </div>
+              ))}
             </div>
-          )}
-          {detail && (
-            <>
-              <div className="ca-drawer-kpis">
-                {metrics.map(([label, value]) => (
-                  <div className="ca-kpi" key={label}>
-                    <span>{label}</span>
-                    <strong>{typeof value === "number" ? fmtN(value) : value}</strong>
-                  </div>
-                ))}
+
+            <section className="pd-card">
+              <div className="pd-card-head">
+                <h2>Attributed purchases</h2>
+                <span className="pd-count">{fmtN(detail.orderDetails.length)}</span>
               </div>
+              <p className="pd-note">Purchases attributed to this customer during the selected date range.</p>
               {detail.orderDetails.length ? (
-                <div className="ca-tw">
-                  <table className="ca-table ca-table--compact">
+                <div className="pd-tw">
+                  <table className="pd-table">
                     <thead>
                       <tr>
                         <th>Order</th>
@@ -127,8 +109,8 @@ export function RecurringCustomerDetailDrawer({
                         <th>Product purchased</th>
                         <th>Variant</th>
                         <th>Source</th>
-                        <th className="ca-n">Quantity</th>
-                        <th className="ca-n">Revenue</th>
+                        <th className="pd-n">Quantity</th>
+                        <th className="pd-n">Revenue</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -140,8 +122,8 @@ export function RecurringCustomerDetailDrawer({
                             <td>{product.title}</td>
                             <td>{product.variant}</td>
                             <td>{product.source}</td>
-                            <td className="ca-n">{fmtN(product.quantity)}</td>
-                            <td className="ca-n">{fmtMoney(product.revenue)}</td>
+                            <td className="pd-n">{fmtN(product.quantity)}</td>
+                            <td className="pd-n">{fmtMoney(product.revenue)}</td>
                           </tr>
                         )),
                       )}
@@ -149,12 +131,14 @@ export function RecurringCustomerDetailDrawer({
                   </table>
                 </div>
               ) : (
-                <div className="ca-empty">No attributed purchases for this customer in the selected range.</div>
+                <p className="pd-empty">
+                  No attributed purchases for this customer in the selected range.
+                </p>
               )}
-            </>
-          )}
-        </div>
-      </aside>
+            </section>
+          </>
+        )}
+      </main>
     </div>
   );
 }

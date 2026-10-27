@@ -16,15 +16,13 @@
  *  - Light / dark theme (system default honoured)
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigation, useSearchParams } from "@remix-run/react";
+import { useNavigation, useNavigate, useSearchParams } from "@remix-run/react";
 import { downloadCsv } from "../../lib/download.client";
 import { REPORT_CSV_ROW_KEYS, type ReportSlug } from "../../lib/report-contract";
 import type { CustomerValueSegment } from "../../lib/customer-value-detail";
 import type { OverviewDetailMetric } from "../../lib/overview-detail";
 import { CustomerValueDetailDrawer } from "./CustomerValueDetailDrawer";
 import { OverviewMetricDetail } from "./OverviewMetricDetail";
-import { ProductDetailDrawer } from "./ProductDetailDrawer";
-import { RecurringCustomerDetailDrawer } from "./RecurringCustomerDetailDrawer";
 
 const DAY_MS = 86400000;
 
@@ -40,10 +38,9 @@ const GROUPS = [
   { label: "Wishlist", slug: "wishlist", reports: [
     "wishlisted-products", "shared-wishlists", "wishlist-orders",
     "wishlist-conversion", "wishlist-to-cart", "variant-demand",
-    "guest-to-customer",
   ]},
   { label: "Back in Stock", slug: "back-in-stock", reports: [
-    "stock-list", "alert-subscriptions", "pending-alerts",
+    "alert-subscriptions", "pending-alerts",
     "alert-purchases", "restock-conversion", "low-stock-demand",
   ]},
   { label: "Customers", slug: "customers", reports: [
@@ -168,7 +165,8 @@ const BADGE_KEYS = new Set([
 const TEXT_KEYS = new Set([
   "source", "title", "label", "shopper", "cust", "customer", "prod",
   "product", "ord", "order", "variant", "name", "email", "phone",
-  "variantnames", "contact", "error", "freq", "to", "segment", "tab", "window", "week",
+  "variantid", "varianttitle", "variantnames", "contact", "error", "freq",
+  "to", "segment", "tab", "window", "week",
 ]);
 function inferFormat(key: string): "n" | "p" | "$" | "b" | "d" | "t" | "x" | "m" | "h" {
   const k = key.toLowerCase();
@@ -398,19 +396,24 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
   const [selectedTrendMetric, setSelectedTrendMetric] = useState<OverviewDetailMetric>("saves");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
-  const [detailProductId, setDetailProductId] = useState<string | null>(null);
-  const [detailVariantId, setDetailVariantId] = useState<string | undefined>();
   const [customerValueSegment, setCustomerValueSegment] = useState<CustomerValueSegment | null>(null);
-  const [recurringCustomerId, setRecurringCustomerId] = useState<string | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
-  const closeDetail = useCallback(() => {
-    setDetailProductId(null);
-    setDetailVariantId(undefined);
-  }, []);
   const navigation = useNavigation();
+  const navigate = useNavigate();
   const slug = report.report;
   const group = GROUP_OF[slug] ?? 0;
   const { from, to } = report.range;
+  const openProductDetail = useCallback((productId: string, variantId?: string) => {
+    const params = new URLSearchParams({ from, to });
+    if (variantId) params.set("variantId", variantId);
+    params.set("returnTo", `${window.location.pathname}${window.location.search}`);
+    navigate(`/app/analytics/product/${encodeURIComponent(productId)}?${params}`);
+  }, [from, to, navigate]);
+  const openRecurringCustomerDetail = useCallback((customerId: string) => {
+    const params = new URLSearchParams({ from, to });
+    params.set("returnTo", `${window.location.pathname}${window.location.search}`);
+    navigate(`/app/analytics/customer/${encodeURIComponent(customerId)}?${params}`);
+  }, [from, to, navigate]);
   const prev = report.compareRange;
   const compare = prev !== null;
   const groupBy = searchParams.get("groupBy") ?? "day";
@@ -431,8 +434,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
   const pg = report.pagination.page;
   const filterKey = ["notification-delivery", "notification-log", "reminder-performance"].includes(slug)
     ? "channel"
-    : slug === "recurring-customers"
-      ? "customerType"
     : slug === "pending-alerts"
       ? "reason"
     : "status";
@@ -442,12 +443,9 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
   const attributionWindowFilter = searchParams.get("windowDays") ?? "";
   const filterOptions = ["notification-delivery", "reminder-performance"].includes(slug)
     ? ["EMAIL", "SMS", "WHATSAPP", "PUSH"]
-    : slug === "recurring-customers"
-      ? ["Repeat", "Engaged"]
     : slug === "pending-alerts"
       ? ["out_of_stock", "queued", "unconfirmed"]
       : [];
-  const data = report;
   const rows = report.rows;
   const summary = report.summary;
   const delta = report.delta;
@@ -506,13 +504,12 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
     url.searchParams.set("from", from);
     url.searchParams.set("to", to);
     url.searchParams.set("format", "csv");
-    url.searchParams.set("includeLists", "1");
     setExporting(true);
     setExportError("");
     try {
       await downloadCsv(
         url.toString(),
-        `wishlist-back-in-stock-${from}_${to}.csv`,
+        `${slug}-${from}_${to}.csv`,
       );
     } catch {
       setExportError("CSV export failed. Please try again.");
@@ -538,11 +535,25 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
     "revenue",
     "revenueLabel",
   ]);
-  const hiddenNotificationLogColumns = new Set(["error", "retries"]);
+  const hiddenNotificationLogColumns = new Set([
+    "shopper",
+    "status",
+    "error",
+    "retries",
+  ]);
+  const hiddenWishlistColumns = new Set(["variantNames", "uniqueShoppers"]);
+  const hiddenVariantDemandColumns = new Set(["uniqueShoppers"]);
+  const hiddenRecurringCustomerColumns = new Set(["customerType"]);
   const visibleColDefs = slug === "restock-conversion"
     ? colDefs.filter((column) => !hiddenRestockColumns.has(column.key))
     : slug === "notification-log"
       ? colDefs.filter((column) => !hiddenNotificationLogColumns.has(column.key))
+      : slug === "wishlisted-products"
+        ? colDefs.filter((column) => !hiddenWishlistColumns.has(column.key))
+        : slug === "variant-demand"
+          ? colDefs.filter((column) => !hiddenVariantDemandColumns.has(column.key))
+          : slug === "recurring-customers"
+            ? colDefs.filter((column) => !hiddenRecurringCustomerColumns.has(column.key))
       : colDefs;
 
   const totalRow = visibleColDefs
@@ -647,6 +658,23 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
       const metrics: Array<[string, string]> = [
         ["Total subscriptions", "subscriptions"],
         ["Total new in range", "newSubscriptions"],
+      ];
+      return (
+        <div className="ca-kpis" style={{ margin: 0 }}>
+          {metrics.map(([label, key]) => (
+            <div className="ca-k" key={key}>
+              <span className="ca-mu">{label}</span>
+              <b>{fmtN(summary[key] ?? 0)}</b>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (slug === "pending-alerts") {
+      const metrics: Array<[string, string]> = [
+        ["Total pending variants", "pendingVariants"],
+        ["Total pending count", "pendingAlerts"],
       ];
       return (
         <div className="ca-kpis" style={{ margin: 0 }}>
@@ -807,7 +835,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
       const metrics: Array<[string, string]> = [
         ["Total variant", "variantCount"],
         ["Total saves", "saves"],
-        ["Total unique shoppers", "uniqueShoppers"],
       ];
       return (
         <div className="ca-kpis" style={{ margin: 0 }}>
@@ -826,7 +853,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
         ["Total variant", "variants"],
         ["Total quantity", "quantity"],
         ["Total waiting", "waiting"],
-        ["Total gap", "demandGap"],
       ];
       return (
         <div className="ca-kpis" style={{ margin: 0 }}>
@@ -885,9 +911,9 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
               className="ca-select"
               value={filterValue}
               onChange={(event) => updateParams({ [filterKey]: event.target.value || undefined, page: "1" })}
-              aria-label={filterKey === "channel" ? "Filter by channel" : filterKey === "reason" ? "Filter by pending reason" : filterKey === "customerType" ? "Filter by customer type" : "Filter by status"}
+              aria-label={filterKey === "channel" ? "Filter by channel" : filterKey === "reason" ? "Filter by pending reason" : "Filter by status"}
             >
-              <option value="">{filterKey === "reason" ? "All reasons" : filterKey === "customerType" ? "All types" : "All"}</option>
+              <option value="">{filterKey === "reason" ? "All reasons" : "All"}</option>
               {filterOptions.map((v) => (
                 <option key={v} value={v}>{v.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}</option>
               ))}
@@ -956,6 +982,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                     </th>
                   );
                 })}
+                {slug === "notification-log" && <th>Details</th>}
                 {slug === "revenue-attribution" && <th>Details</th>}
                 {slug === "alert-subscriptions" && <th>Details</th>}
                 {slug === "variant-demand" && <th>Details</th>}
@@ -1008,6 +1035,18 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                       ) : formatCell(row[c.key], c.format)}
                     </td>
                   ))}
+                  {slug === "notification-log" && (
+                    <td>
+                      <button
+                        type="button"
+                        className="ca-btn"
+                        aria-label={`View product details for ${String(row.product ?? "product")}`}
+                        onClick={() => openProductDetail(String(row.productId))}
+                      >
+                        Details
+                      </button>
+                    </td>
+                  )}
                   {slug === "revenue-attribution" && (
                     <td>
                       <button
@@ -1031,10 +1070,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                         type="button"
                         className="ca-btn"
                         aria-label={`View subscribers for ${String(row.title ?? "product")} - ${String(row.variantTitle ?? "variant")}`}
-                        onClick={() => {
-                          setDetailVariantId(String(row.variantId));
-                          setDetailProductId(String(row.productId));
-                        }}
+                        onClick={() => openProductDetail(String(row.productId), String(row.variantId))}
                       >
                         Details
                       </button>
@@ -1046,10 +1082,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                         type="button"
                         className="ca-btn"
                         aria-label={`View details for ${String(row.title ?? "product")} - ${String(row.variantTitle ?? "variant")}`}
-                        onClick={() => {
-                          setDetailVariantId(String(row.variantId));
-                          setDetailProductId(String(row.productId));
-                        }}
+                        onClick={() => openProductDetail(String(row.productId), String(row.variantId))}
                       >
                         Details
                       </button>
@@ -1077,7 +1110,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                         type="button"
                         className="ca-btn"
                         aria-label={`View details for ${String(row.customer ?? "customer")}`}
-                        onClick={() => setRecurringCustomerId(String(row.customerId))}
+                        onClick={() => openRecurringCustomerDetail(String(row.customerId))}
                       >
                         Details
                       </button>
@@ -1089,10 +1122,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                         type="button"
                         className="ca-btn"
                         aria-label={`View wishlist details for ${String(row.title ?? "product")}`}
-                        onClick={() => {
-                          setDetailVariantId(undefined);
-                          setDetailProductId(String(row.productId));
-                        }}
+                        onClick={() => openProductDetail(String(row.productId))}
                       >
                         Details
                       </button>
@@ -1261,7 +1291,12 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
               />
               Compare to previous period
             </label>
-            <button className="ca-btn p" onClick={handleExport} disabled={exporting}>
+            <button
+              className="ca-btn p"
+              onClick={handleExport}
+              disabled={exporting || slug === "overview"}
+              title={slug === "overview" ? "Select a report to export" : "Export this report as CSV"}
+            >
               {exporting ? "Exporting…" : "Export CSV"}
             </button>
           </div>
@@ -1322,10 +1357,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                   from={from}
                   to={to}
                   topProducts={topProducts}
-                  onOpenProduct={(productId) => {
-                    setDetailVariantId(undefined);
-                    setDetailProductId(productId);
-                  }}
+                  onOpenProduct={(productId) => openProductDetail(productId)}
                   onOpenReport={(nextSlug) => selectReport(nextSlug)}
                 />
                 {/* <div className="ca-card">
@@ -1402,9 +1434,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                 <div className="ca-report-intro">
                   <h2 className="ca-h2">Wishlist conversion</h2>
                   <p className="ca-mu">Which saved products actually sell</p>
-                  <p className="ca-mu">
-                    Revenue label: <span className="ca-badge ca-a">Estimated</span> unless the row is marked Direct.
-                  </p>
                 </div>
               )}
               {slug === "wishlist-to-cart" && (
@@ -1429,16 +1458,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                 <div className="ca-report-intro">
                   <h2 className="ca-h2">Alert purchases</h2>
                   <p className="ca-mu">Orders that followed a restock alert</p>
-                  <p className="ca-mu">Revenue label: <span className="ca-badge ca-a">Estimated</span> unless the row is marked Direct.</p>
                 </div>
-              )}
-              {data?.revenueLabel && !["wishlist-conversion", "wishlist-to-cart", "alert-subscriptions", "pending-alerts", "alert-purchases"].includes(slug) && (
-                <p className="ca-mu">
-                  Revenue label:{" "}
-                  <span className={`ca-badge ca-${data.revenueLabel === "estimated" ? "a" : data.revenueLabel === "direct" ? "b" : "g"}`}>
-                    {data.revenueLabel}
-                  </span>
-                </p>
               )}
               {renderKpis()}
               <div className="ca-card">
@@ -1450,35 +1470,16 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
           )}
         </main>
         <p className="ca-ft">
-          Revenue is labeled Direct (tracked click or wishlist-page order) or
-          Estimated (purchase inside the attribution window). Windows: Back in
-          Stock 7 days, Wishlist 14 days. Reports use events recorded for the
-          selected date range.
+          Attribution windows: Back in Stock 7 days, Wishlist 14 days. Reports
+          use events recorded for the selected date range.
         </p>
       </div>
-      {detailProductId && (
-        <ProductDetailDrawer
-          productId={detailProductId}
-          variantId={detailVariantId}
-          from={from}
-          to={to}
-          onClose={closeDetail}
-        />
-      )}
       {customerValueSegment && (
         <CustomerValueDetailDrawer
           segment={customerValueSegment}
           from={from}
           to={to}
           onClose={() => setCustomerValueSegment(null)}
-        />
-      )}
-      {recurringCustomerId && (
-        <RecurringCustomerDetailDrawer
-          customerId={recurringCustomerId}
-          from={from}
-          to={to}
-          onClose={() => setRecurringCustomerId(null)}
         />
       )}
     </div>

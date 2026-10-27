@@ -801,7 +801,7 @@ export async function loadReport(
             date(row.createdAt),
           ],
         })),
-        note: "Shows currently saved items, not a complete action history. Removed items are not retained. Customer names appear when Shopify access permits; emails are not stored with wishlist saves.",
+        note: "Shows currently saved items, not a complete action history. Removed items are not retained. Customer appear when Shopify access permits; emails are not stored with wishlist saves.",
       };
     } else if (allTimeProducts) {
       type ProductGroup = {

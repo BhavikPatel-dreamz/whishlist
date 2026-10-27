@@ -277,14 +277,7 @@ export const REPORT_CSV_COLUMNS: Record<ReportSlug, string[]> = {
     "Avg minutes restock→sent",
     "Avg minutes sent→purchase",
   ],
-  "low-stock-demand": [
-    "Product",
-    "Variant",
-    "Quantity",
-    "Status",
-    "Waiting",
-    "Gap",
-  ],
+  "low-stock-demand": ["Product", "Variant", "Quantity", "Status", "Waiting"],
   "lost-sales": [
     "Product",
     "Variant",
@@ -520,7 +513,6 @@ export const REPORT_CSV_ROW_KEYS: Record<ReportSlug, string[]> = {
     "quantity",
     "status",
     "waiting",
-    "gap",
   ],
   "lost-sales": [
     "title",

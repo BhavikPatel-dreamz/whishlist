@@ -2,7 +2,7 @@ export function metricsDateRange(params: URLSearchParams, now = new Date()) {
   const end = now.toISOString().slice(0, 10);
   const start = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) -
-      6 * 86400000,
+      29 * 86400000,
   )
     .toISOString()
     .slice(0, 10);
