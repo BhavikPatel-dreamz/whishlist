@@ -22,11 +22,20 @@ import {
   type EmailProvider,
   invalidateShopCache,
 } from "../lib/shop.server";
-import { providerFromApiKey } from "../lib/notifications/providers.server";
+import { getShopPlan, planAllowsSmsWhatsApp } from "../lib/billing/plan.server";
+import { emailsConsumedThisPeriod } from "../lib/billing/usage.server";
 import db from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { shop } = await requireAdminShop(request);
+  const plan = await getShopPlan(shop.id).catch(() => null);
+  const canConfigureEmailProvider = Boolean(plan?.allowMerchantProvider);
+  const canUseSmsWhatsApp = planAllowsSmsWhatsApp(plan?.code || "starter");
+  const emailsSent = plan
+    ? await emailsConsumedThisPeriod(shop.id, plan.allowanceWindow).catch(() => 0)
+    : 0;
+  const sentLabel = plan?.allowanceWindow === "day" ? "today" : "this month";
+
   const providerKeys = Object.fromEntries(
     EMAIL_PROVIDERS.map((provider) => [
       provider,
@@ -35,17 +44,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         : "",
     ]),
   ) as Record<EmailProvider, string>;
+  const maskedKeys = canConfigureEmailProvider ? providerKeys : ({} as Record<EmailProvider, string>);
   return {
     emailProvider: EMAIL_PROVIDERS.includes(shop.emailProvider as EmailProvider)
       ? shop.emailProvider
       : "brevo",
-    providerKeys,
+    providerKeys: maskedKeys,
     senderEmail: shop.senderEmail || "",
     senderName: shop.senderName || "",
-    smsEnabled: shop.smsEnabled,
-    twilioAccountSid: shop.twilioAccountSid || "",
-    hasTwilioAuthToken: Boolean(shop.twilioAuthToken),
-    twilioFromNumber: shop.twilioFromNumber || "",
+    canConfigureEmailProvider,
+    canUseSmsWhatsApp,
+    whatsappEnabled: shop.whatsappEnabled,
+    whatsappFromNumber: shop.whatsappFromNumber || "",
+    emailsSent,
+    sentLabel,
+    smsEnabled: canUseSmsWhatsApp ? shop.smsEnabled : false,
+    emailAlertsEnabled: shop.emailAlertsEnabled,
+    twilioAccountSid: canUseSmsWhatsApp ? shop.twilioAccountSid || "" : "",
+    hasTwilioAuthToken: canUseSmsWhatsApp && Boolean(shop.twilioAuthToken),
+    twilioFromNumber: canUseSmsWhatsApp ? shop.twilioFromNumber || "" : "",
+    whatsappEnabled: canUseSmsWhatsApp ? shop.whatsappEnabled : false,
+    whatsappFromNumber: canUseSmsWhatsApp ? shop.whatsappFromNumber || "" : "",
   };
 };
 
@@ -60,6 +79,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       : undefined;
 
   if (intent === "saveEmailIntegration") {
+    const emailAlertsEnabled = formData.get("emailAlertsEnabled") === "true";
+    const plan = await getShopPlan(shop.id).catch(() => null);
+    if (!plan?.allowMerchantProvider) {
+      await db.shop.update({
+        where: { id: shop.id },
+        data: { emailAlertsEnabled },
+      });
+      invalidateShopCache(shop.shop);
+      return { ok: true as const, intent };
+    }
     const provider = String(formData.get("emailProvider") || "brevo");
     const apiKey = String(formData.get("apiKey") || "").trim();
     const senderEmail = String(formData.get("senderEmail") || "").trim();
@@ -96,6 +125,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       where: { id: shop.id },
       data: {
         emailProvider: provider,
+        emailAlertsEnabled,
         senderEmail: senderEmail || null,
         senderName: senderName || null,
         ...(apiKey
@@ -112,6 +142,42 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
     invalidateShopCache(shop.shop);
     return { ok: true as const, intent };
+  }
+
+  if (intent === "saveSmsIntegration" || intent === "saveWhatsAppIntegration") {
+    const plan = await getShopPlan(shop.id).catch(() => null);
+    if (!planAllowsSmsWhatsApp(plan?.code || "starter")) {
+      return {
+        ok: false as const,
+        intent,
+        error: "SMS and WhatsApp are available on the Scale plan.",
+      };
+    }
+  }
+
+  if (intent === "saveWhatsAppIntegration") {
+    const whatsappEnabled = formData.get("whatsappEnabled") === "true";
+    const whatsappFromNumber = String(formData.get("whatsappFromNumber") || "").trim();
+    const twilioAccountSid = String(formData.get("twilioAccountSid") || "").trim();
+    const twilioAuthToken = String(formData.get("twilioAuthToken") || "").trim();
+    const hasToken = Boolean(twilioAuthToken || shop.twilioAuthToken);
+    if (whatsappEnabled && (!twilioAccountSid || !hasToken || !whatsappFromNumber)) {
+      return { ok: false as const, intent, error: "Add the Twilio Account SID, auth token, and WhatsApp sender before enabling WhatsApp." };
+    }
+    if (whatsappFromNumber && !/^\+?[1-9]\d{7,14}$/.test(whatsappFromNumber.replace(/^whatsapp:/, ""))) {
+      return { ok: false as const, intent, error: "Use a valid WhatsApp sender number, such as +14155550123." };
+    }
+    await db.shop.update({
+      where: { id: shop.id },
+      data: {
+        whatsappEnabled,
+        whatsappFromNumber: whatsappFromNumber || null,
+        twilioAccountSid: twilioAccountSid || null,
+        ...(twilioAuthToken ? { twilioAuthToken: encryptSecret(twilioAuthToken) } : {}),
+      },
+    });
+    invalidateShopCache(shop.shop);
+    return { ok: true as const, intent, returnTo };
   }
 
   if (intent === "saveSmsIntegration") {
@@ -167,11 +233,29 @@ export default function Integrations() {
   const [emailApiKey, setEmailApiKey] = useState("");
   const [senderEmail, setSenderEmail] = useState(data.senderEmail);
   const [senderName, setSenderName] = useState(data.senderName);
-  const [smsEnabled, setSmsEnabled] = useState(data.smsEnabled);
+  const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(data.emailAlertsEnabled);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(data.whatsappEnabled);
+  const [whatsappFromNumber, setWhatsappFromNumber] = useState(data.whatsappFromNumber);
   const [twilioAccountSid, setTwilioAccountSid] = useState(data.twilioAccountSid);
   const [twilioAuthToken, setTwilioAuthToken] = useState("");
   const [twilioFromNumber, setTwilioFromNumber] = useState(data.twilioFromNumber);
   const [smsResultDismissed, setSmsResultDismissed] = useState(false);
+
+  const section = searchParams.get("section") === "sms"
+    ? "sms"
+    : searchParams.get("section") === "whatsapp"
+      ? "whatsapp"
+      : searchParams.get("section") === "email"
+        ? "email"
+        : null;
+  const sectionQuery = (name: "email" | "sms" | "whatsapp") => {
+    const params = new URLSearchParams();
+    params.set("section", name);
+    if (requestedReturnTo === "/app/settings?section=back-in-stock") {
+      params.set("returnTo", requestedReturnTo);
+    }
+    return `/app/integrations?${params.toString()}`;
+  };
 
   const emailResult = emailFetcher.data;
   const smsResult = smsFetcher.data;
@@ -186,22 +270,65 @@ export default function Integrations() {
         onAction: () => navigate(returnTo),
       }}
     >
-      <TitleBar title="Integrations" />
+      <TitleBar title={section === "sms" ? "SMS alerts" : section === "whatsapp" ? "WhatsApp alerts" : section === "email" ? "Email delivery" : "Integrations"} />
       <BlockStack gap="400">
-        <Text as="p" tone="subdued">
-          Connect the services used to send back-in-stock emails and SMS alerts.
-        </Text>
+        {!section && (
+          <>
+            <Text as="p" tone="subdued">
+              Turn email delivery and SMS alerts on separately. Each one has its own settings.
+            </Text>
+            <Card>
+              <BlockStack gap="200">
+                <Text as="h2" variant="headingMd">Email delivery</Text>
+                <Text as="p" tone="subdued">
+                  {data.emailAlertsEnabled ? "Enabled" : "Disabled"}. Emails sent {data.sentLabel}: {data.emailsSent}.
+                </Text>
+                <Link to={sectionQuery("email")}>Email settings</Link>
+              </BlockStack>
+            </Card>
+            <Card>
+              <BlockStack gap="200">
+                <Text as="h2" variant="headingMd">SMS alerts</Text>
+                <Text as="p" tone="subdued">
+                  {data.canUseSmsWhatsApp ? (data.smsEnabled ? "Enabled" : "Disabled") : "Included with the Scale plan."}
+                </Text>
+                <Link to={sectionQuery("sms")}>SMS settings</Link>
+              </BlockStack>
+            </Card>
+            <Card>
+              <BlockStack gap="200">
+                <Text as="h2" variant="headingMd">WhatsApp alerts</Text>
+                <Text as="p" tone="subdued">
+                  {data.canUseSmsWhatsApp ? (data.whatsappEnabled ? "Enabled" : "Disabled") : "Included with the Scale plan."}
+                </Text>
+                <Link to={sectionQuery("whatsapp")}>WhatsApp settings</Link>
+              </BlockStack>
+            </Card>
+          </>
+        )}
 
+        {section === "email" && (
         <Card>
+          {data.canConfigureEmailProvider ? (
           <emailFetcher.Form method="post">
             <input type="hidden" name="intent" value="saveEmailIntegration" />
+            <input type="hidden" name="emailAlertsEnabled" value={String(emailAlertsEnabled)} />
             <BlockStack gap="400">
               <BlockStack gap="100">
                 <Text as="h2" variant="headingMd">Email delivery</Text>
                 <Text as="p" tone="subdued">
-                  Brevo is the default. Klaviyo sends a back-in-stock event to a configured Klaviyo flow; Brevo, Resend, and SendGrid send transactional email directly.
+                  Turn email alerts on or off without changing SMS. Scale can also choose a custom email provider for unlimited sends.
                 </Text>
               </BlockStack>
+              <Select
+                label="Email alerts"
+                options={[
+                  { label: "Enabled", value: "true" },
+                  { label: "Disabled", value: "false" },
+                ]}
+                value={String(emailAlertsEnabled)}
+                onChange={(value) => setEmailAlertsEnabled(value === "true")}
+              />
               {emailResult?.intent === "saveEmailIntegration" && (
                 <Banner tone={emailResult.ok ? "success" : "critical"}>
                   {emailResult.ok ? "Email integration settings saved." : emailResult.error}
@@ -216,11 +343,11 @@ export default function Integrations() {
                   </p>
                 </Banner>
               )}
+              <input type="hidden" name="emailProvider" value={emailProvider} />
               <Select
                 label="Email provider"
-                name="emailProvider"
                 options={EMAIL_PROVIDER_OPTIONS}
-                value={emailProvider}
+                value={EMAIL_PROVIDER_OPTIONS.some((option) => option.value === emailProvider) ? emailProvider : "brevo"}
                 onChange={(value) => {
                   setEmailProvider(value);
                   setEmailApiKey("");
@@ -256,9 +383,41 @@ export default function Integrations() {
               </Button>
             </BlockStack>
           </emailFetcher.Form>
+          ) : (
+            <emailFetcher.Form method="post">
+              <input type="hidden" name="intent" value="saveEmailIntegration" />
+              <input type="hidden" name="emailAlertsEnabled" value={String(emailAlertsEnabled)} />
+              <BlockStack gap="300">
+                <Text as="h2" variant="headingMd">Email delivery</Text>
+                <Text as="p" variant="headingLg">{data.emailsSent}</Text>
+                <Text as="p" tone="subdued">
+                  Emails sent {data.sentLabel}. Starter and Growth use the managed sender. Upgrade to Scale to use your own email provider for unlimited sends.
+                </Text>
+                <Select
+                  label="Email alerts"
+                  options={[
+                    { label: "Enabled", value: "true" },
+                    { label: "Disabled", value: "false" },
+                  ]}
+                  value={String(emailAlertsEnabled)}
+                  onChange={(value) => setEmailAlertsEnabled(value === "true")}
+                />
+                {emailResult?.intent === "saveEmailIntegration" && (
+                  <Banner tone={emailResult.ok ? "success" : "critical"}>
+                    {emailResult.ok ? "Email alerts updated." : emailResult.error}
+                  </Banner>
+                )}
+                <Button submit variant="primary" loading={emailFetcher.state !== "idle"}>Save email alerts</Button>
+                <Link to="/app/settings">View plans</Link>
+              </BlockStack>
+            </emailFetcher.Form>
+          )}
         </Card>
+        )}
 
+        {section === "sms" && (
         <Card>
+          {data.canUseSmsWhatsApp ? (
           <smsFetcher.Form
             method="post"
             onChange={() => setSmsResultDismissed(true)}
@@ -324,7 +483,51 @@ export default function Integrations() {
               </Button>
             </BlockStack>
           </smsFetcher.Form>
+          ) : (
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">SMS alerts</Text>
+              <Text as="p" tone="subdued">SMS and WhatsApp are available on the Scale plan.</Text>
+              <Link to="/app/settings">View plans</Link>
+            </BlockStack>
+          )}
         </Card>
+        )}
+
+        {section === "whatsapp" && (
+        <Card>
+          {data.canUseSmsWhatsApp ? (
+          <smsFetcher.Form method="post">
+            <input type="hidden" name="intent" value="saveWhatsAppIntegration" />
+            <input type="hidden" name="whatsappEnabled" value={String(whatsappEnabled)} />
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">WhatsApp alerts</Text>
+              <Text as="p" tone="subdued">WhatsApp uses the same Twilio account as SMS and is available on the Scale plan.</Text>
+              {smsResult?.intent === "saveWhatsAppIntegration" && (
+                <Banner tone={smsResult.ok ? "success" : "critical"}>
+                  {smsResult.ok ? "WhatsApp settings saved." : smsResult.error}
+                </Banner>
+              )}
+              <Select
+                label="WhatsApp alerts"
+                options={[{ label: "Disabled", value: "false" }, { label: "Enabled", value: "true" }]}
+                value={String(whatsappEnabled)}
+                onChange={(value) => setWhatsappEnabled(value === "true")}
+              />
+              <TextField label="Twilio Account SID" name="twilioAccountSid" value={twilioAccountSid} onChange={setTwilioAccountSid} autoComplete="off" />
+              <TextField label="Twilio auth token" name="twilioAuthToken" type="password" value={twilioAuthToken} onChange={setTwilioAuthToken} placeholder={data.hasTwilioAuthToken ? "Saved securely" : "Enter Twilio auth token"} autoComplete="new-password" />
+              <TextField label="WhatsApp sender number" name="whatsappFromNumber" value={whatsappFromNumber} onChange={setWhatsappFromNumber} placeholder="+14155550123" autoComplete="tel" />
+              <Button submit variant="primary" loading={smsFetcher.state !== "idle"}>Save WhatsApp settings</Button>
+            </BlockStack>
+          </smsFetcher.Form>
+          ) : (
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">WhatsApp alerts</Text>
+              <Text as="p" tone="subdued">SMS and WhatsApp are available on the Scale plan.</Text>
+              <Link to="/app/settings">View plans</Link>
+            </BlockStack>
+          )}
+        </Card>
+        )}
       </BlockStack>
     </Page>
   );

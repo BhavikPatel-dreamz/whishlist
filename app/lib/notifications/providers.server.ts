@@ -367,45 +367,48 @@ export async function sendSms(
   body: string,
 ): Promise<SendResult> {
   if (!settings.smsEnabled) return { ok: false, error: "SMS disabled" };
-
-  try {
-    return await sendWithTwilio(settings, to, body);
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
+  return sendWithTwilio(settings, settings.twilioFromNumber, to, body);
 }
 
-async function sendWithTwilio(
+/** WhatsApp via the same Twilio account. Scale plan only; the caller enforces the plan. */
+export async function sendWhatsApp(
   settings: ResolvedNotificationSettings,
   to: string,
   body: string,
 ): Promise<SendResult> {
-  const {
-    twilioAccountSid: sid,
-    twilioAuthToken: token,
-    twilioFromNumber: sender,
-  } = settings;
-  if (!sid || !token || !sender)
+  if (!settings.whatsappEnabled) return { ok: false, error: "WhatsApp disabled" };
+  const from = settings.whatsappFromNumber.startsWith("whatsapp:")
+    ? settings.whatsappFromNumber
+    : `whatsapp:${settings.whatsappFromNumber}`;
+  const destination = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
+  return sendWithTwilio(settings, from, destination, body);
+}
+
+async function sendWithTwilio(
+  settings: ResolvedNotificationSettings,
+  from: string,
+  to: string,
+  body: string,
+): Promise<SendResult> {
+  const { twilioAccountSid: sid, twilioAuthToken: token } = settings;
+  if (!sid || !token || !from)
     return { ok: false, error: "Twilio credentials incomplete" };
 
-  return postProviderRequest(
-    `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+  try {
+    return await postProviderRequest(
+      `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({ To: to, From: from, Body: body }).toString(),
       },
-      body: new URLSearchParams({
-        To: to,
-        From: sender,
-        Body: body,
-      }).toString(),
-    },
-    { label: "Twilio", idField: "sid" },
-  );
+      { label: "Twilio", idField: "sid" },
+    );
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 

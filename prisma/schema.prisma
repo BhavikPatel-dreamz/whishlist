@@ -60,10 +60,13 @@ model Shop {
   stockAlertDeliveryTime   String @default("09:00") // HH:MM local store time
 
   // --- SMS (optional) ---
+  emailAlertsEnabled Boolean @default(true)
   smsEnabled       Boolean @default(false)
   twilioAccountSid String?
   twilioAuthToken  String? // encrypted at rest
   twilioFromNumber String?
+  whatsappEnabled  Boolean @default(false)
+  whatsappFromNumber String?
 
   // --- Storefront behaviour ---
   wishlistRequiresLogin Boolean @default(false)
@@ -89,6 +92,9 @@ model Shop {
   attributions    Attribution[]
   inventoryCache  InventoryCache[]
   dailyStats      DailyStat[]
+  billingSubscriptions BillingSubscription[]
+  usageCounters        UsageCounter[]
+  usageLedger          UsageLedger[]
 }
 
 /// A saved product. Keyed by Shopify customer id when logged in, else by a browser guest token.
@@ -153,6 +159,8 @@ model StockAlert {
   // PENDING → SENDING → SENT | FAILED, or CANCELLED when the shopper unsubscribes.
   status       String    @default("PENDING")
   attempts     Int       @default(0)
+  /// Increments when a shopper subscribes again after SENT, FAILED, or CANCELLED.
+  notifyGeneration Int   @default(1)
   lastError    String?
   notifiedAt   DateTime?
   convertedAt  DateTime? // set when the recipient's click leads back to the PDP/cart
@@ -470,4 +478,74 @@ model DailyStat {
   restockRevenueEstimated  Decimal @default(0) @db.Decimal(12, 2)
 
   @@id([shopId, date])
+}
+
+/// Catalog of notification plans. Allowance numbers live here, not in send-path code.
+model Plan {
+  code                            String   @id // free | pro | gold
+  name                            String
+  monthlyPriceCents               Int
+  /// Emails allowed per allowanceWindow.
+  allowance                       Int
+  /// month (Free) or day (paid). Windows are UTC calendar periods.
+  allowanceWindow                 String
+  allowMerchantProvider           Boolean  @default(false)
+  /// When true, merchant-owned provider sends consume the same allowance.
+  merchantSendsCountTowardQuota   Boolean  @default(true)
+  active                          Boolean  @default(true)
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+
+  subscriptions BillingSubscription[]
+}
+
+/// Shopify app subscription for one shop. No in-force row means the Free plan.
+model BillingSubscription {
+  id               String    @id @default(uuid())
+  shopId           String
+  shop             Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  planCode         String
+  plan             Plan      @relation(fields: [planCode], references: [code])
+  /// Shopify AppSubscription GID. Null for an optional locally recorded Free row.
+  shopifyGid       String?   @unique
+  /// ACTIVE, CANCELLED, EXPIRED, FROZEN, PENDING
+  status           String
+  /// Paid access continues until this instant when Shopify cancels at period end.
+  currentPeriodEnd DateTime?
+  test             Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([shopId, status])
+  @@index([shopId, currentPeriodEnd])
+}
+
+/// Quota window for one shop. Period keys are UTC calendar months or days.
+model UsageCounter {
+  id             String   @id @default(uuid())
+  shopId         String
+  shop           Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  periodKey      String
+  reservedCount  Int      @default(0)
+  consumedCount  Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([shopId, periodKey])
+}
+
+/// One logical notification. Retries reuse the row instead of consuming quota again.
+model UsageLedger {
+  id              String   @id @default(uuid())
+  shopId          String
+  shop            Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  stockAlertId    String
+  idempotencyKey  String   @unique
+  periodKey       String
+  /// reserved | consumed | released
+  state           String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([shopId, periodKey])
+  @@index([stockAlertId])
 }

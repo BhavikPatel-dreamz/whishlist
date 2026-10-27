@@ -228,9 +228,14 @@ type Props = {
   backInStockEnabled?: boolean;
   emailDeliveryEnabled?: boolean;
   smsEnabled?: boolean;
+  whatsappEnabled?: boolean;
   emailDeliveryUrl?: string;
   smsIntegrationsUrl?: string;
+  whatsappIntegrationsUrl?: string;
   smsLearnMoreUrl?: string;
+  canConfigureEmailProvider?: boolean;
+  emailsSent?: number;
+  sentLabel?: string;
 };
 
 type Section = "launch" | "form" | "email";
@@ -245,6 +250,7 @@ type FeatureItem = {
   section?: Section; // opens the customizer
   channel?: "email" | "sms";
   to?: string;
+  locked?: boolean;
 };
 
 /* ---------- Icons ---------- */
@@ -340,9 +346,14 @@ export function BackInStockConfiguration({
   backInStockEnabled = true,
   emailDeliveryEnabled = false,
   smsEnabled = false,
-  emailDeliveryUrl = "/app/integrations",
-  smsIntegrationsUrl = "/app/integrations",
+  whatsappEnabled = false,
+  emailDeliveryUrl = "/app/integrations?section=email",
+  smsIntegrationsUrl = "/app/integrations?section=sms",
+  whatsappIntegrationsUrl = "/app/integrations?section=whatsapp",
   smsLearnMoreUrl = "https://help.shopify.com/",
+  canConfigureEmailProvider = false,
+  emailsSent = 0,
+  sentLabel = "this month",
 }: Props) {
   const [customizing, setCustomizing] = useState(false);
   const settingsFetcher = useFetcher<{ saved?: boolean; kind?: string; error?: string }>();
@@ -363,10 +374,28 @@ export function BackInStockConfiguration({
     {
       key: "email-delivery",
       title: "Email alerts",
-      description: "Set up email delivery for back-in-stock notifications.",
+      description: canConfigureEmailProvider
+        ? "Turn email alerts on or off, and choose your own email provider on Scale for unlimited sends."
+        : `Emails sent ${sentLabel}: ${emailsSent}. Turn email alerts on or off. Starter and Growth use the managed sender.`,
       enabled: backInStockEnabled && emailDeliveryEnabled,
       art: <EmailTemplateIllustration />,
       to: emailDeliveryUrl,
+    },
+    {
+      key: "sms-delivery",
+      title: "SMS alerts",
+      description: "Turn text alerts on or off. Available on the Scale plan.",
+      enabled: backInStockEnabled && smsEnabled,
+      art: <EmailTemplateIllustration />,
+      to: smsIntegrationsUrl,
+    },
+    {
+      key: "whatsapp-delivery",
+      title: "WhatsApp alerts",
+      description: "Turn WhatsApp alerts on or off. Available on the Scale plan.",
+      enabled: backInStockEnabled && whatsappEnabled,
+      art: <EmailTemplateIllustration />,
+      to: whatsappIntegrationsUrl,
     },
     {
       key: "email-signup",
@@ -447,7 +476,7 @@ export function BackInStockConfiguration({
                   <span />
                   {item.enabled ? "Enabled" : "Disabled"}
                 </span>
-                {item.to ? (
+                {item.locked ? null : item.to ? (
                   <Link className="ws-bis-btn ws-bis-btn-outline" to={item.to}>
                     <PencilIcon /> Settings
                   </Link>

@@ -10,6 +10,7 @@ import analyticsMetricsStyles from "../components/AnalyticsMetrics.css?url";
 import adminPageStyles from "../components/AdminPage.css?url";
 
 import { authenticate } from "../shopify.server";
+import { syncShopSubscription, recordPlanHandle } from "../lib/billing/sync-subscription.server";
 
 export const links = () => [
   { rel: "stylesheet", href: polarisStyles },
@@ -20,7 +21,14 @@ export const links = () => [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const planHandle = new URL(request.url).searchParams.get("plan_handle");
+  await syncShopSubscription({
+    admin,
+    shopDomain: session.shop,
+    force: Boolean(planHandle),
+  }).catch(() => {});
+  if (planHandle) await recordPlanHandle(session.shop, planHandle).catch(() => {});
 
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };

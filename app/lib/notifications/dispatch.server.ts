@@ -1,6 +1,6 @@
 import type { Shop, StockAlert } from "@prisma/client";
 import db from "../../db.server";
-import { resolveSettings } from "../shop.server";
+import { resolveSettingsForPlan } from "../shop.server";
 import { appOrigin } from "../app-url.server";
 import { signPayload } from "../crypto.server";
 import {
@@ -10,17 +10,25 @@ import {
   type ShopContext,
   type VariantSummary,
 } from "../shopify-data.server";
-import { sendEmail, sendSms } from "./providers.server";
+import { sendEmail, sendSms, sendWhatsApp } from "./providers.server";
+import {
+  emailCountsTowardQuota,
+  getShopPlan,
+  planAllowsSmsWhatsApp,
+} from "../billing/plan.server";
 import { backInStockHtml, backInStockText, render } from "./template.server";
 import { getUIConfigRow } from "../../models/ui-config.server";
 import type { BackInStockSettings } from "../ui-config.shared";
 import {
   claimPendingAlerts,
+  holdAlertForQuota,
   markAlertFailed,
   markAlertSent,
   reactivateFailedAlerts,
   variantIdsNeedingRetry,
 } from "../../models/stock-alert.server";
+import { consumeNotification, releaseNotification, reserveNotification } from "../billing/usage.server";
+import type { Plan } from "@prisma/client";
 
 const SEND_CONCURRENCY = 10;
 
@@ -142,7 +150,8 @@ export async function dispatchRestockAlerts(params: {
   );
   if (!alerts.length) return { ...base, skippedReason: "no pending alerts" };
 
-  const settings = resolveSettings(shop);
+  const plan = await getShopPlan(shop.id);
+  const settings = resolveSettingsForPlan(shop, plan);
   if (backInStockSettings?.from?.trim())
     settings.senderName = backInStockSettings.from.trim();
   const price = formatMoney(
@@ -168,6 +177,7 @@ export async function dispatchRestockAlerts(params: {
     const results = await Promise.allSettled(
       batch.map((alert) =>
         deliver(alert, {
+          plan,
           settings,
           backInStockSettings,
           vars,
@@ -177,8 +187,10 @@ export async function dispatchRestockAlerts(params: {
       ),
     );
     results.forEach((result, index) => {
-      if (result.status === "fulfilled" && result.value) sent += 1;
-      else {
+      if (result.status === "fulfilled" && result.value === "sent") sent += 1;
+      else if (result.status === "fulfilled" && result.value === "held") {
+        /* quota reached; alert stays pending */
+      } else {
         failed += 1;
         const alert = batch[index];
         const message =
@@ -196,14 +208,15 @@ export async function dispatchRestockAlerts(params: {
 async function deliver(
   alert: StockAlert,
   ctx: {
-    settings: ReturnType<typeof resolveSettings>;
+    plan: Plan;
+    settings: ReturnType<typeof resolveSettingsForPlan>;
     backInStockSettings?: Partial<BackInStockSettings>;
     vars: Record<string, string>;
     variant: VariantSummary;
     shopContext: ShopContext;
   },
-): Promise<boolean> {
-  const { settings, backInStockSettings, vars, variant, shopContext } = ctx;
+): Promise<"sent" | "failed" | "held"> {
+  const { plan, settings, backInStockSettings, vars, variant, shopContext } = ctx;
   const emailVars = { ...vars, customer_email: alert.email || "" };
   const actionUrl = alertTrackingUrl(alert.id);
   const subject = backInStockSettings?.subject
@@ -236,76 +249,80 @@ async function deliver(
     headerText: render(backInStockSettings?.headerText || "", emailVars),
   };
 
-  const channel = alert.channel === "sms" ? "SMS" : "EMAIL";
-  let logId: string | null = null;
-  try {
-    const log = await db.notificationLog.create({
-      data: {
-        shopId: alert.shopId,
-        kind: "RESTOCK",
-        channel,
-        subscriptionId: alert.id,
-        shopperId: alert.shopperId ?? alert.customerId ?? alert.contactKey,
-        productId: alert.productId,
-        variantId: alert.variantId,
-        status: "queued",
-        retryCount: alert.attempts,
-      },
-      select: { id: true },
-    });
-    logId = log.id;
-  } catch (error) {
-    console.error("[restock] unable to create notification log", error);
+  if (alert.channel === "email" && !settings.emailAlertsEnabled) {
+    await holdAlertForQuota(alert.id, "Email alerts are turned off");
+    return "held";
+  }
+  if (alert.channel === "sms" || alert.channel === "whatsapp") {
+    if (!planAllowsSmsWhatsApp(plan.code)) {
+      await holdAlertForQuota(alert.id, "SMS and WhatsApp are available on the Scale plan");
+      return "held";
+    }
+  }
+  if (alert.channel === "sms" && !settings.smsEnabled) {
+    await holdAlertForQuota(alert.id, "SMS alerts are turned off");
+    return "held";
+  }
+  if (alert.channel === "whatsapp" && !settings.whatsappEnabled) {
+    await holdAlertForQuota(alert.id, "WhatsApp alerts are turned off");
+    return "held";
   }
 
+  const countsTowardQuota =
+    alert.channel === "email" &&
+    settings.emailAlertsEnabled &&
+    emailCountsTowardQuota(plan, {
+      provider: settings.provider,
+      usesMerchantEmailProvider: settings.usesMerchantEmailProvider,
+    });
+  let reserved = false;
+  if (countsTowardQuota) {
+    const slot = await reserveNotification({
+      shopId: alert.shopId,
+      stockAlertId: alert.id,
+      notifyGeneration: alert.notifyGeneration,
+      plan,
+    });
+    if (slot === "exceeded") {
+      await holdAlertForQuota(alert.id);
+      return "held";
+    }
+    if (slot === "already_consumed") {
+      await markAlertSent(alert.id);
+      return "sent";
+    }
+    reserved = true;
+  }
+
+  const textBody = `${variant.productTitle} is back in stock at ${shopContext.name}. ${actionUrl} Cancel: ${alertUnsubscribeUrl(alert.id)}`;
   const result =
     alert.channel === "sms"
       ? alert.phone
-        ? await sendSms(
-            settings,
-            alert.phone,
-            `${variant.productTitle} is back in stock at ${shopContext.name}. ${actionUrl} Cancel: ${alertUnsubscribeUrl(alert.id)}`,
-          )
-        : {
-            ok: false as const,
-            error: "No phone number configured for this SMS alert",
-          }
-      : alert.email
-        ? await sendEmail(settings, {
-            to: alert.email,
-            subject: render(subject, emailVars),
-            html: backInStockHtml(payload),
-            text: backInStockText(payload),
-            replyTo,
-          })
-        : {
-            ok: false as const,
-            error: "No email address configured for this email alert",
-          };
+        ? await sendSms(settings, alert.phone, textBody)
+        : { ok: false as const, error: "No phone number configured for this SMS alert" }
+      : alert.channel === "whatsapp"
+        ? alert.phone
+          ? await sendWhatsApp(settings, alert.phone, textBody)
+          : { ok: false as const, error: "No phone number configured for this WhatsApp alert" }
+        : alert.email
+          ? await sendEmail(settings, {
+              to: alert.email,
+              subject: render(subject, emailVars),
+              html: backInStockHtml(payload),
+              text: backInStockText(payload),
+              replyTo,
+            })
+          : { ok: false as const, error: "No email address configured for this email alert" };
 
   if (!result.ok) {
-    if (logId) {
-      await db.notificationLog.update({
-        where: { id: logId },
-        data: {
-          status: "failed",
-          errorReason: result.error.slice(0, 500),
-          retryCount: alert.attempts,
-        },
-      });
-    }
+    if (reserved) await releaseNotification(alert.id, alert.notifyGeneration);
     await markAlertFailed(alert.id, result.error, alert.attempts);
-    return false;
+    return "failed";
   }
 
-  if (logId) {
-    await db.notificationLog.update({
-      where: { id: logId },
-      data: { status: "sent", sentAt: new Date(), errorReason: null },
-    });
-  }
+  if (reserved) await consumeNotification(alert.id, alert.notifyGeneration);
   await markAlertSent(alert.id);
-  return true;
+  return "sent";
 }
 
 function normalizeEmailTemplate(template: string): string {

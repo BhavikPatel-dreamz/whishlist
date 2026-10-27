@@ -1,0 +1,1 @@
+ALTER TABLE "Shop" ADD COLUMN "emailAlertsEnabled" BOOLEAN NOT NULL DEFAULT true;

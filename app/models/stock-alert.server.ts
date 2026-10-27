@@ -13,7 +13,7 @@ export const ALERT_STATUS = {
 } as const;
 
 export type AlertStatus = (typeof ALERT_STATUS)[keyof typeof ALERT_STATUS];
-export type AlertChannel = "email" | "sms";
+export type AlertChannel = "email" | "sms" | "whatsapp";
 
 export function stockAlertContactKey(
   channel: AlertChannel,
@@ -101,6 +101,7 @@ export async function createStockAlert(input: {
         productTitle: input.productTitle ?? existing.productTitle,
         variantTitle: input.variantTitle ?? existing.variantTitle,
         attempts: 0,
+        notifyGeneration: { increment: 1 },
         lastError: null,
         notifiedAt: null,
       },
@@ -169,6 +170,17 @@ export async function claimPendingAlerts(
       FOR UPDATE SKIP LOCKED
     )
     RETURNING *
+  `;
+}
+
+export async function holdAlertForQuota(id: string, reason = "Notification limit reached"): Promise<void> {
+  await db.$executeRaw`
+    UPDATE "StockAlert"
+    SET "status" = ${ALERT_STATUS.pending},
+        "lastError" = ${reason},
+        "attempts" = GREATEST("attempts" - 1, 0),
+        "updatedAt" = NOW()
+    WHERE "id" = ${id}
   `;
 }
 

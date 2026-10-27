@@ -37,6 +37,9 @@ import {
 } from "../lib/shop.server";
 import { encryptSecret, maskSecret } from "../lib/crypto.server";
 import { embedEditorUrl, themeEditorUrl } from "../lib/theme-editor";
+import { pricingPlansUrl } from "../lib/billing/pricing-plans-url.server";
+import { getShopPlan } from "../lib/billing/plan.server";
+import { emailsConsumedThisPeriod } from "../lib/billing/usage.server";
 import db from "../db.server";
 import { upsertUIConfigForShopDomain } from "../models/ui-config.server";
 import { ProxyError } from "../lib/proxy.server";
@@ -275,8 +278,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     : "brevo";
   const providerApiKey = getEmailProviderApiKey(shop, emailProvider);
 
+  let currentPlanName = "Starter";
+  let currentPlanCode = "starter";
+  let canConfigureEmailProvider = false;
+  let emailsSent = 0;
+  let sentLabel = "this month";
+  let plans: Array<{ code: string; name: string; monthlyPriceCents: number; allowance: number; allowanceWindow: string }> = [];
+  try {
+    const plan = await getShopPlan(shop.id);
+    currentPlanName = plan.name;
+    currentPlanCode = plan.code;
+    canConfigureEmailProvider = plan.allowMerchantProvider;
+    sentLabel = plan.allowanceWindow === "day" ? "today" : "this month";
+    emailsSent = await emailsConsumedThisPeriod(shop.id, plan.allowanceWindow);
+    plans = await db.plan.findMany({
+      where: { active: true },
+      orderBy: { monthlyPriceCents: "asc" },
+      select: { code: true, name: true, monthlyPriceCents: true, allowance: true, allowanceWindow: true },
+    });
+  } catch {
+    currentPlanName = "Starter";
+    currentPlanCode = "starter";
+  }
+
   return {
     shopDomain: session.shop,
+    pricingPlansUrl: pricingPlansUrl(session.shop),
+    currentPlanName,
+    currentPlanCode,
+    plans,
+    canConfigureEmailProvider,
+    emailsSent,
+    sentLabel,
     backInStockEditor,
     wishlistConfig: (uiConfig?.productCardConfig as Partial<WishlistConfig> | null) ?? null,
     backInStockSettings: (storedProductConfig?.backInStockSettings as Partial<BackInStockSettings> | undefined) ?? null,
@@ -293,6 +326,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       stockAlertDeliveryMode: shop.stockAlertDeliveryMode,
       stockAlertDeliveryTime: shop.stockAlertDeliveryTime,
       smsEnabled: shop.smsEnabled,
+      whatsappEnabled: shop.whatsappEnabled,
       hasTwilioToken: Boolean(shop.twilioAuthToken),
       twilioAccountSid: shop.twilioAccountSid || "",
       twilioFromNumber: shop.twilioFromNumber || "",
@@ -421,6 +455,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const emailProvider = isEmailProvider(requestedEmailProvider)
     ? requestedEmailProvider
     : "brevo";
+  const plan = await getShopPlan(shop.id).catch(() => null);
+  const canConfigureEmailProvider = Boolean(plan?.allowMerchantProvider);
   const apiKeyRaw = String(formData.get("apiKey") || "").trim();
   const senderEmail = String(formData.get("senderEmail") || "").trim();
   const senderName = String(formData.get("senderName") || "").trim();
@@ -439,9 +475,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const alertsPerVariantCap = parseInt(String(formData.get("alertsPerVariantCap") || "0"), 10);
 
   const updateData: Record<string, unknown> = {
-    emailProvider,
-    senderEmail: senderEmail || null,
-    senderName: senderName || null,
+    ...(canConfigureEmailProvider
+      ? {
+          emailProvider,
+          senderEmail: senderEmail || null,
+          senderName: senderName || null,
+        }
+      : {}),
     emailSubject: emailSubject || shop.emailSubject,
     emailHeading: emailHeading || shop.emailHeading,
     emailBody: emailBody || shop.emailBody,
@@ -456,7 +496,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     alertsPerVariantCap: isNaN(alertsPerVariantCap) ? 0 : alertsPerVariantCap,
   };
 
-  if (apiKeyRaw) {
+  if (apiKeyRaw && canConfigureEmailProvider) {
     updateData.apiKey = encryptSecret(
       JSON.stringify({
         ...getEmailProviderApiKeys(shop),
@@ -1811,7 +1851,41 @@ export default function Settings() {
         <Card>
           <BlockStack gap="300">
             <Text as="h2" variant="headingSm">Pricing Plan</Text>
-            <div className="wl-subscription-link" aria-disabled="true">
+            <Text as="p" variant="bodySm" tone="subdued">
+              Current plan: {loaderData.currentPlanName}
+            </Text>
+            <Text as="p" variant="bodySm">
+              Emails sent {loaderData.sentLabel}: {loaderData.emailsSent}
+            </Text>
+            <div className="wl-plan-choices">
+              {loaderData.plans.map((plan) => {
+                const selected = plan.code === loaderData.currentPlanCode;
+                const detail = plan.monthlyPriceCents === 0
+                  ? "$0/month"
+                  : `$${plan.monthlyPriceCents / 100}/month`;
+                const allowance = plan.allowanceWindow === "day"
+                  ? `${plan.allowance} emails/day`
+                  : `${plan.allowance} emails/month`;
+                const body = (
+                  <>
+                    <strong>{plan.name}</strong>
+                    <span>{detail}</span>
+                    <span>{allowance}</span>
+                    <span>{selected ? "Selected" : "Choose"}</span>
+                  </>
+                );
+                return selected ? (
+                  <div key={plan.code} className="wl-plan-choice selected" aria-current="true">
+                    {body}
+                  </div>
+                ) : (
+                  <a key={plan.code} className="wl-plan-choice" href={loaderData.pricingPlansUrl} target="_top">
+                    {body}
+                  </a>
+                );
+              })}
+            </div>
+            <a className="wl-subscription-link" href={loaderData.pricingPlansUrl} target="_top" rel="noopener noreferrer">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                 <rect x="3" y="5" width="18" height="14" rx="3" />
                 <path d="M3 10h18M7 15h4" />
@@ -1820,8 +1894,7 @@ export default function Settings() {
                 <strong>Manage Subscription</strong>
                 <span>View pricing plans, compare options, and explore monthly or annual subscriptions.</span>
               </span>
-              <span className="wl-configuration-coming-soon">Coming soon</span>
-            </div>
+            </a>
           </BlockStack>
         </Card>
 
@@ -1892,21 +1965,15 @@ export default function Settings() {
           <BackInStockConfiguration
             initialSettings={loaderData.backInStockSettings}
             backInStockEnabled={saved.backInStockEnabled}
-            emailDeliveryEnabled={
-              loaderData.shop.hasApiKey &&
-              (loaderData.shop.emailProvider === "klaviyo" ||
-                Boolean(loaderData.shop.senderEmail))
-            }
-            emailDeliveryUrl="/app/integrations?returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
-            smsIntegrationsUrl="/app/integrations?returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
-            smsEnabled={
-              loaderData.shop.smsEnabled &&
-              loaderData.shop.hasTwilioToken &&
-              Boolean(
-                loaderData.shop.twilioAccountSid &&
-                  loaderData.shop.twilioFromNumber,
-              )
-            }
+            emailDeliveryEnabled={loaderData.shop.emailAlertsEnabled}
+            emailDeliveryUrl="/app/integrations?section=email&returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
+            canConfigureEmailProvider={loaderData.canConfigureEmailProvider}
+            emailsSent={loaderData.emailsSent}
+            sentLabel={loaderData.sentLabel}
+            smsIntegrationsUrl="/app/integrations?section=sms&returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
+            smsEnabled={loaderData.shop.smsEnabled}
+            whatsappEnabled={loaderData.shop.whatsappEnabled}
+            whatsappIntegrationsUrl="/app/integrations?section=whatsapp&returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
           />
         )}
       </BlockStack>
@@ -1971,7 +2038,11 @@ export default function Settings() {
 
 const CSS = `
 .wl-subscription-link{display:flex;align-items:center;gap:14px;padding:16px;border:1px solid #dedede;border-radius:10px;color:#303030;text-decoration:none}
-.wl-subscription-link[aria-disabled="true"]{cursor:default}
+.wl-plan-choices{display:flex;gap:12px;flex-wrap:wrap}
+.wl-plan-choice{display:flex;flex:1;min-width:140px;flex-direction:column;gap:4px;padding:14px;border:1px solid #dedede;border-radius:10px;color:#303030;background:#fff;text-decoration:none}
+.wl-plan-choice.selected{border:2px solid #111;background:#f6f6f7}
+.wl-plan-choice:hover{background:#fafafa}
+.wl-subscription-link:hover{background:#f6f6f7}
 .wl-subscription-link:focus-visible{outline:2px solid var(--wl-accent);outline-offset:3px}
 .wl-subscription-link>svg{flex-shrink:0}
 .wl-subscription-link>span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:5px}

@@ -106,18 +106,29 @@ export type ResolvedNotificationSettings = {
   emailHeading: string;
   emailBody: string;
   buttonLabel: string;
+  emailAlertsEnabled: boolean;
   smsEnabled: boolean;
   twilioAccountSid: string;
   twilioAuthToken: string;
   twilioFromNumber: string;
+  whatsappEnabled: boolean;
+  whatsappFromNumber: string;
+  /** True when the shop's own provider API key is used (not the platform env fallback). */
+  usesMerchantEmailProvider: boolean;
 };
+
+/** True when the shop has saved an API key for its selected email provider. */
+export function shopHasMerchantEmailKey(shop: Shop): boolean {
+  const provider = (shop.emailProvider || "brevo") as EmailProvider;
+  return Boolean(getEmailProviderApiKey(shop, provider));
+}
 
 /** Merges shop settings with the platform-level fallback credentials from env. */
 export function resolveSettings(shop: Shop): ResolvedNotificationSettings {
   const provider = (shop.emailProvider || "brevo") as EmailProvider;
+  const merchantKey = getEmailProviderApiKey(shop, provider);
   const apiKey =
-    getEmailProviderApiKey(shop, provider) ||
-    (provider === "brevo" ? process.env.BREVO_API_KEY || "" : "");
+    merchantKey || (provider === "brevo" ? process.env.BREVO_API_KEY || "" : "");
   return {
     provider,
     apiKey,
@@ -127,9 +138,33 @@ export function resolveSettings(shop: Shop): ResolvedNotificationSettings {
     emailHeading: shop.emailHeading,
     emailBody: shop.emailBody,
     buttonLabel: shop.buttonLabel,
+    emailAlertsEnabled: shop.emailAlertsEnabled,
     smsEnabled: shop.smsEnabled,
     twilioAccountSid: shop.twilioAccountSid || "",
     twilioAuthToken: decryptSecret(shop.twilioAuthToken),
     twilioFromNumber: shop.twilioFromNumber || "",
+    whatsappEnabled: shop.whatsappEnabled,
+    whatsappFromNumber: shop.whatsappFromNumber || "",
+    usesMerchantEmailProvider: Boolean(merchantKey),
+  };
+}
+
+/**
+ * Starter/Growth always send via the managed platform key.
+ * Scale may use the shop's own provider credentials when configured.
+ */
+export function resolveSettingsForPlan(
+  shop: Shop,
+  plan: { allowMerchantProvider: boolean },
+): ResolvedNotificationSettings {
+  const settings = resolveSettings(shop);
+  if (plan.allowMerchantProvider && settings.usesMerchantEmailProvider) {
+    return settings;
+  }
+  return {
+    ...settings,
+    provider: "brevo",
+    apiKey: process.env.BREVO_API_KEY || "",
+    usesMerchantEmailProvider: false,
   };
 }
