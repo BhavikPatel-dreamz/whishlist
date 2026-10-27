@@ -1845,7 +1845,7 @@ export default function Settings() {
 
         {!showingSaveFeatures && !showingBackInStock && <>
         <Text as="p" variant="bodySm" tone="subdued">
-          Manage and configure Wishlist Plus capabilities
+          Manage and configure Wishlist Stock Notify capabilities
         </Text>
 
         <Card>
@@ -1980,12 +1980,12 @@ export default function Settings() {
 
       {isOpen && (
         <div className="wl-backdrop" onClick={closeSettings}>
-          <div className="wl-modal" role="dialog" aria-modal="true" aria-label="Customize Wishlist Plus" onClick={(e) => e.stopPropagation()}>
+          <div className="wl-modal" role="dialog" aria-modal="true" aria-label="Customize Wishlist Stock Notify" onClick={(e) => e.stopPropagation()}>
             <div className="wl-modal-head">
               <InlineStack gap="200" blockAlign="center">
                 <span className="wl-brand">♥</span>
                 <Text as="span" variant="headingSm">
-                  Customize Wishlist Plus
+                  Customize Wishlist Stock Notify
                 </Text>
               </InlineStack>
               <button type="button" className="wl-close" aria-label="Close" onClick={closeSettings}>

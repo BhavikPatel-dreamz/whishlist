@@ -3,5 +3,5 @@ api_version = "2026-10"
 uid = "d71b01d3-dccb-3d16-1c2a-cc7818e5e0932046a4f7"
 
 [theme]
-name = "Wishlist & Back-in-Stock"
-description = "Wishlist buttons, drawer, page, variant selector, and back-in-stock alerts. Configure wishlist in App Control Centre and stock alerts in the separate Back-in-Stock embed."
+name = "Wishlist Stock Notify"
+description = "Wishlist buttons, drawer, page, variant selector, and back-in-stock alerts from Wishlist Stock Notify. Configure wishlist in App Control Centre and stock alerts in the separate Back-in-Stock embed."

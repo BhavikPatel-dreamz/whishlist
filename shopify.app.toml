@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "4e30ed6de43098d44b76b8aad8d6d31a"
-name = "wishlist-stock"
+name = "Wishlist Stock Notify"
 application_url = "https://whishlist.dreamzapps.com"
 embedded = true
 
