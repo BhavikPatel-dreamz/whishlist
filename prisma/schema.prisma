@@ -80,6 +80,7 @@ model Shop {
   wishlistMetrics WishlistMetric[]
   wishlistCartDays WishlistCartDay[]
   wishlistOrders  WishlistOrder[]
+  shopifyOrders   ShopifyOrderRecord[]
   stockAlerts     StockAlert[]
   webhookEvents   WebhookEvent[]
   rateLimits      RateLimitBucket[]
@@ -267,6 +268,51 @@ model WishlistOrder {
 
   @@unique([shopId, orderId, productId])
   @@index([shopId, createdAt])
+}
+
+/// Shopify orders and their line items, mirrored for store reporting and backfills.
+model ShopifyOrderRecord {
+  id                 String             @id @default(uuid())
+  shopId             String
+  shop               Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orderId            String
+  orderNumber        String
+  customerId         String?
+  currency           String?
+  financialStatus    String?
+  fulfillmentStatus  String?
+  totalPrice         Decimal            @default(0) @db.Decimal(12, 2)
+  createdAtShopify   DateTime
+  processedAt        DateTime?
+  updatedAtShopify   DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  lines              ShopifyOrderLine[]
+
+  @@unique([shopId, orderId])
+  @@index([shopId, createdAtShopify])
+  @@index([shopId, customerId, createdAtShopify])
+}
+
+model ShopifyOrderLine {
+  id              String            @id @default(uuid())
+  orderRecordId   String
+  order           ShopifyOrderRecord @relation(fields: [orderRecordId], references: [id], onDelete: Cascade)
+  lineItemId      String
+  productId       String?
+  variantId       String?
+  title           String?
+  variantTitle    String?
+  sku             String?
+  quantity        Int
+  unitPrice       Decimal           @default(0) @db.Decimal(12, 2)
+  discountTotal   Decimal           @default(0) @db.Decimal(12, 2)
+  lineTotal       Decimal           @default(0) @db.Decimal(12, 2)
+
+  @@unique([orderRecordId, lineItemId])
+  @@index([productId])
+  @@index([variantId])
 }
 
 /// Customer-initiated share actions with product IDs captured at sharing time.

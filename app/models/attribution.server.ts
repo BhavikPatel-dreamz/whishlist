@@ -176,7 +176,7 @@ export async function findOrderTouches({
   if (customerId) identityFilter.push({ customerId });
   if (shopperId && shopperId !== customerId) identityFilter.push({ shopperId });
 
-  const [savedItems, alerts] = await Promise.all([
+  const [savedItems, alerts, sharedVisits] = await Promise.all([
     identityFilter.length
       ? db.wishlistItem.findMany({
           where: {
@@ -217,6 +217,18 @@ export async function findOrderTouches({
       },
       orderBy: { notifiedAt: "desc" },
     }),
+    shopperId
+      ? db.trackingEvent.findMany({
+          where: {
+            shopId,
+            shopperId,
+            type: "WISHLIST_SHARE_VISIT",
+            createdAt: { gte: wishlistFrom, lte: orderedAt },
+          },
+          select: { meta: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   for (const line of lines) {
@@ -286,6 +298,27 @@ export async function findOrderTouches({
         touchAt: saved.createdAt,
         notificationLogId: null,
         wishlistItemId: saved.id,
+      });
+    }
+
+    const sharedVisit = sharedVisits.find((visit) => {
+      if (
+        !visit.meta ||
+        typeof visit.meta !== "object" ||
+        Array.isArray(visit.meta)
+      ) {
+        return false;
+      }
+      const productIds = (visit.meta as Record<string, unknown>).productIds;
+      return Array.isArray(productIds) && productIds.includes(line.productId);
+    });
+    if (sharedVisit) {
+      lineTouches.push({
+        source: "WISHLIST",
+        type: "DIRECT",
+        touchAt: sharedVisit.createdAt,
+        notificationLogId: null,
+        wishlistItemId: null,
       });
     }
 

@@ -726,6 +726,19 @@
     document.dispatchEvent(new CustomEvent('wishlist:page-ready'));
   }
 
+  function persistSharedVisitToCart() {
+    const marker = document.getElementById('ws-share-visit');
+    const shopperId = marker?.dataset.shopperId;
+    if (!shopperId || !/^[\w-]{16,64}$/.test(shopperId)) return;
+    const cartRoot = window.Shopify?.routes?.root || '/';
+    fetch(`${cartRoot}cart/update.js`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ attributes: { _ws_share_visitor_id: shopperId } }),
+      keepalive: true,
+    }).catch(() => { });
+  }
+
   /* ---------- Auto-mount page markup on the wishlist page ---------- */
   function showPageTab(tabName) {
     const page = document.getElementById('ws-wishlist-page');
@@ -765,6 +778,7 @@
       return (p.replace(/\/+$/, '') || '/').toLowerCase();
     };
     const cur = norm(window.location.pathname);
+
     const want = norm(configured);
     const proxyMount = document.getElementById('ws-wishlist-page-root');
     const legacyWishlist = cur.endsWith('/pages/wishlist');
@@ -852,6 +866,7 @@
   /* ---------- Event wiring ---------- */
   function init() {
     initialized = true;
+    persistSharedVisitToCart();
     // The embed and the section block can both render the shared wishlist markup;
     // keep only the first copy of each singleton so IDs stay unique.
     ['ws-drawer', 'ws-drawer-overlay', 'ws-header-count'].forEach((id) => {

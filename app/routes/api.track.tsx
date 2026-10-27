@@ -18,7 +18,7 @@
  *   }
  *
  * Idempotency: WISHLIST_SAVE upserts WishlistItem (unique on customer/guest + product + variant).
- * ALERT_SUBSCRIBE creates StockSubscription (unique on variant+contact).
+ * ALERT_SUBSCRIBE is recorded for analytics; subscriptions are created by /stock-alert.
  * WISHLIST_REMOVE records a WishlistEvent audit row instead of mutating the saved row.
  */
 
@@ -28,7 +28,7 @@ import { withProxy } from "../lib/proxy-route.server";
 import { readBody, numericId, ProxyError } from "../lib/proxy.server";
 import { requireIdentity } from "../models/wishlist.server";
 import db from "../db.server";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 type TrackBody = {
   event?: string;
@@ -200,42 +200,6 @@ export const action = async ({ request }: ActionFunctionArgs) =>
           customerId: customerId ?? undefined,
           guestToken: customerId ? null : shopperId,
           type: "remove",
-        },
-      });
-    }
-
-    if (event === "ALERT_SUBSCRIBE") {
-      const contact = body.channel ?? body.source ?? "";
-      if (!contact) {
-        throw new ProxyError(422, "alert subscribe needs a contact", "missing_contact");
-      }
-      await db.stockAlert.upsert({
-        where: {
-          one_alert_per_contact_variant: {
-            shopId: ctx.shop.id,
-            variantId: variantId ?? "",
-            contactKey: contact,
-          },
-        },
-        update: {
-          status: "PENDING",
-          source: body.source ?? undefined,
-          device: body.device ?? undefined,
-        },
-        create: {
-          shopId: ctx.shop.id,
-          customerId: customerId ?? null,
-          email: contact.includes("@") ? contact : null,
-          phone: contact.includes("@") ? null : contact,
-          channel: "email",
-          contactKey: contact,
-          productId: productId ?? "",
-          variantId: variantId ?? "",
-          source: body.source ?? null,
-          device: body.device ?? null,
-          shopperId,
-          confirmed: true,
-          pendingReason: "out_of_stock",
         },
       });
     }

@@ -276,6 +276,11 @@ label.ca-cb {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.ca-table td.ca-shared-products {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .ca-table th {
   font-weight: 600;
   color: var(--ca-mu);

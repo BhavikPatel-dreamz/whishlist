@@ -41,6 +41,32 @@
       return image || url.origin === location.origin ? url.href : '';
     } catch { return ''; }
   }
+  function waitForConfig() {
+    if (cfg().configSettled) return Promise.resolve();
+    return new Promise((resolve) => {
+      const finish = () => {
+        clearTimeout(timer);
+        document.removeEventListener('wishlist:config-ready', finish);
+        resolve();
+      };
+      const timer = setTimeout(finish, 8500);
+      document.addEventListener('wishlist:config-ready', finish, { once: true });
+    });
+  }
+  async function openSavedLater() {
+    await waitForConfig();
+    if (settings().pageType === 'page') {
+      const pageUrl = safeUrl(cfg().settings?.wishlistPageUrl);
+      if (pageUrl) {
+        const destination = new URL(pageUrl, location.href);
+        destination.searchParams.set('view', 'saved-later');
+        location.assign(destination.href);
+        return;
+      }
+    }
+    const opened = window.__wishlistStock?.openDrawer('saved-later');
+    if (!opened) window.__wishlistStock?.showPageTab?.('saved-later');
+  }
   function node(tag, className, text) {
     const element = document.createElement(tag);
     if (className) element.className = className;
@@ -219,8 +245,7 @@
       }
       if (typeof dialog._close === 'function') dialog._close(); else { dialog.classList.remove('is-open'); dialog.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; pending = null; }
       if (save) {
-        const opened = window.__wishlistStock?.openDrawer('saved-later');
-        if (!opened) window.__wishlistStock?.showPageTab?.('saved-later');
+        await openSavedLater();
       } else location.reload();
     } catch (error) {
       dialogStatus(`${saved ? 'Item is saved, but cart removal could not be confirmed. ' : ''}${message(error)}`);

@@ -51,6 +51,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
           : null;
       const shopperId =
         ctx.loggedInCustomerId ?? validCookieShopperId ?? randomUUID();
+      const sharedProductIds = [
+        ...new Set(items.map((item) => item.productId)),
+      ];
       await db.trackingEvent
         .create({
           data: {
@@ -59,6 +62,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             customerId: ctx.loggedInCustomerId ?? undefined,
             type: "WISHLIST_SHARE_VISIT",
             channel: "link",
+            meta: {
+              ...(shared.shareId ? { shareId: shared.shareId } : {}),
+              productIds: sharedProductIds,
+            },
           },
         })
         .catch((error) => {
@@ -125,7 +132,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         .join("");
 
       const empty = `<div class="ws-page__empty"><svg class="ws-page__empty-icon" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><h2>No available products</h2><p>This wishlist has no available products.</p></div>`;
-      const html = `<section class="ws-page" style="max-width:1120px;margin:40px auto;padding:4px 20px 64px"><div class="ws-page__section"><div class="ws-page__section-head"><h2>Shared Wishlist</h2><span class="ws-page__count">${count ? `${count} item${count === 1 ? "" : "s"}` : ""}</span></div><div class="ws-page__grid ws-page__grid--rows">${cards || empty}</div></div></section>`;
+      const html = `<span id="ws-share-visit" hidden data-shopper-id="${escapeHtml(shopperId)}" data-share-id="${escapeHtml(shared.shareId || "")}"></span><section class="ws-page" style="max-width:1120px;margin:40px auto;padding:4px 20px 64px"><div class="ws-page__section"><div class="ws-page__section-head"><h2>Shared Wishlist</h2><span class="ws-page__count">${count ? `${count} item${count === 1 ? "" : "s"}` : ""}</span></div><div class="ws-page__grid ws-page__grid--rows">${cards || empty}</div></div></section>`;
       // Encode Liquid delimiters in merchant content before Shopify renders it.
       const headers = new Headers({
         "Content-Type": "application/liquid; charset=utf-8",

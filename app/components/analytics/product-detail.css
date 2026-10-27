@@ -38,6 +38,10 @@ font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text
 .pd-card-head h2{margin:0;font-size:14px;font-weight:600}
 .pd-count{font-size:12px;font-weight:600;padding:1px 9px;border-radius:999px;border:1px solid var(--line);color:var(--text)}
 .pd-note{margin:6px 0 12px;color:var(--mute);font-size:12.5px}
+.pd-share-list{list-style:none;margin:10px 0 0;padding:0}
+.pd-share-product{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
+.pd-share-product img,.pd-share-placeholder{width:40px;height:40px;border-radius:4px;object-fit:cover;flex:none;background:var(--bg)}
+.pd-share-product span:last-child{min-width:0;overflow-wrap:anywhere}
 .pd-tw{overflow-x:auto}
 .pd-table{width:100%;border-collapse:collapse;min-width:640px}
 .pd-table th{text-align:left;font-size:12px;font-weight:600;color:var(--mute);padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap}

@@ -19,7 +19,8 @@ export function isWishlistLineItem(lineItem: LineItem): boolean {
   const properties = lineItem?.properties;
   if (Array.isArray(properties)) {
     return properties.some(
-      (property) => property?.name === "_wishlist_stock" && property?.value === "true",
+      (property) =>
+        property?.name === "_wishlist_stock" && property?.value === "true",
     );
   }
   return properties?._wishlist_stock === "true";
@@ -54,7 +55,9 @@ export async function attributeOrderLines({
   const orderId = order?.id ? String(order.id) : null;
   if (!orderId) return;
 
-  const items: LineItem[] = Array.isArray(order?.line_items) ? order.line_items : [];
+  const items: LineItem[] = Array.isArray(order?.line_items)
+    ? order.line_items
+    : [];
   const lines: OrderLine[] = normalizeOrderLines(items).map((line, index) => ({
     ...line,
     restockAlertId: verifiedRestockAlertId(items[index] ?? {}),
@@ -63,9 +66,18 @@ export async function attributeOrderLines({
   if (!lines.length) return;
 
   const customerId = order?.customer?.id ? String(order.customer.id) : null;
-  const email = order?.email
-    ? String(order.email).trim().toLowerCase()
+  const shareVisitorAttribute = Array.isArray(order?.note_attributes)
+    ? order.note_attributes.find(
+        (attribute: Record<string, unknown>) =>
+          attribute?.name === "_ws_share_visitor_id",
+      )?.value
     : null;
+  const sharedWishlistShopperId =
+    typeof shareVisitorAttribute === "string" &&
+    /^[\w-]{16,64}$/.test(shareVisitorAttribute)
+      ? shareVisitorAttribute
+      : null;
+  const email = order?.email ? String(order.email).trim().toLowerCase() : null;
   const orderedAt = new Date(
     order?.processed_at || order?.created_at || Date.now(),
   );
@@ -77,7 +89,7 @@ export async function attributeOrderLines({
       orderNumber: String(order?.name || order?.order_number || orderId),
       orderEmail: email,
       customerId,
-      shopperId: customerId,
+      shopperId: sharedWishlistShopperId ?? customerId,
       lines,
       orderedAt,
     });
@@ -129,7 +141,11 @@ export async function attributeWishlistOrders({
   let saved: Set<string> = new Set();
   if (fallbackCandidates.length) {
     try {
-      saved = await customerSavedProductIds(shopRecordId, customerId, fallbackCandidates);
+      saved = await customerSavedProductIds(
+        shopRecordId,
+        customerId,
+        fallbackCandidates,
+      );
     } catch (err) {
       // Retry the webhook if attribution could not be checked.
       console.warn("Failed to check customer wishlist for attribution", err);
@@ -137,7 +153,10 @@ export async function attributeWishlistOrders({
     }
   }
 
-  await recordWishlistDrivenOrders(shopRecordId, orderId, [...explicit, ...saved]);
+  await recordWishlistDrivenOrders(shopRecordId, orderId, [
+    ...explicit,
+    ...saved,
+  ]);
 }
 
 /**
@@ -147,7 +166,11 @@ export async function attributeWishlistOrders({
 export async function handleOrderWebhook(
   request: Request,
   path: string,
-  process: (ctx: { shop: string; topic: string; payload: OrderPayload }) => Promise<void>,
+  process: (ctx: {
+    shop: string;
+    topic: string;
+    payload: OrderPayload;
+  }) => Promise<void>,
 ): Promise<Response> {
   let stage = "authentication";
   try {

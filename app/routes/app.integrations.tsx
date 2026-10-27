@@ -54,8 +54,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     senderName: shop.senderName || "",
     canConfigureEmailProvider,
     canUseSmsWhatsApp,
-    whatsappEnabled: shop.whatsappEnabled,
-    whatsappFromNumber: shop.whatsappFromNumber || "",
     emailsSent,
     sentLabel,
     smsEnabled: canUseSmsWhatsApp ? shop.smsEnabled : false,

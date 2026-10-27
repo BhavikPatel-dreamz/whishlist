@@ -92,6 +92,7 @@
           const response = await fetch(`${cfg.proxyBase}/wishlist-share`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(shareContext) });
           const result = await response.json();
           if (!response.ok || !result.ok) throw new Error(result.code === 'login_required' ? 'Please log in to share your wishlist.' : 'Could not create a share link. Please try again.');
+          shareContext.shareId = result.shareId;
           const url = new URL(`${cfg.proxyBase.replace(/\/api\/?$/, '')}/share/${encodeURIComponent(result.token)}`, location.origin).href;
           dialog.querySelector('.ws-share-url').value = url;
           dialog.querySelector('.ws-share-email').href = `mailto:?subject=${encodeURIComponent('My wishlist')}&body=${encodeURIComponent(url)}`;

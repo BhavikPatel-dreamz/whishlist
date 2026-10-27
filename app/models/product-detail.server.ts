@@ -78,6 +78,7 @@ export async function loadProductDetail(
     wishlistItems,
     alerts,
     logs,
+    sentAlertFallbacks,
     attributions,
     variantSubscriptions,
   ] = await Promise.all([
@@ -141,7 +142,11 @@ export async function loadProductDetail(
       },
     }),
     db.notificationLog.findMany({
-      where: { shopId, productId, createdAt: bounds },
+      where: {
+        shopId,
+        productId,
+        OR: [{ createdAt: bounds }, { sentAt: bounds }],
+      },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       select: {
         id: true,
@@ -157,6 +162,21 @@ export async function loadProductDetail(
         clickedAt: true,
         errorReason: true,
         retryCount: true,
+      },
+    }),
+    db.stockAlert.findMany({
+      where: { shopId, productId, channel: "email", notifiedAt: bounds },
+      orderBy: [{ notifiedAt: "desc" }, { id: "asc" }],
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        contactKey: true,
+        channel: true,
+        status: true,
+        createdAt: true,
+        notifiedAt: true,
+        attempts: true,
       },
     }),
     db.attribution.findMany({
@@ -340,9 +360,13 @@ export async function loadProductDetail(
   const pendingAlerts = subscriptions.filter(
     (alert) => WAITING_STATUSES.has(alert.status) && !alert.notifiedAt,
   );
-  const alertById = new Map(alerts.map((alert) => [alert.id, alert]));
+  const alertById = new Map(
+    [...alerts, ...sentAlertFallbacks].map((alert) => [alert.id, alert]),
+  );
 
   /* ---- Notification sends --------------------------------------------- */
+  const sentWithinRange = (date: Date | null) =>
+    date !== null && date >= bounds.gte && date < bounds.lt;
   const notifications: ProductDetailNotification[] = logs.map((log) => {
     const subscription = log.subscriptionId
       ? alertById.get(log.subscriptionId)
@@ -367,6 +391,35 @@ export async function loadProductDetail(
       retryCount: log.retryCount,
     };
   });
+  const loggedSubscriptionIds = new Set(
+    logs.flatMap((log) =>
+      log.subscriptionId && sentWithinRange(log.sentAt)
+        ? [log.subscriptionId]
+        : [],
+    ),
+  );
+  for (const alert of sentAlertFallbacks) {
+    if (!alert.notifiedAt || loggedSubscriptionIds.has(alert.id)) continue;
+    notifications.push({
+      id: `alert:${alert.id}`,
+      recipient: alert.email || alert.phone || cleanContact(alert.contactKey),
+      channel: "EMAIL",
+      kind: "RESTOCK",
+      status: "sent",
+      createdAt: alert.createdAt.toISOString(),
+      sentAt: alert.notifiedAt.toISOString(),
+      deliveredAt: null,
+      openedAt: null,
+      clickedAt: null,
+      errorReason: null,
+      retryCount: alert.attempts,
+    });
+  }
+  notifications.sort(
+    (left, right) =>
+      Date.parse(right.sentAt ?? right.createdAt) -
+      Date.parse(left.sentAt ?? left.createdAt),
+  );
 
   /* ---- Attributed orders & revenue ------------------------------------ */
   type OrderAccumulator = {
@@ -493,7 +546,10 @@ export async function loadProductDetail(
       uniqueSavers: savers.length,
       subscriptions: subscriptions.length,
       pendingAlerts: pendingAlerts.length,
-      notificationsSent: notifications.filter((log) => log.sentAt).length,
+      notificationsSent: notifications.filter((log) => {
+        if (!log.sentAt) return false;
+        return sentWithinRange(new Date(log.sentAt));
+      }).length,
       notificationsDelivered: notifications.filter((log) => log.deliveredAt)
         .length,
       notificationsClicked: notifications.filter((log) => log.clickedAt).length,

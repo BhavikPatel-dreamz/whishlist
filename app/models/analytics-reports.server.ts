@@ -1291,13 +1291,11 @@ async function alertSubscriptionData(
 async function pendingAlertData(
   shopId: string,
   range: DateRange,
-  params: AnalyticsParams,
 ): Promise<ReportData> {
   const alerts = await db.stockAlert.findMany({
     where: {
       shopId,
       status: "PENDING",
-      ...(params.reason ? { pendingReason: params.reason } : {}),
       createdAt: rangeBounds(range),
     },
     orderBy: { createdAt: "desc" },
@@ -1628,6 +1626,107 @@ async function notificationDeliveryData(
    Phase 2 & 3 report data loaders
    ============================================================================ */
 
+type SharedWishlistVisit = {
+  shareId: string;
+  shopperId: string;
+  channel: string;
+  at: Date;
+  productIds: string[];
+};
+
+type SharedWishlistOrderLine = {
+  orderId: string;
+  orderNumber: string;
+  orderedAt: Date;
+  customerId: string | null;
+  productId: string;
+  quantity: number;
+  revenue: number;
+};
+
+type SharedWishlistAttribution = Omit<SharedWishlistOrderLine, "revenue"> & {
+  lineItemId: string;
+  shopperId: string | null;
+  revenue: Prisma.Decimal | number;
+};
+
+function sharedWishlistVisits(
+  events: Array<{
+    type: string;
+    shopperId: string;
+    channel: string | null;
+    createdAt: Date;
+    meta: Prisma.JsonValue | null;
+  }>,
+): SharedWishlistVisit[] {
+  return events.flatMap((event) => {
+    if (
+      event.type !== "WISHLIST_SHARE_VISIT" ||
+      !event.meta ||
+      typeof event.meta !== "object" ||
+      Array.isArray(event.meta)
+    )
+      return [];
+    const meta = event.meta as Record<string, unknown>;
+    if (typeof meta.shareId !== "string" || !Array.isArray(meta.productIds))
+      return [];
+    return [
+      {
+        shareId: meta.shareId,
+        shopperId: event.shopperId,
+        channel: event.channel ?? "link",
+        at: event.createdAt,
+        productIds: meta.productIds.filter(
+          (id): id is string => typeof id === "string",
+        ),
+      },
+    ];
+  });
+}
+
+function matchSharedWishlistOrders(
+  visits: SharedWishlistVisit[],
+  attributions: SharedWishlistAttribution[],
+) {
+  const ordersByShare = new Map<string, Map<string, SharedWishlistOrderLine>>();
+  for (const attribution of attributions) {
+    const attributionShopperId =
+      attribution.shopperId ?? attribution.customerId;
+    if (!attributionShopperId) continue;
+    const visit = visits
+      .filter(
+        (candidate) =>
+          (candidate.shopperId === attributionShopperId ||
+            (attribution.customerId &&
+              candidate.shopperId === attribution.customerId)) &&
+          candidate.at < attribution.orderedAt &&
+          candidate.productIds.includes(attribution.productId),
+      )
+      .sort((left, right) => right.at.getTime() - left.at.getTime())[0];
+    if (!visit) continue;
+    const orderLines = ordersByShare.get(visit.shareId) ?? new Map();
+    const key = `${attribution.orderId}:${attribution.lineItemId}`;
+    if (!orderLines.has(key)) {
+      orderLines.set(key, {
+        orderId: attribution.orderId,
+        orderNumber: attribution.orderNumber,
+        orderedAt: attribution.orderedAt,
+        customerId: attribution.customerId,
+        productId: attribution.productId,
+        quantity: attribution.quantity,
+        revenue: Number(attribution.revenue),
+      });
+    }
+    ordersByShare.set(visit.shareId, orderLines);
+  }
+  return new Map(
+    [...ordersByShare].map(([shareId, lines]) => [
+      shareId,
+      [...lines.values()],
+    ]),
+  );
+}
+
 async function sharedWishlistsData(
   shopId: string,
   admin: GraphqlClient,
@@ -1640,7 +1739,13 @@ async function sharedWishlistsData(
         type: { in: ["WISHLIST_SHARE", "WISHLIST_SHARE_VISIT"] },
         createdAt: rangeBounds(range),
       },
-      select: { type: true, channel: true, shopperId: true, createdAt: true },
+      select: {
+        type: true,
+        channel: true,
+        shopperId: true,
+        createdAt: true,
+        meta: true,
+      },
     }),
     db.wishlistShare.findMany({
       where: { shopId, createdAt: rangeBounds(range) },
@@ -1658,20 +1763,27 @@ async function sharedWishlistsData(
       where: {
         shopId,
         source: "WISHLIST",
-        model: "last_click",
+        model: { in: ["last_click", "any_touch"] },
         orderedAt: rangeBounds(range),
       },
-      select: { shopperId: true, orderId: true, orderedAt: true },
+      select: {
+        lineItemId: true,
+        shopperId: true,
+        customerId: true,
+        orderId: true,
+        orderNumber: true,
+        productId: true,
+        quantity: true,
+        revenue: true,
+        orderedAt: true,
+      },
     }),
   ]);
   const byChannel = new Map<
     string,
     { shares: number; visits: number; ordersAfterVisit: Set<string> }
   >();
-  const visitsByShopper = new Map<
-    string,
-    Array<{ channel: string; at: Date }>
-  >();
+  const visits = sharedWishlistVisits(events);
   for (const share of shares) {
     const channel = share.mode || "direct";
     const group = byChannel.get(channel) ?? {
@@ -1691,19 +1803,16 @@ async function sharedWishlistsData(
     };
     if (event.type === "WISHLIST_SHARE_VISIT") {
       group.visits++;
-      const visits = visitsByShopper.get(event.shopperId) ?? [];
-      visits.push({ channel, at: event.createdAt });
-      visitsByShopper.set(event.shopperId, visits);
     }
     byChannel.set(channel, group);
   }
-  for (const attribution of attributions) {
-    if (!attribution.shopperId) continue;
-    for (const visit of visitsByShopper.get(attribution.shopperId) ?? []) {
-      if (attribution.orderedAt <= visit.at) continue;
-      byChannel.get(visit.channel)?.ordersAfterVisit.add(attribution.orderId);
-    }
-  }
+  const ordersByShare = matchSharedWishlistOrders(visits, attributions);
+  const orderIdsByShare = new Map(
+    [...ordersByShare].map(([shareId, orders]) => [
+      shareId,
+      new Set(orders.map((order) => order.orderId)),
+    ]),
+  );
   const snapshots = shares.map((share) =>
     Array.isArray(share.products)
       ? (share.products as Array<{ productId: string; handle: string | null }>)
@@ -1725,6 +1834,14 @@ async function sharedWishlistsData(
     getProductsByIds(admin, productIds, 1).catch(() => new Map()),
     getCustomerNamesByIds(admin, customerIds).catch(() => new Map()),
   ]);
+  const productTitles = snapshots.map((items) =>
+    items.map(
+      (item) =>
+        products.get(item.productId)?.title ??
+        item.handle ??
+        `Product ${item.productId}`,
+    ),
+  );
   const rows = shares.map((share, index) => ({
     shareId: share.id,
     listName: share.listName ?? "My Wishlist",
@@ -1733,22 +1850,20 @@ async function sharedWishlistsData(
       : (customers.get(share.customerId) ?? `Customer ${share.customerId}`),
     channel: share.mode || "direct",
     products:
-      snapshots[index]
-        .map(
-          (item) =>
-            products.get(item.productId)?.title ??
-            item.handle ??
-            `Product ${item.productId}`,
-        )
-        .join(", ") || "No products recorded",
+      productTitles[index].length > 2
+        ? `${productTitles[index].slice(0, 2).join(", ")} +${productTitles[index].length - 2} more`
+        : productTitles[index].join(", ") || "No products recorded",
     sharedAt: share.createdAt.toISOString(),
+    ordersAfterVisit: orderIdsByShare.get(share.id)?.size ?? 0,
   }));
   const totalVisits = [...byChannel.values()].reduce(
     (sum, group) => sum + group.visits,
     0,
   );
   const ordersAfterVisit = new Set(
-    [...byChannel.values()].flatMap((group) => [...group.ordersAfterVisit]),
+    [...ordersByShare.values()].flatMap((orders) =>
+      orders.map((order) => order.orderId),
+    ),
   );
   return {
     summary: {
@@ -1764,6 +1879,131 @@ async function sharedWishlistsData(
     series: [],
     rows,
     revenueLabel: REVENUE_LABEL.direct,
+  };
+}
+
+export async function loadSharedWishlistOrderDetail(
+  shopId: string,
+  admin: GraphqlClient,
+  shareId: string,
+  range: DateRange,
+) {
+  const [share, events, attributions] = await Promise.all([
+    db.wishlistShare.findFirst({
+      where: { id: shareId, shopId },
+      select: {
+        id: true,
+        customerId: true,
+        mode: true,
+        listName: true,
+        products: true,
+        createdAt: true,
+      },
+    }),
+    db.trackingEvent.findMany({
+      where: {
+        shopId,
+        type: "WISHLIST_SHARE_VISIT",
+        createdAt: rangeBounds(range),
+      },
+      select: {
+        type: true,
+        channel: true,
+        shopperId: true,
+        createdAt: true,
+        meta: true,
+      },
+    }),
+    db.attribution.findMany({
+      where: {
+        shopId,
+        source: "WISHLIST",
+        model: { in: ["last_click", "any_touch"] },
+        orderedAt: rangeBounds(range),
+      },
+      select: {
+        lineItemId: true,
+        shopperId: true,
+        customerId: true,
+        orderId: true,
+        orderNumber: true,
+        productId: true,
+        quantity: true,
+        revenue: true,
+        orderedAt: true,
+      },
+    }),
+  ]);
+  if (!share) return null;
+
+  const sharedProducts = Array.isArray(share.products)
+    ? Array.from(
+        new Map(
+          (
+            share.products as Array<{
+              productId?: unknown;
+              handle?: unknown;
+            }>
+          )
+            .filter((item) => item && typeof item.productId === "string")
+            .map((item) => [item.productId as string, item]),
+        ).values(),
+      )
+    : [];
+
+  const orders =
+    matchSharedWishlistOrders(
+      sharedWishlistVisits(events).filter((visit) => visit.shareId === shareId),
+      attributions,
+    ).get(shareId) ?? [];
+  const [products, customers] = await Promise.all([
+    getProductsByIds(
+      admin,
+      [
+        ...new Set([
+          ...orders.map((order) => order.productId),
+          ...sharedProducts.map((item) => item.productId as string),
+        ]),
+      ],
+      1,
+    ).catch(() => new Map()),
+    getCustomerNamesByIds(admin, [
+      ...new Set(
+        orders.flatMap((order) => (order.customerId ? [order.customerId] : [])),
+      ),
+    ]).catch(() => new Map()),
+  ]);
+
+  return {
+    shareId: share.id,
+    listName: share.listName ?? "My Wishlist",
+    sharedBy: share.customerId.startsWith("guest:")
+      ? "Guest"
+      : (customers.get(share.customerId) ?? `Customer ${share.customerId}`),
+    channel: share.mode,
+    sharedAt: share.createdAt.toISOString(),
+    products: sharedProducts.map((item) => {
+      const productId = item.productId as string;
+      const product = products.get(productId);
+      return {
+        productId,
+        title:
+          product?.title ??
+          (typeof item.handle === "string" && item.handle
+            ? item.handle
+            : `Product ${productId}`),
+        imageUrl: product?.imageUrl ?? null,
+      };
+    }),
+    orders: orders.map((order) => ({
+      ...order,
+      orderedAt: order.orderedAt.toISOString(),
+      customer: order.customerId
+        ? (customers.get(order.customerId) ?? `Customer ${order.customerId}`)
+        : "Guest visitor",
+      product:
+        products.get(order.productId)?.title ?? `Product ${order.productId}`,
+    })),
   };
 }
 
@@ -1918,16 +2158,24 @@ async function wishlistToCartData(
   admin: GraphqlClient,
   range: DateRange,
 ): Promise<ReportData> {
-  const events = await db.trackingEvent.groupBy({
-    by: ["productId", "type"],
-    where: {
-      shopId,
-      type: { in: ["WISHLIST_SAVE", "WISHLIST_ADD_TO_CART"] },
-      createdAt: rangeBounds(range),
-      productId: { not: null },
-    },
-    _count: { _all: true },
-  });
+  const bounds = rangeBounds(range);
+  const [events, savedItems] = await Promise.all([
+    db.trackingEvent.groupBy({
+      by: ["productId", "type"],
+      where: {
+        shopId,
+        type: { in: ["WISHLIST_SAVE", "WISHLIST_ADD_TO_CART"] },
+        createdAt: bounds,
+        productId: { not: null },
+      },
+      _count: { _all: true },
+    }),
+    db.wishlistItem.groupBy({
+      by: ["productId"],
+      where: { shopId, createdAt: bounds },
+      _count: { _all: true },
+    }),
+  ]);
   const byProduct = new Map<string, { saves: number; addsToCart: number }>();
   for (const event of events) {
     if (!event.productId) continue;
@@ -1935,6 +2183,11 @@ async function wishlistToCartData(
     if (event.type === "WISHLIST_SAVE") group.saves += event._count._all;
     else group.addsToCart += event._count._all;
     byProduct.set(event.productId, group);
+  }
+  for (const item of savedItems) {
+    const group = byProduct.get(item.productId) ?? { saves: 0, addsToCart: 0 };
+    group.saves = Math.max(group.saves, item._count._all);
+    byProduct.set(item.productId, group);
   }
   const products = await getProductsByIds(
     admin,
@@ -2427,13 +2680,16 @@ async function lowStockDemandData(
     .map((item) => {
       const waiting =
         waitingByVariant.get(`${item.productId}:${item.variantId}`) ?? 0;
+      const quantity = Math.max(0, item.quantity);
       return {
         title: item.title,
+        variantTitle:
+          item.variantTitle === "Default Title" ? "Default" : item.variantTitle,
         variantId: item.variantId,
-        quantity: item.quantity,
+        quantity,
         status: item.status,
         waiting,
-        gap: rates.demandGap(waiting, item.quantity),
+        gap: rates.demandGap(waiting, quantity),
       };
     })
     .filter((row) => row.waiting > 0)
@@ -3868,7 +4124,7 @@ export async function loadAnalyticsReport(
       data = await alertSubscriptionData(shopId, range);
       break;
     case "pending-alerts":
-      data = await pendingAlertData(shopId, range, params);
+      data = await pendingAlertData(shopId, range);
       break;
     case "restock-conversion":
       data = await restockConversionData(shopId, range);
