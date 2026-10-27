@@ -38,11 +38,21 @@ font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text
 .pd-card-head h2{margin:0;font-size:14px;font-weight:600}
 .pd-count{font-size:12px;font-weight:600;padding:1px 9px;border-radius:999px;border:1px solid var(--line);color:var(--text)}
 .pd-note{margin:6px 0 12px;color:var(--mute);font-size:12.5px}
+.pd-notification-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0;margin:12px 0 0;border-top:1px solid var(--line)}
+.pd-notification-grid>div{min-width:0;padding:12px 10px;border-bottom:1px solid var(--line)}
+.pd-notification-grid dt{margin:0 0 4px;color:var(--mute);font-size:12px}
+.pd-notification-grid dd{margin:0;overflow-wrap:anywhere;font-weight:500}
+.pd-notification-error{margin:14px 0 8px;padding:10px 12px;border-left:3px solid var(--red);background:var(--red-bg);overflow-wrap:anywhere}
 .pd-share-list{list-style:none;margin:10px 0 0;padding:0}
 .pd-share-product{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
 .pd-share-product img,.pd-share-placeholder{width:40px;height:40px;border-radius:4px;object-fit:cover;flex:none;background:var(--bg)}
 .pd-share-product span:last-child{min-width:0;overflow-wrap:anywhere}
 .pd-tw{overflow-x:auto}
+.pd-pagination{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:640px;padding:10px 8px;color:var(--mute);font-size:12px}
+.pd-pagination span:first-child{margin-right:auto}
+.pd-pagination button{padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--text);font:inherit;cursor:pointer}
+.pd-pagination button:disabled{opacity:.45;cursor:default}
+.pd-pagination button:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .pd-table{width:100%;border-collapse:collapse;min-width:640px}
 .pd-table th{text-align:left;font-size:12px;font-weight:600;color:var(--mute);padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 .pd-table td{padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}

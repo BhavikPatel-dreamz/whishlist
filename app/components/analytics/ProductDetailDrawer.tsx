@@ -611,7 +611,6 @@ import "./product-detail.css";
 type FetcherData = ProductDetail | { error: string };
 type ProductDetailPanel =
   | "saves"
-  | "uniqueSavers"
   | "subscriptions"
   | "pendingAlerts"
   | "notifications"
@@ -729,7 +728,6 @@ function DetailBody({ detail, variantId }: { detail: ProductDetail; variantId?: 
 
   const kpis: Array<[ProductDetailPanel, string, string]> = [
     ["saves", "Saves", fmtN(summary.saves)],
-    ["uniqueSavers", "Customer", fmtN(summary.uniqueSavers)],
     ["subscriptions", "Subscriptions", fmtN(summary.subscriptions)],
     ["pendingAlerts", "Pending alerts", fmtN(summary.pendingAlerts)],
     ["notifications", "Notifications sent", fmtN(summary.notificationsSent)],
@@ -777,9 +775,9 @@ function DetailBody({ detail, variantId }: { detail: ProductDetail; variantId?: 
         </button>
       )}
 
-      {(selectedPanel === "saves" || selectedPanel === "uniqueSavers") && (
+      {selectedPanel === "saves" && (
         <Panel
-          title={selectedPanel === "saves" ? "Saves" : "Customer"}
+          title="Saves"
           count={summary.uniqueSavers}
           note={variantId
             ? `Distinct customers or guest devices who saved this variant from ${range.from} to ${range.to}.`

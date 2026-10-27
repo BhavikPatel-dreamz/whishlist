@@ -1108,10 +1108,6 @@ async function wishlistProductData(
               .get(productId)
               ?.collections.map((item) => item.title)
               .join(", ") || "—",
-          collectionIds:
-            products
-              .get(productId)
-              ?.collections.map((item) => item.collectionId) ?? [],
           saves: group.saves,
           purchases: group.purchases,
           conversionRate: rates.wishlistConversion(
@@ -1130,12 +1126,6 @@ async function wishlistProductData(
           title: products.get(productId)?.title ?? productId,
           variantCount: wishlistedVariantIds.size,
           variantNames: variantNames.join(", ") || "—",
-          // Kept for the collection filter; it is no longer a visible column.
-          collections: products.get(productId)?.collections ?? [],
-          collectionIds:
-            products
-              .get(productId)
-              ?.collections.map((item) => item.collectionId) ?? [],
           saves: group.saves,
           uniqueShoppers: group.uniqueShoppers,
           saveRate: rates.saveRate(group.saves, group.views),
@@ -3738,6 +3728,8 @@ async function notificationLogData(
         ? alertById.get(log.subscriptionId)
         : undefined;
       return {
+        detailId: log.id,
+        detailType: "log",
         productId: log.productId,
         date: (log.sentAt ?? log.createdAt).toISOString(),
         recipient:
@@ -3752,6 +3744,8 @@ async function notificationLogData(
       };
     }),
     ...fallbackAlerts.map((alert) => ({
+      detailId: alert.id,
+      detailType: "alert",
       productId: alert.productId,
       date: alert.notifiedAt!.toISOString(),
       recipient: alert.email ?? alert.phone ?? alert.contactKey,
@@ -4043,13 +4037,6 @@ function applyFilters(
   let filtered = rows;
   if (params.productId && filtered.some((row) => row.productId !== undefined)) {
     filtered = filtered.filter((row) => row.productId === params.productId);
-  }
-  if (slug === "wishlisted-products" && params.collectionId) {
-    filtered = filtered.filter(
-      (row) =>
-        Array.isArray(row.collectionIds) &&
-        row.collectionIds.includes(params.collectionId!),
-    );
   }
   if (slug === "recurring-customers" && params.customerType) {
     filtered = filtered.filter(

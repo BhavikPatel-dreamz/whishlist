@@ -41,28 +41,6 @@ export type DailyTotals = {
   restockRevenueEstimated: number;
 };
 
-const EMPTY_TOTALS: DailyTotals = {
-  productViews: 0,
-  wishlistSaves: 0,
-  wishlistRemoves: 0,
-  uniqueSavers: 0,
-  wishlistAddToCart: 0,
-  shares: 0,
-  shareVisits: 0,
-  alertSubscriptions: 0,
-  notificationsSent: 0,
-  notificationsDelivered: 0,
-  notificationsOpened: 0,
-  notificationClicks: 0,
-  unsubscribes: 0,
-  wishlistOrders: 0,
-  restockOrders: 0,
-  wishlistRevenueDirect: 0,
-  wishlistRevenueEstimated: 0,
-  restockRevenueDirect: 0,
-  restockRevenueEstimated: 0,
-};
-
 async function liveDailyTotals(
   shopId: string,
   range: DateRange,
@@ -166,7 +144,7 @@ async function liveDailyTotals(
     wishlistAddToCart: countEvent("WISHLIST_ADD_TO_CART"),
     shares: countEvent("WISHLIST_SHARE"),
     shareVisits: countEvent("WISHLIST_SHARE_VISIT"),
-    alertSubscriptions: Math.max(countEvent("ALERT_SUBSCRIBE"), subscriptions),
+    alertSubscriptions: subscriptions,
     notificationsSent: emailAlertsSent,
     notificationsDelivered: notification?.delivered ?? 0,
     notificationsOpened: notification?.opened ?? 0,
@@ -262,9 +240,14 @@ export async function dailyTotals(
     return liveDailyTotals(shopId, range);
   }
 
-  const storedAlertClicks = await db.stockAlert.count({
-    where: { shopId, convertedAt: rangeBounds(range) },
-  });
+  const [storedAlertClicks, alertSubscriptions] = await Promise.all([
+    db.stockAlert.count({
+      where: { shopId, convertedAt: rangeBounds(range) },
+    }),
+    db.stockAlert.count({
+      where: { shopId, createdAt: rangeBounds(range) },
+    }),
+  ]);
   const money = (value: string | number | null) => {
     const parsed = Number(value ?? 0);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -278,7 +261,7 @@ export async function dailyTotals(
     wishlistAddToCart: row.wishlistAddToCart ?? 0,
     shares: row.shares ?? 0,
     shareVisits: row.shareVisits ?? 0,
-    alertSubscriptions: row.alertSubscriptions ?? 0,
+    alertSubscriptions,
     notificationsSent: row.notificationsSent ?? 0,
     notificationsDelivered: row.notificationsDelivered ?? 0,
     notificationsOpened: row.notificationsOpened ?? 0,
@@ -346,7 +329,7 @@ export async function dailySeries(
   range: DateRange,
   groupBy: GroupBy = "day",
 ): Promise<DailySeriesRow[]> {
-  const [rows, savedItemRows] = await Promise.all([
+  const [rows, savedItemRows, subscriptionRows] = await Promise.all([
     db.$queryRaw<
       Array<{
         bucket: string;
@@ -387,14 +370,30 @@ export async function dailySeries(
         AND "createdAt" < (${range.to}::date + INTERVAL '1 day')
       GROUP BY 1
     `),
+    db.stockAlert.groupBy({
+      by: ["createdAt"],
+      where: { shopId, createdAt: rangeBounds(range) },
+      _count: { _all: true },
+    }),
   ]);
   const savedSavesByBucket = new Map(
     savedItemRows.map((row) => [row.bucket, row.saves]),
   );
+  const subscriptionsByBucket = new Map<string, number>();
+  for (const subscription of subscriptionRows) {
+    const bucket = bucketKey(
+      subscription.createdAt.toISOString().slice(0, 10),
+      groupBy,
+    );
+    subscriptionsByBucket.set(
+      bucket,
+      (subscriptionsByBucket.get(bucket) ?? 0) + subscription._count._all,
+    );
+  }
 
   if (rows.length < rangeLength(range)) {
     const bounds = rangeBounds(range);
-    const [events, subscriptions, sentAlerts] = await Promise.all([
+    const [events, sentAlerts] = await Promise.all([
       db.trackingEvent.groupBy({
         by: ["createdAt", "type"],
         where: {
@@ -405,16 +404,10 @@ export async function dailySeries(
               "PRODUCT_VIEW",
               "WISHLIST_SAVE",
               "WISHLIST_ADD_TO_CART",
-              "ALERT_SUBSCRIBE",
               "NOTIFICATION_CLICK",
             ],
           },
         },
-        _count: { _all: true },
-      }),
-      db.stockAlert.groupBy({
-        by: ["createdAt"],
-        where: { shopId, createdAt: bounds },
         _count: { _all: true },
       }),
       db.stockAlert.groupBy({
@@ -447,22 +440,8 @@ export async function dailySeries(
         row.wishlistSaves += event._count._all;
       if (event.type === "WISHLIST_ADD_TO_CART")
         row.wishlistAddToCart += event._count._all;
-      if (event.type === "ALERT_SUBSCRIBE")
-        row.alertSubscriptions += event._count._all;
       if (event.type === "NOTIFICATION_CLICK")
         row.notificationClicks += event._count._all;
-    }
-    const subscriptionsByDay = new Map<string, number>();
-    for (const subscription of subscriptions) {
-      const day = subscription.createdAt.toISOString().slice(0, 10);
-      subscriptionsByDay.set(
-        day,
-        (subscriptionsByDay.get(day) ?? 0) + subscription._count._all,
-      );
-    }
-    for (const [day, count] of subscriptionsByDay) {
-      const row = dayFor(new Date(`${day}T00:00:00Z`));
-      row.alertSubscriptions = Math.max(row.alertSubscriptions, count);
     }
     for (const alert of sentAlerts) {
       if (!alert.notifiedAt) continue;
@@ -498,6 +477,7 @@ export async function dailySeries(
     }
     return [...buckets.values()].map((bucket) => ({
       ...bucket,
+      alertSubscriptions: subscriptionsByBucket.get(bucket.bucket) ?? 0,
       wishlistSaves: Math.max(
         bucket.wishlistSaves,
         savedSavesByBucket.get(bucket.bucket) ?? 0,
@@ -515,7 +495,7 @@ export async function dailySeries(
         row?.wishlistSaves ?? 0,
         savedSavesByBucket.get(bucket) ?? 0,
       ),
-      alertSubscriptions: row?.alertSubscriptions ?? 0,
+      alertSubscriptions: subscriptionsByBucket.get(bucket) ?? 0,
       notificationsSent: row?.notificationsSent ?? 0,
       notificationClicks: row?.notificationClicks ?? 0,
       wishlistAddToCart: row?.wishlistAddToCart ?? 0,

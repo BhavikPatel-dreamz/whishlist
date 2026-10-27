@@ -21,7 +21,6 @@ import { downloadCsv } from "../../lib/download.client";
 import { REPORT_CSV_ROW_KEYS, type ReportSlug } from "../../lib/report-contract";
 import type { CustomerValueSegment } from "../../lib/customer-value-detail";
 import type { OverviewDetailMetric } from "../../lib/overview-detail";
-import { CustomerValueDetailDrawer } from "./CustomerValueDetailDrawer";
 import { OverviewMetricDetail } from "./OverviewMetricDetail";
 
 const DAY_MS = 86400000;
@@ -44,7 +43,7 @@ const GROUPS = [
     "alert-purchases", "restock-conversion", "low-stock-demand",
   ]},
   { label: "Customers", slug: "customers", reports: [
-    "recurring-customers", "top-intent-customers", "segments",
+    "recurring-customers",
   ]},
   { label: "Operations", slug: "operations", reports: [
     "notification-log", "usage",
@@ -388,15 +387,13 @@ export type ClassicAnalyticsProps = {
   report: AnalyticsReport;
   topProducts: AnalyticsRow[];
   productBreakdown: AnalyticsRow[];
-  collectionOptions: Array<{ id: string; title: string }>;
 };
 
-export function ClassicAnalytics({ report, topProducts, productBreakdown, collectionOptions }: ClassicAnalyticsProps) {
+export function ClassicAnalytics({ report, topProducts, productBreakdown }: ClassicAnalyticsProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedTrendMetric, setSelectedTrendMetric] = useState<OverviewDetailMetric>("saves");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
-  const [customerValueSegment, setCustomerValueSegment] = useState<CustomerValueSegment | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
   const navigation = useNavigation();
   const navigate = useNavigate();
@@ -413,6 +410,16 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
     const params = new URLSearchParams({ from, to });
     params.set("returnTo", `${window.location.pathname}${window.location.search}`);
     navigate(`/app/analytics/customer/${encodeURIComponent(customerId)}?${params}`);
+  }, [from, to, navigate]);
+  const openNotificationDetail = useCallback((detailType: "log" | "alert", detailId: string) => {
+    const params = new URLSearchParams({ from, to });
+    params.set("returnTo", `${window.location.pathname}${window.location.search}`);
+    navigate(`/app/analytics/notification/${detailType}/${encodeURIComponent(detailId)}?${params}`);
+  }, [from, to, navigate]);
+  const openCustomerValueDetail = useCallback((segment: CustomerValueSegment) => {
+    const params = new URLSearchParams({ from, to });
+    params.set("returnTo", `${window.location.pathname}${window.location.search}`);
+    navigate(`/app/analytics/customer-value/${encodeURIComponent(segment)}?${params}`);
   }, [from, to, navigate]);
   const openSharedWishlistDetail = useCallback((shareId: string) => {
     const params = new URLSearchParams({ from, to });
@@ -441,7 +448,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
     ? "channel"
     : "status";
   const filterValue = searchParams.get(filterKey) ?? "";
-  const collectionFilter = searchParams.get("collectionId") ?? "";
   const attributionModelFilter = searchParams.get("model") ?? "";
   const attributionWindowFilter = searchParams.get("windowDays") ?? "";
   const filterOptions = ["notification-delivery", "reminder-performance"].includes(slug)
@@ -476,7 +482,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
     channel: undefined,
     customerType: undefined,
     productId: undefined,
-    collectionId: undefined,
     model: undefined,
     windowDays: undefined,
     sort: undefined,
@@ -922,19 +927,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
               ))}
             </select>
           )}
-          {slug === "wishlisted-products" && (
-            <select
-              className="ca-select"
-              value={collectionFilter}
-              onChange={(event) => updateParams({ collectionId: event.target.value || undefined, page: "1" })}
-              aria-label="Filter by collection"
-            >
-              <option value="">All collections</option>
-              {collectionOptions.map((collection) => (
-                <option key={collection.id} value={collection.id}>{collection.title}</option>
-              ))}
-            </select>
-          )}
           {slug === "attribution-models" && (
             <>
               <select
@@ -1058,8 +1050,11 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                       <button
                         type="button"
                         className="ca-btn"
-                        aria-label={`View product details for ${String(row.product ?? "product")}`}
-                        onClick={() => openProductDetail(String(row.productId))}
+                        aria-label={`View notification details for ${String(row.recipient ?? "recipient")}`}
+                        onClick={() => openNotificationDetail(
+                          row.detailType === "alert" ? "alert" : "log",
+                          String(row.detailId),
+                        )}
                       >
                         Details
                       </button>
@@ -1112,11 +1107,9 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
                         type="button"
                         className="ca-btn"
                         aria-label={`View details for ${String(row.segment ?? "customer segment")}`}
-                        onClick={() =>
-                          setCustomerValueSegment(
-                            row.segment === "Guest customers" ? "guest" : "logged-in",
-                          )
-                        }
+                        onClick={() => openCustomerValueDetail(
+                          row.segment === "Guest customers" ? "guest" : "logged-in",
+                        )}
                       >
                         Details
                       </button>
@@ -1492,14 +1485,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown, collec
           use events recorded for the selected date range.
         </p>
       </div>
-      {customerValueSegment && (
-        <CustomerValueDetailDrawer
-          segment={customerValueSegment}
-          from={from}
-          to={to}
-          onClose={() => setCustomerValueSegment(null)}
-        />
-      )}
     </div>
   );
 }

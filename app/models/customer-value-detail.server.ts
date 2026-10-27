@@ -218,7 +218,12 @@ export async function loadCustomerValueDetail(
       Number(row.revenue),
     );
   }
+  const attributedOrderProducts = new Set(
+    attributions.map((row) => `${row.orderId}:${row.productId}`),
+  );
   for (const row of wishlistOrders) {
+    if (attributedOrderProducts.has(`${row.orderId}:${row.productId}`))
+      continue;
     addProductOrder(row.orderId, row.productId, null, "Wishlist");
   }
   for (const row of alertPurchases) {

@@ -14,8 +14,6 @@
 
 import { Prisma } from "@prisma/client";
 import db from "../db.server";
-import { getShopSettings } from "../models/shop-settings.server";
-import { rangeBounds } from "../lib/analytics-params";
 import type { DateRange } from "../lib/analytics-params";
 
 const DAY_MS = 86400000;
@@ -118,7 +116,7 @@ async function eventCountersByDay(
     notificationClicks: number;
   };
 }> {
-  const [rows, storedClicks] = await Promise.all([
+  const [rows, storedClicks, subscriptions] = await Promise.all([
     db.trackingEvent.groupBy({
       by: ["createdAt", "type"],
       where: { shopId, createdAt: bounds },
@@ -127,6 +125,11 @@ async function eventCountersByDay(
     db.stockAlert.groupBy({
       by: ["convertedAt"],
       where: { shopId, convertedAt: bounds },
+      _count: { _all: true },
+    }),
+    db.stockAlert.groupBy({
+      by: ["createdAt"],
+      where: { shopId, createdAt: bounds },
       _count: { _all: true },
     }),
   ]);
@@ -166,13 +169,14 @@ async function eventCountersByDay(
       case "WISHLIST_SHARE_VISIT":
         day.shareVisits += row._count._all;
         break;
-      case "ALERT_SUBSCRIBE":
-        day.alertSubscriptions += row._count._all;
-        break;
       case "NOTIFICATION_CLICK":
         day.notificationClicks += row._count._all;
         break;
     }
+  }
+  for (const subscription of subscriptions) {
+    const day = dayFor(subscription.createdAt);
+    day.alertSubscriptions += subscription._count._all;
   }
   for (const click of storedClicks) {
     if (!click.convertedAt) continue;

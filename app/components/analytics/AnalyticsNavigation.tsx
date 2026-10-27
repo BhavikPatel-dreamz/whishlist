@@ -31,8 +31,6 @@ const REPORTS: Record<string, string> = {
   // "sell-through": "Sell-Through After Restock",
   // "subscription-sources": "Subscription Source Report",
   "recurring-customers": "Recurring Customers",
-  "top-intent-customers": "Top Customers by Intent",
-  segments: "Customer Segments Export",
   "notification-log": "Notification Log",
   usage: "Usage vs Plan",
 };
@@ -74,7 +72,7 @@ const GROUPS: { label: string; reports: ReportSlug[] }[] = [
   },
   {
     label: "Customers",
-    reports: ["recurring-customers", "top-intent-customers", "segments"],
+    reports: ["recurring-customers"],
   },
   {
     label: "Operations",

@@ -65,33 +65,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         return productParams;
       })()).then(({ response: products }) => products.rows)
     : [];
-  const collectionOptions = slug === "wishlisted-products"
-    ? await loadAnalyticsReport(shop.id, admin, "wishlisted-products", (() => {
-        const collectionParams = new URLSearchParams(params);
-        collectionParams.delete("collectionId");
-        collectionParams.set("page", "1");
-        collectionParams.set("pageSize", "200");
-        collectionParams.set("sort", "saves");
-        collectionParams.set("order", "desc");
-        return collectionParams;
-      })()).then(({ response: products }) => {
-        const collections = new Map<string, string>();
-        for (const row of products.rows) {
-          if (!Array.isArray(row.collections)) continue;
-          for (const collection of row.collections) {
-            if (!collection || typeof collection !== "object") continue;
-            const value = collection as Record<string, unknown>;
-            if (typeof value.collectionId === "string" && typeof value.title === "string") {
-              collections.set(value.collectionId, value.title);
-            }
-          }
-        }
-        return [...collections]
-          .map(([id, title]) => ({ id, title }))
-          .sort((a, b) => a.title.localeCompare(b.title));
-      })
-    : [];
-  return json({ report: response, topProducts, productBreakdown, collectionOptions });
+  return json({ report: response, topProducts, productBreakdown });
 }
 
 export const links = () => [
@@ -99,14 +73,12 @@ export const links = () => [
 ];
 
 export default function AnalyticsIndex() {
-  const { report, topProducts, productBreakdown, collectionOptions } =
-    useLoaderData<typeof loader>();
+  const { report, topProducts, productBreakdown } = useLoaderData<typeof loader>();
   return (
     <ClassicAnalytics
       report={report}
       topProducts={topProducts}
       productBreakdown={productBreakdown}
-      collectionOptions={collectionOptions}
     />
   );
 }

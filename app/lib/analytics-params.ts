@@ -22,7 +22,6 @@ export type AnalyticsParams = {
   to: string;
   compare: boolean;
   groupBy: GroupBy;
-  collectionId: string | null;
   productId: string | null;
   customerType: string | null;
   status: string | null;
@@ -160,7 +159,6 @@ export function parseAnalyticsParams(
     to,
     compare: params.get("compare") === "true" || params.get("compare") === "1",
     groupBy,
-    collectionId: trimmed(params.get("collectionId")),
     productId: trimmed(params.get("productId")),
     customerType: trimmed(params.get("customerType")),
     status: trimmed(params.get("status")),
