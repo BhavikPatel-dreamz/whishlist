@@ -48,6 +48,10 @@ api_version = "2026-10"
   topics = [ "refunds/create" ]
 
   [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/create"
+  topics = [ "customers/create" ]
+
+  [[webhooks.subscriptions]]
   uri = "/webhooks/customers/update"
   topics = [ "customers/update" ]
 

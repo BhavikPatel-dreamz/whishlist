@@ -1,56 +1,18 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
-import { getOrCreateShop } from "../lib/shop.server";
-import db from "../db.server";
-
-type CustomerPayload = Record<string, any>;
+import { linkGuestIdentityToCustomer } from "../lib/webhooks/customers-identity.server";
 
 /**
  * `customers/update` webhook. When a guest shopper creates or logs into a
  * customer account, repoint their guest wishlist items, stock alerts, and
- * tracking events to the customer id so reports (especially 2.10 Guest-to-Customer
- * Conversion) stay accurate. Idempotent: updateMany is safe to replay.
+ * tracking events to the customer id so reports stay accurate.
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
   let stage = "authentication";
   try {
-    const { shop, topic, payload } = await authenticate.webhook(request);
+    const { shop, payload } = await authenticate.webhook(request);
     stage = "customer-processing";
-
-    const shopRecord = await getOrCreateShop(shop);
-    const customer = payload as CustomerPayload;
-    const customerId = customer?.id ? String(customer.id) : null;
-    const email = customer?.email ? String(customer.email).trim().toLowerCase() : null;
-    if (!customerId || !email) return new Response();
-
-    // Repoint guest rows saved under this email/contact to the customer id.
-    await db.$transaction([
-      db.wishlistItem.updateMany({
-        where: {
-          shopId: shopRecord.id,
-          customerId: null,
-          guestToken: email,
-        },
-        data: { customerId, shopperId: customerId },
-      }),
-      db.stockAlert.updateMany({
-        where: {
-          shopId: shopRecord.id,
-          customerId: null,
-          contactKey: email,
-        },
-        data: { customerId, shopperId: customerId },
-      }),
-      db.trackingEvent.updateMany({
-        where: {
-          shopId: shopRecord.id,
-          customerId: null,
-          shopperId: email,
-        },
-        data: { customerId },
-      }),
-    ]);
-
+    await linkGuestIdentityToCustomer(shop, payload as Record<string, unknown>);
     return new Response();
   } catch (err) {
     console.error("customers/update handler error", {
