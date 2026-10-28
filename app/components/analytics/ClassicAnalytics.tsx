@@ -89,6 +89,18 @@ const GROUP_OF: Record<string, number> = {};
 GROUPS.forEach((g, gi) => g.reports.forEach((s) => { GROUP_OF[s] = gi; }));
 GROUP_OF["notification-delivery"] = 2;
 
+const OVERVIEW_REPORT_BY_METRIC: Record<OverviewDetailMetric, ReportSlug> = {
+  saves: "wishlisted-products",
+  uniqueSavers: "top-intent-customers",
+  alertSubscriptions: "alert-subscriptions",
+  pendingAlerts: "pending-alerts",
+  notificationsSent: "notification-log",
+  notificationClicks: "notification-delivery",
+  wishlistOrders: "wishlist-orders",
+  attributedRevenue: "revenue-attribution",
+  wishlistConversionRate: "wishlist-conversion",
+};
+
 type AnalyticsRow = Record<string, unknown>;
 type AnalyticsReport = {
   report: ReportSlug;
@@ -546,6 +558,19 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
     "error",
     "retries",
   ]);
+  const hiddenNotificationDeliveryColumns = new Set([
+    "sent",
+    "delivered",
+    "bounced",
+    "opened",
+    "purchased",
+    "revenue",
+    "unsubscribed",
+    "openRate",
+    "clickRate",
+    "purchaseRate",
+    "bounceRate",
+  ]);
   const hiddenPendingAlertColumns = new Set(["shopper"]);
   const hiddenWishlistColumns = new Set(["variantNames", "uniqueShoppers"]);
   const hiddenVariantDemandColumns = new Set(["uniqueShoppers"]);
@@ -554,6 +579,8 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
     ? colDefs.filter((column) => !hiddenRestockColumns.has(column.key))
     : slug === "notification-log"
       ? colDefs.filter((column) => !hiddenNotificationLogColumns.has(column.key))
+      : slug === "notification-delivery"
+        ? colDefs.filter((column) => !hiddenNotificationDeliveryColumns.has(column.key))
       : slug === "pending-alerts"
         ? colDefs.filter((column) => !hiddenPendingAlertColumns.has(column.key))
       : slug === "wishlisted-products"
@@ -586,14 +613,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
     }
 
     if (slug === "notification-delivery") {
-      const metrics: Array<[string, string, "n" | "$"]> = [
-        ["Notifications sent", "sent", "n"],
-        ["Delivered", "delivered", "n"],
-        ["Clicked", "clicked", "n"],
-        ["Purchases", "purchased", "n"],
-        ["Purchase revenue", "revenue", "$"],
-        ["Bounced", "bounced", "n"],
-      ];
+      const metrics: Array<[string, string, "n" | "$"]> = [["Clicked", "clicked", "n"]];
       return (
         <div className="ca-kpis" style={{ margin: 0 }}>
           {metrics.map(([label, key, format]) => (
@@ -636,19 +656,10 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
               return (
                 <button
                   type="button"
-                  className={`ca-k ca-k-button${selectedTrendMetric === key ? " ca-k-active" : ""}`}
+                  className="ca-k ca-k-button"
                   key={key}
-                  aria-pressed={selectedTrendMetric === key}
-                  title={`Show the top 5 breakdown for ${label.toLowerCase()}`}
-                  onClick={() => {
-                    setSelectedTrendMetric(key);
-                    window.requestAnimationFrame(() => {
-                      detailRef.current?.scrollIntoView({
-                        behavior: "smooth",
-                        block: "nearest",
-                      });
-                    });
-                  }}
+                  title={`Open the full report for ${label.toLowerCase()}`}
+                  onClick={() => selectReport(OVERVIEW_REPORT_BY_METRIC[key])}
                 >
                   {content}
                 </button>
@@ -656,7 +667,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
             })}
           </div>
           <p className="ca-mu ca-kpi-hint">
-            Click a card to see its Top 5 breakdown below.
+            Select a card to open its full report.
           </p>
         </>
       );

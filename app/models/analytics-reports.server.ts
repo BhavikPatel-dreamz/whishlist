@@ -1451,7 +1451,7 @@ async function notificationDeliveryData(
   )
     ? (params.channel as "EMAIL" | "SMS" | "WHATSAPP" | "PUSH")
     : undefined;
-  const [logs, convertedAlerts] = await Promise.all([
+  const [logs, convertedAlerts, subscribeClicks] = await Promise.all([
     db.notificationLog.findMany({
       where: {
         shopId,
@@ -1482,6 +1482,16 @@ async function notificationDeliveryData(
         channel: true,
       },
     }),
+    db.trackingEvent.findMany({
+      where: {
+        shopId,
+        type: "ALERT_SUBSCRIBE_CLICK",
+        createdAt: rangeBounds(range),
+        productId: { not: null },
+        ...(channel ? { channel: channel.toLowerCase() } : {}),
+      },
+      select: { productId: true, channel: true },
+    }),
   ]);
   const loggedAlertIds = new Set(
     logs.flatMap((log) => (log.subscriptionId ? [log.subscriptionId] : [])),
@@ -1496,6 +1506,9 @@ async function notificationDeliveryData(
         ...new Set([
           ...logs.map((log) => log.productId),
           ...unloggedConversions.map((alert) => alert.productId),
+          ...subscribeClicks.flatMap((click) =>
+            click.productId ? [click.productId] : [],
+          ),
         ]),
       ],
       1,
@@ -1566,6 +1579,10 @@ async function notificationDeliveryData(
   }
   for (const alert of unloggedConversions) {
     getGroup(alert.productId, alert.channel.toUpperCase()).clicked++;
+  }
+  for (const click of subscribeClicks) {
+    if (!click.productId || !click.channel) continue;
+    getGroup(click.productId, click.channel.toUpperCase()).clicked++;
   }
   for (const purchase of purchases) {
     const log = purchase.notificationLogId

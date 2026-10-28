@@ -148,11 +148,12 @@ async function liveDailyTotals(
     notificationsSent: emailAlertsSent,
     notificationsDelivered: notification?.delivered ?? 0,
     notificationsOpened: notification?.opened ?? 0,
-    notificationClicks: Math.max(
-      countEvent("NOTIFICATION_CLICK"),
-      notification?.clicks ?? 0,
-      stockAlertClicks,
-    ),
+    notificationClicks:
+      Math.max(
+        countEvent("NOTIFICATION_CLICK"),
+        notification?.clicks ?? 0,
+        stockAlertClicks,
+      ) + countEvent("ALERT_SUBSCRIBE_CLICK"),
     unsubscribes: notification?.unsubscribes ?? 0,
     wishlistOrders: Math.max(
       (revenueFor("WISHLIST", "DIRECT")?._count._all ?? 0) +
@@ -240,14 +241,22 @@ export async function dailyTotals(
     return liveDailyTotals(shopId, range);
   }
 
-  const [storedAlertClicks, alertSubscriptions] = await Promise.all([
-    db.stockAlert.count({
-      where: { shopId, convertedAt: rangeBounds(range) },
-    }),
-    db.stockAlert.count({
-      where: { shopId, createdAt: rangeBounds(range) },
-    }),
-  ]);
+  const [storedAlertClicks, alertSubscriptions, emailMeClicks] =
+    await Promise.all([
+      db.stockAlert.count({
+        where: { shopId, convertedAt: rangeBounds(range) },
+      }),
+      db.stockAlert.count({
+        where: { shopId, createdAt: rangeBounds(range) },
+      }),
+      db.trackingEvent.count({
+        where: {
+          shopId,
+          type: "ALERT_SUBSCRIBE_CLICK",
+          createdAt: rangeBounds(range),
+        },
+      }),
+    ]);
   const money = (value: string | number | null) => {
     const parsed = Number(value ?? 0);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -265,10 +274,8 @@ export async function dailyTotals(
     notificationsSent: row.notificationsSent ?? 0,
     notificationsDelivered: row.notificationsDelivered ?? 0,
     notificationsOpened: row.notificationsOpened ?? 0,
-    notificationClicks: Math.max(
-      row.notificationClicks ?? 0,
-      storedAlertClicks,
-    ),
+    notificationClicks:
+      Math.max(row.notificationClicks ?? 0, storedAlertClicks) + emailMeClicks,
     unsubscribes: row.unsubscribes ?? 0,
     wishlistOrders: row.wishlistOrders ?? 0,
     restockOrders: row.restockOrders ?? 0,
@@ -405,6 +412,7 @@ export async function dailySeries(
               "WISHLIST_SAVE",
               "WISHLIST_ADD_TO_CART",
               "NOTIFICATION_CLICK",
+              "ALERT_SUBSCRIBE_CLICK",
             ],
           },
         },
@@ -441,6 +449,8 @@ export async function dailySeries(
       if (event.type === "WISHLIST_ADD_TO_CART")
         row.wishlistAddToCart += event._count._all;
       if (event.type === "NOTIFICATION_CLICK")
+        row.notificationClicks += event._count._all;
+      if (event.type === "ALERT_SUBSCRIBE_CLICK")
         row.notificationClicks += event._count._all;
     }
     for (const alert of sentAlerts) {
@@ -485,6 +495,26 @@ export async function dailySeries(
     }));
   }
 
+  const emailMeClicks = await db.trackingEvent.groupBy({
+    by: ["createdAt"],
+    where: {
+      shopId,
+      type: "ALERT_SUBSCRIBE_CLICK",
+      createdAt: rangeBounds(range),
+    },
+    _count: { _all: true },
+  });
+  const emailMeClicksByBucket = new Map<string, number>();
+  for (const click of emailMeClicks) {
+    const bucket = bucketKey(
+      click.createdAt.toISOString().slice(0, 10),
+      groupBy,
+    );
+    emailMeClicksByBucket.set(
+      bucket,
+      (emailMeClicksByBucket.get(bucket) ?? 0) + click._count._all,
+    );
+  }
   const byBucket = new Map(rows.map((row) => [row.bucket, row]));
   return rangeBuckets(range, groupBy).map((bucket) => {
     const row = byBucket.get(bucket);
@@ -497,7 +527,9 @@ export async function dailySeries(
       ),
       alertSubscriptions: subscriptionsByBucket.get(bucket) ?? 0,
       notificationsSent: row?.notificationsSent ?? 0,
-      notificationClicks: row?.notificationClicks ?? 0,
+      notificationClicks:
+        (row?.notificationClicks ?? 0) +
+        (emailMeClicksByBucket.get(bucket) ?? 0),
       wishlistAddToCart: row?.wishlistAddToCart ?? 0,
       wishlistOrders: row?.wishlistOrders ?? 0,
       restockOrders: row?.restockOrders ?? 0,

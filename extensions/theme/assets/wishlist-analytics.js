@@ -13,6 +13,7 @@
  *   WISHLIST_SHARE  - Share action
  *   WISHLIST_SHARE_VISIT - Open of a shared link
  *   ALERT_SUBSCRIBE - Back-in-stock form submit
+ *   ALERT_SUBSCRIBE_CLICK - Back-in-stock Email Me submit
  */
 
 (function () {

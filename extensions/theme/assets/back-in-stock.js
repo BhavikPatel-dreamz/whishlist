@@ -360,6 +360,16 @@
     const body = Object.fromEntries(formData.entries());
     const selectedChannel = String(body.channel || 'email');
     body.guestToken = getGuestToken();
+    if (selectedChannel === 'email') {
+      try {
+        void window.wsTrack?.('ALERT_SUBSCRIBE_CLICK', {
+          productId: body.productId || undefined,
+          variantId: body.variantId || undefined,
+          channel: selectedChannel,
+          source: 'pdp',
+        });
+      } catch { /* tracking is non-fatal */ }
+    }
 
     if (submitBtn) {
       submitBtn.disabled = true;

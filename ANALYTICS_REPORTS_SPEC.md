@@ -87,6 +87,7 @@ enum EventType {
   WISHLIST_SHARE_VISIT
   ALERT_FORM_VIEW
   ALERT_SUBSCRIBE
+  ALERT_SUBSCRIBE_CLICK
   NOTIFICATION_CLICK
 }
 
@@ -204,6 +205,7 @@ model DailyStat {
 | `WISHLIST_ADD_TO_CART` | Add to cart from wishlist page | same |
 | `WISHLIST_SHARE` / `SHARE_VISIT` | Share action / open of a shared link | same |
 | `ALERT_SUBSCRIBE` | Back-in-stock form submit | creates `StockSubscription` |
+| `ALERT_SUBSCRIBE_CLICK` | Back-in-stock Email Me submit | included in Notification Delivery Clicked totals |
 | `NOTIFICATION_CLICK` | Redirect through tracked link `/r/:logId` | sets `clickedAt`, sets cookie `bis_click` with `logId`, redirects |
 
 Shopper identity: `shopperId = customerId` when logged in, otherwise a first-party device id cookie. When a guest logs in or checks out, **merge**: update `shopperId` on their `WishlistItem`, `StockSubscription` and events to the customer id and set `isGuest=false` (feeds report 2.10).
