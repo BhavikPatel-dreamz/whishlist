@@ -3500,7 +3500,7 @@ async function topIntentCustomersData(
   ];
   const customerNames = await getCustomerNamesByIds(admin, customerIds);
   const rows = [...activity.entries()]
-    .filter(([, shopper]) => shopper.orders.size === 0)
+    .filter(([, shopper]) => shopper.saves > 0)
     .map(([identity, shopper], index) => ({
       customer: shopper.customerId
         ? (customerNames.get(shopper.customerId) ??
@@ -3791,6 +3791,12 @@ async function notificationLogData(
   return {
     summary: {
       total: visibleRows.length,
+      sent: visibleRows.filter(
+        (row) => row.status === "sent" || row.status === "delivered",
+      ).length,
+      failed: visibleRows.filter(
+        (row) => row.status === "failed" || row.status === "bounced",
+      ).length,
       retries: visibleRows.reduce((sum, row) => sum + row.retries, 0),
       logLimit: logLimit ?? 0,
       logTruncated: truncated ? 1 : 0,

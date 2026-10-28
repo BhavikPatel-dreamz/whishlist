@@ -45,7 +45,7 @@ const REPORT_TITLES: Record<string, string> = {
   // "sell-through": "Sell-Through After Restock",
   // "subscription-sources": "Subscription Source Report",
   "recurring-customers": "Recurring Customers",
-  "top-intent-customers": "Top Customers by Intent",
+  "top-intent-customers": "Wishlist Savers",
   "segments": "Customer Segments Export",
   "notification-log": "Notification Log",
   "usage": "Usage vs Plan",

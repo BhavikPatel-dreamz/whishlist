@@ -79,7 +79,7 @@ const REPORT_TITLES: Record<string, string> = {
   "sell-through": "Sell-through after restock",
   "subscription-sources": "Subscription sources",
   "recurring-customers": "Recurring customers",
-  "top-intent-customers": "Top customers by intent",
+  "top-intent-customers": "Wishlist savers",
   segments: "Customer segments",
   "notification-log": "Notification log",
   usage: "Usage against plan",
@@ -463,7 +463,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
   );
   const dir = searchParams.get("order") === "asc" ? 1 : -1;
   const pg = report.pagination.page;
-  const filterKey = ["notification-delivery", "notification-log", "reminder-performance"].includes(slug)
+  const filterKey = ["notification-delivery", "reminder-performance"].includes(slug)
     ? "channel"
     : "status";
   const filterValue = searchParams.get(filterKey) ?? "";
@@ -471,6 +471,8 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
   const attributionWindowFilter = searchParams.get("windowDays") ?? "";
   const filterOptions = ["notification-delivery", "reminder-performance"].includes(slug)
     ? ["EMAIL", "SMS", "WHATSAPP", "PUSH"]
+    : slug === "notification-log"
+      ? ["queued", "sent", "delivered", "bounced", "failed"]
       : [];
   const rows = report.rows;
   const summary = report.summary;
@@ -561,7 +563,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
   ]);
   const hiddenNotificationLogColumns = new Set([
     "shopper",
-    "status",
     "error",
     "retries",
   ]);
@@ -610,11 +611,17 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
   const renderKpis = () => {
     if (slug === "notification-log") {
       return (
-        <div className="ca-kpis ca-kpis--single" style={{ margin: 0 }}>
-          <div className="ca-k">
-            <span className="ca-mu">Total recipients</span>
-            <b>{fmtN(summary.total ?? 0)}</b>
-          </div>
+        <div className="ca-kpis" style={{ margin: 0 }}>
+          {[
+            ["Total attempts", summary.total],
+            ["Sent", summary.sent],
+            ["Failed", summary.failed],
+          ].map(([label, value]) => (
+            <div className="ca-k" key={label}>
+              <span className="ca-mu">{label}</span>
+              <b>{fmtN(Number(value ?? 0))}</b>
+            </div>
+          ))}
         </div>
       );
     }
@@ -666,7 +673,10 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
                   className="ca-k ca-k-button"
                   key={key}
                   title={`Open the full report for ${label.toLowerCase()}`}
-                  onClick={() => selectReport(OVERVIEW_REPORT_BY_METRIC[key])}
+                  onClick={() => selectReport(
+                    OVERVIEW_REPORT_BY_METRIC[key],
+                    key === "notificationsSent" ? { status: "sent" } : {},
+                  )}
                 >
                   {content}
                 </button>
@@ -1212,9 +1222,14 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
         const pRate = prev === 0 ? 1 : safeRate(clamped[i], clamped[i > 0 ? i - 1 : i]);
         const pDrop = i > 0 ? Math.max(0, clamped[i - 1] - clamped[i]) : 0;
         return (
-          <div key={label} className="ca-fn">
-            <span>{label}</span>
-            <div className="ca-bar" style={{ width: `${width}%` }}>{fmtN(c)}</div>
+          <div key={label} className="ca-funnel-stage">
+            <div className="ca-funnel-main">
+              <span className="ca-funnel-label">{label}</span>
+              <div className="ca-funnel-track">
+                <div className="ca-bar" style={{ width: `${width}%` }} />
+              </div>
+              <span className="ca-funnel-count">{fmtN(c)}</span>
+            </div>
             {i > 0 ? (
               <div className="ca-drop">
                 {fmtP(pRate)} of previous · lost {fmtN(pDrop)} ({fmtP(safeRate(pDrop, prev))})
@@ -1238,7 +1253,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
           {funnels.map(({ name, stages }) => (
             <div className="ca-card" key={name}>
               <h3 className="ca-h3">{name}</h3>
-              <div className="ca-fn">{buildFunnel(stages)}</div>
+              <div className="ca-funnel-list">{buildFunnel(stages)}</div>
             </div>
           ))}
         </div>
