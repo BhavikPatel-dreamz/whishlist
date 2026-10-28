@@ -230,12 +230,9 @@ type Props = {
   smsEnabled?: boolean;
   whatsappEnabled?: boolean;
   emailDeliveryUrl?: string;
-  emailProviderUrl?: string;
   smsIntegrationsUrl?: string;
   whatsappIntegrationsUrl?: string;
   smsLearnMoreUrl?: string;
-  pricingPlansUrl?: string;
-  canConfigureEmailProvider?: boolean;
   emailsSent?: number;
   sentLabel?: string;
 };
@@ -351,12 +348,8 @@ export function BackInStockConfiguration({
   smsEnabled = false,
   whatsappEnabled = false,
   emailDeliveryUrl = "/app/integrations?section=email",
-  emailProviderUrl = "/app/integrations?section=email",
   smsIntegrationsUrl = "/app/integrations?section=sms",
   whatsappIntegrationsUrl = "/app/integrations?section=whatsapp",
-  smsLearnMoreUrl = "https://help.shopify.com/",
-  pricingPlansUrl = "/app/settings/pricing",
-  canConfigureEmailProvider = false,
   emailsSent = 0,
   sentLabel = "this month",
 }: Props) {
@@ -379,22 +372,10 @@ export function BackInStockConfiguration({
     {
       key: "email-delivery",
       title: "Email alerts",
-      description: `Emails sent ${sentLabel}: ${emailsSent}. Turn email alerts on or off without changing your provider.`,
+      description: `Emails sent ${sentLabel}: ${emailsSent}. Turn alerts on or off and manage delivery (default inbuilt sender, or your own provider on Scale).`,
       enabled: backInStockEnabled && emailDeliveryEnabled,
       art: <EmailTemplateIllustration />,
       to: emailDeliveryUrl,
-    },
-    {
-      key: "email-provider",
-      title: "Email provider",
-      description: canConfigureEmailProvider
-        ? "Connect Resend, Brevo, SendGrid, Mailgun, or Klaviyo. Scale merchant sends are unlimited."
-        : "Included with Scale. Starter and Growth send through Wishlist Stock Notify (Mailgun).",
-      enabled: canConfigureEmailProvider,
-      art: <EmailTemplateIllustration />,
-      to: canConfigureEmailProvider ? emailProviderUrl : pricingPlansUrl,
-      locked: false,
-      actionLabel: canConfigureEmailProvider ? "Settings" : "Upgrade",
     },
     {
       key: "sms-delivery",

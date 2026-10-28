@@ -43,7 +43,7 @@ model Shop {
   updatedAt   DateTime @updatedAt
 
   // --- Notification settings ---
-  emailProvider String  @default("brevo") // brevo | mailgun | klaviyo | resend | sendgrid
+  emailProvider String  @default("mailgun") // mailgun (default/inbuilt) | brevo | klaviyo | resend | sendgrid
   apiKey        String? // provider API key (encrypted at rest, see app/lib/crypto.server.ts)
   brevoApiKey   String? @ignore // legacy provider-specific columns, not used by Prisma Client
   mailgunApiKey String? @ignore

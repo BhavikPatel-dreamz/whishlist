@@ -124,19 +124,17 @@ export type ResolvedNotificationSettings = {
 
 /** True when the shop has saved an API key for its selected email provider. */
 export function shopHasMerchantEmailKey(shop: Shop): boolean {
-  const provider = (shop.emailProvider || "brevo") as EmailProvider;
+  const provider = (shop.emailProvider || "mailgun") as EmailProvider;
   return Boolean(getEmailProviderApiKey(shop, provider));
 }
 
 /** Merges shop settings with the platform-level fallback credentials from env. */
 export function resolveSettings(shop: Shop): ResolvedNotificationSettings {
-  const provider = (shop.emailProvider || "brevo") as EmailProvider;
+  const provider = (shop.emailProvider || "mailgun") as EmailProvider;
   const merchantKey = getEmailProviderApiKey(shop, provider);
-  const apiKey =
-    merchantKey || (provider === "brevo" ? process.env.BREVO_API_KEY || "" : "");
   return {
     provider,
-    apiKey,
+    apiKey: merchantKey,
     senderEmail: shop.senderEmail || process.env.DEFAULT_SENDER_EMAIL || "",
     senderName: shop.senderName || shop.shop.replace(".myshopify.com", ""),
     emailSubject: shop.emailSubject,

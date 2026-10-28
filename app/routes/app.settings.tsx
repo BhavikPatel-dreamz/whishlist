@@ -275,7 +275,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const backInStockEditor = embedEditorUrl(session.shop, "back-in-stock-app-embed");
   const emailProvider = isEmailProvider(shop.emailProvider)
     ? shop.emailProvider
-    : "brevo";
+    : "mailgun";
   const providerApiKey = getEmailProviderApiKey(shop, emailProvider);
 
   let currentPlanName = "Starter";
@@ -451,10 +451,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { saved: true, kind: "wishlistConfig" as const };
   }
 
-  const requestedEmailProvider = String(formData.get("emailProvider") || shop.emailProvider || "brevo");
+  const requestedEmailProvider = String(formData.get("emailProvider") || shop.emailProvider || "mailgun");
   const emailProvider = isEmailProvider(requestedEmailProvider)
     ? requestedEmailProvider
-    : "brevo";
+    : "mailgun";
   const plan = await getShopPlan(shop.id).catch(() => null);
   const canConfigureEmailProvider = Boolean(plan?.allowMerchantProvider);
   const apiKeyRaw = String(formData.get("apiKey") || "").trim();
@@ -1967,9 +1967,6 @@ export default function Settings() {
             backInStockEnabled={saved.backInStockEnabled}
             emailDeliveryEnabled={loaderData.shop.emailAlertsEnabled}
             emailDeliveryUrl="/app/integrations?section=email&returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
-            emailProviderUrl="/app/integrations?section=email&returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
-            pricingPlansUrl={loaderData.pricingPlansUrl}
-            canConfigureEmailProvider={loaderData.canConfigureEmailProvider}
             emailsSent={loaderData.emailsSent}
             sentLabel={loaderData.sentLabel}
             smsIntegrationsUrl="/app/integrations?section=sms&returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"

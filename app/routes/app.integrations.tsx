@@ -20,12 +20,17 @@ import {
   getEmailProviderApiKey,
   getEmailProviderApiKeys,
   isEmailProvider,
+  shopHasMerchantEmailKey,
   type EmailProvider,
   invalidateShopCache,
 } from "../lib/shop.server";
+import { providerFromApiKey } from "../lib/notifications/providers.server";
 import { getShopPlan, planAllowsSmsWhatsApp } from "../lib/billing/plan.server";
 import { emailsConsumedThisPeriod } from "../lib/billing/usage.server";
 import db from "../db.server";
+
+/** Platform Mailgun — no merchant API key required. */
+const DEFAULT_PROVIDER_VALUE = "default";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { shop } = await requireAdminShop(request);
@@ -46,10 +51,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ]),
   ) as Record<EmailProvider, string>;
   const maskedKeys = canConfigureEmailProvider ? providerKeys : ({} as Record<EmailProvider, string>);
+  const usingDefaultSender = !shopHasMerchantEmailKey(shop);
+  const storedProvider = EMAIL_PROVIDERS.includes(shop.emailProvider as EmailProvider)
+    ? shop.emailProvider
+    : "mailgun";
   return {
-    emailProvider: EMAIL_PROVIDERS.includes(shop.emailProvider as EmailProvider)
-      ? shop.emailProvider
-      : "brevo",
+    emailProvider: usingDefaultSender ? DEFAULT_PROVIDER_VALUE : storedProvider,
     providerKeys: maskedKeys,
     senderEmail: shop.senderEmail || "",
     senderName: shop.senderName || "",
@@ -88,42 +95,61 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       invalidateShopCache(shop.shop);
       return { ok: true as const, intent };
     }
-    const provider = String(formData.get("emailProvider") || "brevo");
+    const providerRaw = String(formData.get("emailProvider") || DEFAULT_PROVIDER_VALUE);
     const apiKey = String(formData.get("apiKey") || "").trim();
     const senderEmail = String(formData.get("senderEmail") || "").trim();
     const senderName = String(formData.get("senderName") || "").trim();
 
-    if (!isEmailProvider(provider)) {
+    // Default inbuilt = platform Mailgun; clear merchant keys so resolveSettingsForPlan uses managed send.
+    if (providerRaw === DEFAULT_PROVIDER_VALUE) {
+      const emptyKeys = Object.fromEntries(
+        EMAIL_PROVIDERS.map((provider) => [provider, ""]),
+      ) as Record<EmailProvider, string>;
+      await db.shop.update({
+        where: { id: shop.id },
+        data: {
+          emailProvider: "mailgun",
+          emailAlertsEnabled,
+          senderEmail: null,
+          senderName: senderName || null,
+          apiKey: encryptSecret(JSON.stringify(emptyKeys)),
+        },
+      });
+      invalidateShopCache(shop.shop);
+      return { ok: true as const, intent };
+    }
+
+    if (!isEmailProvider(providerRaw)) {
       return { ok: false as const, intent, error: "Choose a supported email provider." };
     }
     if (senderEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(senderEmail)) {
       return { ok: false as const, intent, error: "Enter a valid sender email address." };
     }
-    const selectedProvider = provider;
+    const selectedProvider = providerRaw;
     const hasSavedProviderKey = Boolean(getEmailProviderApiKey(shop, selectedProvider));
     if (!apiKey && !hasSavedProviderKey) {
       return { ok: false as const, intent, error: "Enter an API key for the selected provider before switching." };
     }
     if (apiKey) {
       const inferred = providerFromApiKey(apiKey);
-      const selected = EMAIL_PROVIDER_OPTIONS.find((option) => option.value === provider);
-      if (inferred && inferred !== provider) {
+      const selected = EMAIL_PROVIDER_OPTIONS.find((option) => option.value === providerRaw);
+      if (inferred && inferred !== providerRaw) {
         const inferredLabel = EMAIL_PROVIDER_OPTIONS.find((option) => option.value === inferred)?.label ?? inferred;
         return {
           ok: false as const,
           intent,
-          error: `That API key belongs to ${inferredLabel}, but ${selected?.label ?? provider} is selected. Pick ${inferredLabel} as the provider, or paste its own API key.`,
+          error: `That API key belongs to ${inferredLabel}, but ${selected?.label ?? providerRaw} is selected. Pick ${inferredLabel} as the provider, or paste its own API key.`,
         };
       }
     }
-    if (provider !== "klaviyo" && !senderEmail) {
+    if (providerRaw !== "klaviyo" && !senderEmail) {
       return { ok: false as const, intent, error: "Enter a sender email for transactional email delivery." };
     }
 
     await db.shop.update({
       where: { id: shop.id },
       data: {
-        emailProvider: provider,
+        emailProvider: providerRaw,
         emailAlertsEnabled,
         senderEmail: senderEmail || null,
         senderName: senderName || null,
@@ -210,11 +236,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 const EMAIL_PROVIDER_OPTIONS = [
-  { label: "Brevo (default)", value: "brevo" },
+  { label: "Default (inbuilt)", value: DEFAULT_PROVIDER_VALUE },
   { label: "Mailgun", value: "mailgun" },
-  { label: "Klaviyo", value: "klaviyo" },
+  { label: "Brevo", value: "brevo" },
   { label: "Resend", value: "resend" },
   { label: "SendGrid", value: "sendgrid" },
+  { label: "Klaviyo", value: "klaviyo" },
 ];
 
 export default function Integrations() {
@@ -233,12 +260,14 @@ export default function Integrations() {
   const [senderEmail, setSenderEmail] = useState(data.senderEmail);
   const [senderName, setSenderName] = useState(data.senderName);
   const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(data.emailAlertsEnabled);
+  const [smsEnabled, setSmsEnabled] = useState(data.smsEnabled);
   const [whatsappEnabled, setWhatsappEnabled] = useState(data.whatsappEnabled);
   const [whatsappFromNumber, setWhatsappFromNumber] = useState(data.whatsappFromNumber);
   const [twilioAccountSid, setTwilioAccountSid] = useState(data.twilioAccountSid);
   const [twilioAuthToken, setTwilioAuthToken] = useState("");
   const [twilioFromNumber, setTwilioFromNumber] = useState(data.twilioFromNumber);
   const [smsResultDismissed, setSmsResultDismissed] = useState(false);
+  const usingDefaultProvider = emailProvider === DEFAULT_PROVIDER_VALUE;
 
   const section = searchParams.get("section") === "sms"
     ? "sms"
@@ -321,7 +350,7 @@ export default function Integrations() {
               <BlockStack gap="100">
                 <Text as="h2" variant="headingMd">Email delivery</Text>
                 <Text as="p" tone="subdued">
-                  Turn email alerts on or off without changing SMS. Scale can also choose a custom email provider for unlimited sends. Starter and Growth send through Wishlist Stock Notify (Mailgun).
+                  Turn email alerts on or off. Default (inbuilt) sends through Wishlist Stock Notify. Choose your own provider for unlimited Scale sends.
                 </Text>
                 <Text as="p" tone="subdued">
                   <Link to="/app/analytics?report=notification-log">
@@ -357,37 +386,50 @@ export default function Integrations() {
               <Select
                 label="Email provider"
                 options={EMAIL_PROVIDER_OPTIONS}
-                value={EMAIL_PROVIDER_OPTIONS.some((option) => option.value === emailProvider) ? emailProvider : "brevo"}
+                value={
+                  EMAIL_PROVIDER_OPTIONS.some((option) => option.value === emailProvider)
+                    ? emailProvider
+                    : DEFAULT_PROVIDER_VALUE
+                }
                 onChange={(value) => {
                   setEmailProvider(value);
                   setEmailApiKey("");
                 }}
+                helpText={
+                  usingDefaultProvider
+                    ? "Uses the built-in Wishlist Stock Notify sender. No API key needed."
+                    : "Your provider credentials are encrypted before they are stored."
+                }
               />
-              <TextField
-                label="Provider API key"
-                name="apiKey"
-                type="password"
-                value={emailApiKey}
-                onChange={setEmailApiKey}
-                placeholder={data.providerKeys[emailProvider as EmailProvider] || "Enter provider API key"}
-                autoComplete="new-password"
-                helpText={data.providerKeys[emailProvider as EmailProvider] ? "A key is already saved for this provider. Leave blank to keep it; enter a new key to replace it." : "This provider's key is encrypted before it is stored."}
-              />
-              <TextField
-                label="Sender email"
-                name="senderEmail"
-                type="email"
-                value={senderEmail}
-                onChange={setSenderEmail}
-                autoComplete="email"
-              />
-              <TextField
-                label="Sender name"
-                name="senderName"
-                value={senderName}
-                onChange={setSenderName}
-                autoComplete="organization"
-              />
+              {!usingDefaultProvider && (
+                <>
+                  <TextField
+                    label="Provider API key"
+                    name="apiKey"
+                    type="password"
+                    value={emailApiKey}
+                    onChange={setEmailApiKey}
+                    placeholder={data.providerKeys[emailProvider as EmailProvider] || "Enter provider API key"}
+                    autoComplete="new-password"
+                    helpText={data.providerKeys[emailProvider as EmailProvider] ? "A key is already saved for this provider. Leave blank to keep it; enter a new key to replace it." : "This provider's key is encrypted before it is stored."}
+                  />
+                  <TextField
+                    label="Sender email"
+                    name="senderEmail"
+                    type="email"
+                    value={senderEmail}
+                    onChange={setSenderEmail}
+                    autoComplete="email"
+                  />
+                  <TextField
+                    label="Sender name"
+                    name="senderName"
+                    value={senderName}
+                    onChange={setSenderName}
+                    autoComplete="organization"
+                  />
+                </>
+              )}
               <Button submit variant="primary" loading={emailFetcher.state !== "idle"}>
                 Save email integration
               </Button>
@@ -401,7 +443,7 @@ export default function Integrations() {
                 <Text as="h2" variant="headingMd">Email delivery</Text>
                 <Text as="p" variant="headingLg">{data.emailsSent}</Text>
                 <Text as="p" tone="subdued">
-                  Emails sent {data.sentLabel}. Starter and Growth send through Wishlist Stock Notify (Mailgun). Upgrade to Scale to use your own email provider for unlimited sends.
+                  Emails sent {data.sentLabel}. Starter and Growth use the default inbuilt sender (Wishlist Stock Notify). Upgrade to Scale to choose your own email provider for unlimited sends.
                 </Text>
                 <Text as="p" tone="subdued">
                   <Link to="/app/analytics?report=notification-log">
