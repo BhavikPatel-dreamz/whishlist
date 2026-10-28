@@ -1,4 +1,53 @@
-:root{--wl-accent:#005bd3}
+/* Wishlist Stock Notify admin theme */
+:root {
+  --wl-primary: #334155;
+  --wl-primary-variant: #1e293b;
+  --wl-secondary: #38bdf8;
+  --wl-background: #f1f5f9;
+  --wl-surface: #ffffff;
+  --wl-text: #0f172a;
+  --wl-text-secondary: #64748b;
+  --wl-text-disabled: #94a3b8;
+  --wl-success: #15803d;
+  --wl-warning: #b45309;
+  --wl-error: #dc2626;
+  --wl-info: #2563eb;
+  --wl-accent: #38bdf8;
+  --wl-border: #e2e8f0;
+  --wl-border-strong: #cbd5e1;
+
+  /* Soft tints derived from the palette */
+  --wl-accent-soft: #e0f2fe;
+  --wl-primary-soft: #e2e8f0;
+  --wl-success-soft: #dcfce7;
+  --wl-warning-soft: #ffedd5;
+  --wl-error-soft: #fee2e2;
+  --wl-info-soft: #dbeafe;
+
+  /* Align common Polaris tokens inside the embedded app shell */
+  --p-color-bg: var(--wl-background);
+  --p-color-bg-surface: var(--wl-surface);
+  --p-color-bg-surface-secondary: var(--wl-background);
+  --p-color-text: var(--wl-text);
+  --p-color-text-secondary: var(--wl-text-secondary);
+  --p-color-text-disabled: var(--wl-text-disabled);
+  --p-color-border: var(--wl-border);
+  --p-color-border-secondary: var(--wl-border-strong);
+  --p-color-bg-fill-brand: var(--wl-primary);
+  --p-color-bg-fill-brand-hover: var(--wl-primary-variant);
+  --p-color-bg-fill-brand-active: var(--wl-primary-variant);
+  --p-color-text-brand-on-bg-fill: #ffffff;
+  --p-color-bg-fill-info: var(--wl-info);
+  --p-color-bg-fill-success: var(--wl-success);
+  --p-color-bg-fill-warning: var(--wl-warning);
+  --p-color-bg-fill-critical: var(--wl-error);
+  --p-color-text-info: var(--wl-info);
+  --p-color-text-success: var(--wl-success);
+  --p-color-text-warning: var(--wl-warning);
+  --p-color-text-critical: var(--wl-error);
+  --p-color-focus-ring: var(--wl-accent);
+}
+
 /* Use the dashboard's content width and gutters for every admin route. */
 
 .ws-admin-pages {
@@ -9,6 +58,8 @@
   margin-inline: auto;
   padding-inline: 32px;
   min-height: 420px;
+  background: var(--wl-background);
+  color: var(--wl-text);
 }
 
 .ws-admin-pages > .ws-home-page,
@@ -28,7 +79,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f1f1f1;
+  background: var(--wl-background);
   z-index: 10000;
   cursor: progress;
 }
@@ -38,7 +89,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 3px solid #3a3a3a;
+  border: 3px solid var(--wl-primary);
   border-top-color: transparent;
   animation: ws-admin-page-loader-spin 0.8s linear infinite;
 }

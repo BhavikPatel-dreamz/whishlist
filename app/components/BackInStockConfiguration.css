@@ -2,7 +2,7 @@
   display: grid;
   gap: 12px;
   width: 100%;
-  color: #202223;
+  color: var(--wl-text, #0f172a);
   font-family: Inter, Roboto, -apple-system, "Segoe UI", Arial, sans-serif;
 }
 
@@ -17,16 +17,16 @@
   box-sizing: border-box;
   height: 30px;
   padding: 0 10px;
-  border: 1px solid #8a8d91;
+  border: 1px solid var(--wl-border-strong, #cbd5e1);
   border-radius: 8px;
-  background: #fdfdfd;
-  color: #202223;
+  background: var(--wl-surface, #fff);
+  color: var(--wl-text, #0f172a);
   font: inherit;
   font-size: 12px;
 }
 
 .ws-bis-search:focus {
-  outline: 2px solid #005bd3;
+  outline: 2px solid var(--wl-accent, #38bdf8);
   outline-offset: 1px;
 }
 
@@ -48,7 +48,7 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #303436;
+  color: var(--wl-text, #0f172a);
   font: inherit;
   font-size: 11px;
   font-weight: 600;
@@ -56,22 +56,22 @@
 }
 
 .ws-bis-tab:hover {
-  background: #e7e7e7;
+  background: var(--wl-primary-soft, #e2e8f0);
 }
 
 .ws-bis-tab.is-active {
-  background: #e3e3e3;
+  background: var(--wl-primary-soft, #e2e8f0);
 }
 
 .ws-bis-count {
-  color: #616161;
+  color: var(--wl-text-secondary, #64748b);
   font-size: 11px;
 }
 
 /* Section title */
 .ws-bis-title {
   margin: 8px 0 0;
-  color: #202223;
+  color: var(--wl-text, #0f172a);
   font-size: 13px;
   font-weight: 700;
 }
@@ -90,10 +90,10 @@
   flex-direction: column;
   overflow: hidden;
   padding: 14px;
-  border: 1px solid #e1e3e5;
+  border: 1px solid var(--wl-border, #e2e8f0);
   border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  background: var(--wl-surface, #fff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .ws-bis-feature-art {
@@ -102,9 +102,9 @@
   height: 134px;
   margin-bottom: 12px;
   overflow: hidden;
-  border: 1px solid #e1e3e5;
+  border: 1px solid var(--wl-border, #e2e8f0);
   border-radius: 6px;
-  background: #fff;
+  background: var(--wl-background, #f1f5f9);
 }
 
 .ws-bis-feature-art svg {
@@ -119,7 +119,7 @@
 
 .ws-bis-feature-copy h3 {
   margin: 0 0 4px;
-  color: #303436;
+  color: var(--wl-text, #0f172a);
   font-size: 12px;
   font-weight: 700;
   line-height: 1.35;
@@ -128,7 +128,7 @@
 .ws-bis-feature-copy p {
   min-height: 32px;
   margin: 0 0 14px;
-  color: #616161;
+  color: var(--wl-text-secondary, #64748b);
   font-size: 11.5px;
   font-weight: 400;
   line-height: 1.4;
@@ -152,7 +152,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #616161;
+  color: var(--wl-text-secondary, #64748b);
   font-size: 11.5px;
   font-weight: 400;
   white-space: nowrap;
@@ -166,7 +166,7 @@
 }
 
 .ws-bis-status.is-on {
-  color: #0c5132;
+  color: var(--wl-success, #15803d);
 }
 
 /* Actions */
@@ -200,27 +200,27 @@
 }
 
 .ws-bis-btn-outline {
-  border-color: #c9cccf;
-  background: #fff;
-  color: #303436;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+  border-color: var(--wl-border-strong, #cbd5e1);
+  background: var(--wl-surface, #fff);
+  color: var(--wl-text, #0f172a);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
 }
 
 .ws-bis-btn-outline:hover {
-  background: #f6f6f7;
+  background: var(--wl-background, #f1f5f9);
 }
 
 .ws-bis-btn-primary {
-  background: #007f5f;
+  background: var(--wl-primary, #334155);
   color: #fff;
 }
 
 .ws-bis-btn-primary:hover {
-  background: #006e52;
+  background: var(--wl-primary-variant, #1e293b);
 }
 
 .ws-bis-link {
-  color: #2c6ecb;
+  color: var(--wl-info, #2563eb);
   font-size: 12px;
   text-decoration: none;
 }
@@ -232,7 +232,7 @@
 /* Focus */
 .ws-bis-config a:focus-visible,
 .ws-bis-config button:focus-visible {
-  outline: 2px solid var(--wl-accent, #005bd3);
+  outline: 2px solid var(--wl-accent, #38bdf8);
   outline-offset: 2px;
 }
 

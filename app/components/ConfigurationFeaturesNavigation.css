@@ -1,9 +1,10 @@
 .wl-configuration-features {
   padding: 16px;
-  background: #fff;
-  border: 1px solid #dedede;
+  background: var(--wl-surface, #fff);
+  border: 1px solid var(--wl-border, #e2e8f0);
   border-radius: 12px;
-  box-shadow: 0 1px 0 #0000000d;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
+  color: var(--wl-text, #0f172a);
 }
 .wl-configuration-features h2 {
   margin: 0 0 16px;
@@ -12,7 +13,7 @@
   font-weight: 600;
 }
 .wl-configuration-rows {
-  border: 1px solid #dedede;
+  border: 1px solid var(--wl-border, #e2e8f0);
   border-radius: 11px;
   overflow: hidden;
 }
@@ -22,9 +23,9 @@
   gap: 14px;
   width: 100%;
   padding: 14px;
-  background: white;
+  background: var(--wl-surface, #fff);
   border: 0;
-  color: #303030;
+  color: var(--wl-text, #0f172a);
   font: inherit;
   font-size: 13px;
   text-align: left;
@@ -32,7 +33,7 @@
   box-sizing: border-box;
 }
 .wl-configuration-row + .wl-configuration-row {
-  border-top: 1px solid #ebebeb;
+  border-top: 1px solid var(--wl-border, #e2e8f0);
 }
 a.wl-configuration-row,
 button.wl-configuration-row {

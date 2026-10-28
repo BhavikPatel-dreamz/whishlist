@@ -2,12 +2,12 @@
   max-width: 1440px;
   margin: 0 auto;
   padding: 20px 32px 32px;
-  color: #303030;
+  color: var(--wl-text, #0f172a);
 }
 .ws-home-panel {
   padding: 24px 22px;
   border-radius: 12px;
-  background: linear-gradient(180deg, #f5f4fb 0%, #f7f7f7 55%);
+  background: linear-gradient(180deg, var(--wl-primary-soft, #e2e8f0) 0%, var(--wl-background, #f1f5f9) 55%);
   margin-bottom: 16px;
 }
 .ws-home-sectionHeading {
@@ -26,7 +26,7 @@
 .ws-home-refresh {
   border: 0;
   background: transparent;
-  color: #616161;
+  color: var(--wl-text-secondary, #64748b);
   font: inherit;
   cursor: pointer;
   text-decoration: underline;
@@ -42,29 +42,29 @@
   gap: 14px;
 }
 .ws-home-embedCard {
-  --card-accent: #6b5ce7;
-  --card-accent-2: #9b7cf6;
-  --card-accent-soft: #f1edff;
+  --card-accent: var(--wl-primary, #334155);
+  --card-accent-2: var(--wl-secondary, #38bdf8);
+  --card-accent-soft: var(--wl-accent-soft, #e0f2fe);
   position: relative;
   overflow: hidden;
   padding: 22px;
   border-radius: 14px;
-  border: 1px solid #ececec;
+  border: 1px solid var(--wl-border, #e2e8f0);
   border-top: 3px solid var(--card-accent);
   background:
     radial-gradient(circle at 110% -10%, var(--card-accent-soft), transparent 45%),
-    linear-gradient(180deg, #ffffff 0%, #fcfbff 100%);
-  box-shadow: 0 2px 6px rgba(20, 20, 40, 0.06);
+    linear-gradient(180deg, var(--wl-surface, #fff) 0%, var(--wl-background, #f1f5f9) 100%);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
 }
 .ws-home-embedCard--green {
-  --card-accent: #178a56;
-  --card-accent-2: #2fae74;
-  --card-accent-soft: #e7f6ee;
+  --card-accent: var(--wl-success, #15803d);
+  --card-accent-2: #22c55e;
+  --card-accent-soft: var(--wl-success-soft, #dcfce7);
 }
 .ws-home-embedCard--amber {
-  --card-accent: #b26a00;
-  --card-accent-2: #e0900f;
-  --card-accent-soft: #fdf2e0;
+  --card-accent: var(--wl-warning, #b45309);
+  --card-accent-2: #f59e0b;
+  --card-accent-soft: var(--wl-warning-soft, #ffedd5);
 }
 .ws-home-embedCard h2 {
   font-size: 13px;
@@ -97,8 +97,8 @@
   padding: 0 8px;
 }
 .ws-home-enabled {
-  background: #adf8cd;
-  color: #014b40;
+  background: var(--wl-success-soft, #dcfce7);
+  color: var(--wl-success, #15803d);
 }
 .ws-home-neutral {
   background: var(--card-accent-soft, #ededed);
@@ -106,7 +106,7 @@
 }
 .ws-home-embedCard p {
   margin: 14px 0;
-  color: #616161;
+  color: var(--wl-text-secondary, #64748b);
   font-size: 13px;
   line-height: 19px;
   max-width: 570px;
@@ -116,11 +116,11 @@
   align-items: center;
   gap: 5px;
   padding: 5px 11px;
-  border: 1px solid var(--card-accent, #ccc);
+  border: 1px solid var(--card-accent, var(--wl-border-strong));
   border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 1px 1px #0000000a;
-  color: var(--card-accent, #303030);
+  background: var(--wl-surface, #fff);
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.06);
+  color: var(--card-accent, var(--wl-text));
   text-decoration: none;
   font-size: 12px;
   line-height: 17px;
@@ -139,7 +139,7 @@
 .ws-home-statusNote {
   margin: 12px 0 0;
   font-size: 12px;
-  color: #616161;
+  color: var(--wl-text-secondary, #64748b);
 }
 .ws-home-features {
   padding: 58px 58px 30px;
