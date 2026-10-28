@@ -3,10 +3,11 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { invalidateShopCache } from "../lib/shop.server";
 import { markStoreUninstalled } from "../models/store.server";
+import { rethrowWebhookAuthResponse } from "../lib/webhooks/auth-response.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const { shop, session, topic } = await authenticate.webhook(request);
   try {
-    const { shop, session, topic } = await authenticate.webhook(request);
     console.log(`Received ${topic} webhook for ${shop}`);
 
     // Mark Shop inactive + install event (do not wipe wishlist/alert data yet —
@@ -22,7 +23,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return new Response();
   } catch (error) {
+    rethrowWebhookAuthResponse(error);
     console.error("app/uninstalled handler error", error);
-    return new Response();
+    return new Response(null, { status: 500 });
   }
 };

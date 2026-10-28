@@ -2,14 +2,16 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { getOrCreateShop } from "../lib/shop.server";
+import { rethrowWebhookAuthResponse } from "../lib/webhooks/auth-response.server";
 
 /**
  * Mandatory GDPR webhook: remove customer-linked rows we store for this shop.
  * Counts-only StoreStats are kept; no customer PII lives there.
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const { shop, topic, payload } = await authenticate.webhook(request);
+
   try {
-    const { shop, topic, payload } = await authenticate.webhook(request);
     console.log(`Received ${topic} webhook for ${shop}`);
 
     const customerId = payload?.customer?.id != null ? String(payload.customer.id) : null;
@@ -59,7 +61,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return new Response();
   } catch (error) {
+    rethrowWebhookAuthResponse(error);
     console.error("customers/redact handler error", error);
-    return new Response();
+    return new Response(null, { status: 500 });
   }
 };

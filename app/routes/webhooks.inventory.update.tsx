@@ -35,6 +35,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return new Response();
   } catch (err) {
+    if (err instanceof Response) throw err;
     console.error("inventory_levels/update handler error", {
       stage,
       webhookId: request.headers.get("X-Shopify-Webhook-Id"),

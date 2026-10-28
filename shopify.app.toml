@@ -80,7 +80,11 @@ api_version = "2025-10"
 scopes = "customer_read_customers,read_companies,read_customers,read_draft_orders,read_inventory,read_locations,read_orders,read_payment_terms,read_products,read_shipping,read_themes,unauthenticated_read_checkouts,write_companies,write_customers,write_discounts,write_draft_orders,write_locations,write_merchant_managed_fulfillment_orders,write_metaobject_definitions,write_metaobjects,write_orders,write_products,write_validations"
 
 [auth]
-redirect_urls = [ "https://whishlist.dreamzapps.com/auth" ]
+redirect_urls = [
+  "https://whishlist.dreamzapps.com/auth/callback",
+  "https://whishlist.dreamzapps.com/auth/shopify/callback",
+  "https://whishlist.dreamzapps.com/api/auth/callback"
+]
 
 [app_proxy]
 url = "https://whishlist.dreamzapps.com"

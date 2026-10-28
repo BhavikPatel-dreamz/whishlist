@@ -10,7 +10,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await withStoreAdmin(shop, (admin, shopId) => resyncStoreThemes(admin, shopId));
     return new Response();
   } catch (error) {
+    if (error instanceof Response) throw error;
     console.error("themes/publish handler error", error);
-    return new Response();
+    return new Response(null, { status: 500 });
   }
 };

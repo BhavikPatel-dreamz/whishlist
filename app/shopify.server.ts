@@ -25,22 +25,22 @@ const shopify = shopifyApp({
   distribution: AppDistribution.AppStore,
   hooks: {
     afterAuth: async ({ session, admin }) => {
-      // Operational shop row (wishlist / alerts) — keep existing behaviour.
+      // Keep install → app UI redirect fast: only await essentials.
       await getOrCreateShop(session.shop, session.accessToken);
-
-      // Register mandatory + declared webhooks early.
       await shopify.registerWebhooks({ session });
 
-      // Fast store profile upsert; heavy GraphQL enrichers run in the background.
-      try {
-        const client = admin
-          ? admin
-          : await shopify.unauthenticated.admin(session.shop).then((ctx) => ctx.admin);
-        const { shopId } = await syncStoreInfo(client, session);
-        enqueueStoreEnrichment(client, shopId);
-      } catch (error) {
-        console.error("[afterAuth] store sync failed (install continues)", error);
-      }
+      // Store profile + enrichers must not block the post-auth redirect.
+      void (async () => {
+        try {
+          const client = admin
+            ? admin
+            : await shopify.unauthenticated.admin(session.shop).then((ctx) => ctx.admin);
+          const { shopId } = await syncStoreInfo(client, session);
+          enqueueStoreEnrichment(client, shopId);
+        } catch (error) {
+          console.error("[afterAuth] store sync failed (install continues)", error);
+        }
+      })();
     },
   },
   webhooks: {

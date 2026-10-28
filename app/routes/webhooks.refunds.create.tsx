@@ -32,6 +32,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return new Response();
   } catch (err) {
+    if (err instanceof Response) throw err;
     console.error("refunds/create handler error", {
       stage,
       webhookId: request.headers.get("X-Shopify-Webhook-Id"),

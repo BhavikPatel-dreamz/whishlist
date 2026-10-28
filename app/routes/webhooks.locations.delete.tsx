@@ -21,7 +21,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
     return new Response();
   } catch (error) {
+    if (error instanceof Response) throw error;
     console.error("locations/delete handler error", error);
-    return new Response();
+    return new Response(null, { status: 500 });
   }
 };

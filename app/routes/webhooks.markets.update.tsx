@@ -10,7 +10,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await withStoreAdmin(shop, (admin, shopId) => resyncStoreMarkets(admin, shopId));
     return new Response();
   } catch (error) {
+    if (error instanceof Response) throw error;
     console.error("markets/update handler error", error);
-    return new Response();
+    return new Response(null, { status: 500 });
   }
 };

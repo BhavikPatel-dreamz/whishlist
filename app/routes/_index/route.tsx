@@ -1,11 +1,13 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
-import { Form, useLoaderData } from "@remix-run/react";
-
-import { login } from "../../shopify.server";
 
 import styles from "./styles.module.css";
 
+/**
+ * App Store installs must start from Shopify (managed install / Admin), not a
+ * manual shop-domain form (requirement 2.3.1 + automated auth checks).
+ * When Shopify opens the app URL with `shop`, send merchants straight into OAuth/UI.
+ */
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
 
@@ -13,12 +15,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect(`/app?${url.searchParams.toString()}`);
   }
 
-  return { showForm: Boolean(login) };
+  return null;
 };
 
 export default function App() {
-  const { showForm } = useLoaderData<typeof loader>();
-
   return (
     <div className={styles.index}>
       <div className={styles.content}>
@@ -33,24 +33,11 @@ export default function App() {
           out-of-stock items come back. Boost repeat traffic and recover
           lost sales — automatically.
         </p>
-
-        {showForm && (
-          <Form className={styles.form} method="post" action="/auth/login">
-            <label className={styles.label}>
-              <span>Shop domain</span>
-              <input
-                className={styles.input}
-                type="text"
-                name="shop"
-                placeholder="your-store.myshopify.com"
-              />
-              <span className={styles.hint}>e.g. my-store.myshopify.com</span>
-            </label>
-            <button className={styles.button} type="submit">
-              Log in
-            </button>
-          </Form>
-        )}
+        <p className={styles.text}>
+          Install Wishlist Stock Notify from the Shopify App Store or your
+          Shopify admin. Installation authenticates through Shopify — you
+          never need to enter your shop domain here.
+        </p>
 
         <div className={styles.features}>
           <div className={styles.feature}>
@@ -74,7 +61,7 @@ export default function App() {
             </div>
             <h3>Back-in-Stock Alerts</h3>
             <p>
-              Capture demand for sold-out items. Automatic email &
+              Capture demand for sold-out items. Automatic email &amp;
               SMS notifications when inventory returns.
             </p>
           </div>

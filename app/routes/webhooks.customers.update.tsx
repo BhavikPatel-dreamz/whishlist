@@ -15,6 +15,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await linkGuestIdentityToCustomer(shop, payload as Record<string, unknown>);
     return new Response();
   } catch (err) {
+    if (err instanceof Response) throw err;
     console.error("customers/update handler error", {
       stage,
       webhookId: request.headers.get("X-Shopify-Webhook-Id"),
