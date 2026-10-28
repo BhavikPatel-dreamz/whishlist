@@ -39,7 +39,7 @@ const GROUPS = [
     "wishlist-conversion", "wishlist-to-cart", "variant-demand",
   ]},
   { label: "Back in Stock", slug: "back-in-stock", reports: [
-    "alert-subscriptions", "pending-alerts",
+    "alert-subscriptions", "alert-customers", "pending-alerts",
     "alert-purchases", "restock-conversion", "low-stock-demand",
   ]},
   { label: "Customers", slug: "customers", reports: [
@@ -69,6 +69,7 @@ const REPORT_TITLES: Record<string, string> = {
   "guest-to-customer": "Guest-to-customer conversion",
   "stock-list": "Stock list and inventory",
   "alert-subscriptions": "Alert subscriptions",
+  "alert-customers": "Alert request customers",
   "pending-alerts": "Pending alerts",
   "alert-purchases": "Alert purchases",
   "restock-conversion": "Restock conversion",

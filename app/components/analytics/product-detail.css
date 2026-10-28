@@ -48,7 +48,7 @@ font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text
 .pd-share-product img,.pd-share-placeholder{width:40px;height:40px;border-radius:4px;object-fit:cover;flex:none;background:var(--bg)}
 .pd-share-product span:last-child{min-width:0;overflow-wrap:anywhere}
 .pd-tw{overflow-x:auto}
-.pd-pagination{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:640px;padding:10px 8px;color:var(--mute);font-size:12px}
+.pd-pagination{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;min-width:0;padding:10px 8px;color:var(--mute);font-size:12px}
 .pd-pagination span:first-child{margin-right:auto}
 .pd-pagination button{padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--wl-surface);color:var(--text);font:inherit;cursor:pointer}
 .pd-pagination button:disabled{opacity:.45;cursor:default}

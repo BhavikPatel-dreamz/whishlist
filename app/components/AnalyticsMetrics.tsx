@@ -191,7 +191,7 @@ export function AnalyticsMetrics({
   const backInStockReport = (tab: string, kind?: string) => {
     const slug =
       tab === "alerts" && kind === "subscribers"
-        ? "pending-alerts"
+        ? "alert-customers"
         : tab === "alerts"
           ? "alert-subscriptions"
           : "low-stock-demand";

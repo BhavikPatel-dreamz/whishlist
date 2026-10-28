@@ -602,10 +602,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFetcher } from "@remix-run/react";
-import {
-  PRODUCT_DETAIL_ROW_LIMIT,
-  type ProductDetail,
-} from "../../lib/product-detail";
+import type { ProductDetail } from "../../lib/product-detail";
 import "./product-detail.css";
 
 type FetcherData = ProductDetail | { error: string };
@@ -616,6 +613,8 @@ type ProductDetailPanel =
   | "notifications"
   | "orders"
   | "revenue";
+
+const PRODUCT_DETAIL_PAGE_SIZE = 10;
 
 function isDetail(value: FetcherData | undefined): value is ProductDetail {
   return Boolean(value && "summary" in value);
@@ -677,8 +676,7 @@ function Panel({
   title,
   count,
   note,
-  shown,
-  total,
+  pagination,
   empty,
   head,
   foot,
@@ -687,8 +685,12 @@ function Panel({
   title: string;
   count: number;
   note: string;
-  shown?: number;
-  total?: number;
+  pagination?: {
+    page: number;
+    pageCount: number;
+    total: number;
+    onPageChange: (page: number) => void;
+  };
   empty: string;
   head: ReactNode;
   foot?: ReactNode;
@@ -712,8 +714,28 @@ function Panel({
       ) : (
         <p className="pd-empty">{empty}</p>
       )}
-      {shown !== undefined && total !== undefined && total > shown && (
-        <p className="pd-foot">Showing the first {fmtN(shown)} of {fmtN(total)}.</p>
+      {pagination && pagination.pageCount > 1 && (
+        <div className="pd-pagination" aria-label={`${title} pages`}>
+          <span>
+            {(pagination.page - 1) * PRODUCT_DETAIL_PAGE_SIZE + 1}–
+            {Math.min(pagination.page * PRODUCT_DETAIL_PAGE_SIZE, pagination.total)} of {fmtN(pagination.total)}
+          </span>
+          <button
+            type="button"
+            disabled={pagination.page <= 1}
+            onClick={() => pagination.onPageChange(pagination.page - 1)}
+          >
+            Previous
+          </button>
+          <span>Page {pagination.page} of {pagination.pageCount}</span>
+          <button
+            type="button"
+            disabled={pagination.page >= pagination.pageCount}
+            onClick={() => pagination.onPageChange(pagination.page + 1)}
+          >
+            Next
+          </button>
+        </div>
       )}
     </section>
   );
@@ -721,6 +743,7 @@ function Panel({
 
 function DetailBody({ detail, variantId }: { detail: ProductDetail; variantId?: string }) {
   const [selectedPanel, setSelectedPanel] = useState<ProductDetailPanel | null>(null);
+  const [page, setPage] = useState(1);
   const { product, summary, range } = detail;
   const currency = product.currencyCode;
   const money = (value: number) => fmtMoney(value, currency);
@@ -733,11 +756,27 @@ function DetailBody({ detail, variantId }: { detail: ProductDetail; variantId?: 
     ["notifications", "Notifications sent", fmtN(summary.notificationsSent)],
   ];
 
-  const savers = detail.savers.slice(0, PRODUCT_DETAIL_ROW_LIMIT);
-  const subscriptions = detail.subscriptions.slice(0, PRODUCT_DETAIL_ROW_LIMIT);
-  const pendingAlerts = detail.pendingAlerts.slice(0, PRODUCT_DETAIL_ROW_LIMIT);
-  const notifications = detail.notifications.slice(0, PRODUCT_DETAIL_ROW_LIMIT);
-  const orders = detail.orders.slice(0, PRODUCT_DETAIL_ROW_LIMIT);
+  useEffect(() => setPage(1), [selectedPanel]);
+
+  const paginateRows = <T,>(rows: T[]) => {
+    const pageCount = Math.max(1, Math.ceil(rows.length / PRODUCT_DETAIL_PAGE_SIZE));
+    const currentPage = Math.min(page, pageCount);
+    return {
+      rows: rows.slice(
+        (currentPage - 1) * PRODUCT_DETAIL_PAGE_SIZE,
+        currentPage * PRODUCT_DETAIL_PAGE_SIZE,
+      ),
+      page: currentPage,
+      pageCount,
+      total: rows.length,
+      onPageChange: setPage,
+    };
+  };
+  const savers = paginateRows(detail.savers);
+  const subscriptions = paginateRows(detail.subscriptions);
+  const pendingAlerts = paginateRows(detail.pendingAlerts);
+  const notifications = paginateRows(detail.notifications);
+  const orders = paginateRows(detail.orders);
 
   return (
     <>
@@ -782,12 +821,11 @@ function DetailBody({ detail, variantId }: { detail: ProductDetail; variantId?: 
           note={variantId
             ? `Distinct customers or guest devices who saved this variant from ${range.from} to ${range.to}.`
             : "Distinct customers or guest devices with a wishlist save in the selected range."}
-          shown={savers.length}
-          total={detail.savers.length}
+          pagination={savers}
           empty="No wishlist saves for this product in the selected range."
           head={<><th>Shopper</th><th>Type</th><th className="pd-n">Saves</th><th>First saved</th><th>Last saved</th><th>Source</th></>}
         >
-          {savers.map((s) => (
+          {savers.rows.map((s) => (
             <tr key={s.id}>
               <td title={s.name}>{s.name}</td>
               <td><span className={`pd-badge ${s.type === "customer" ? "pd-badge--b" : "pd-badge--a"}`}>{s.type === "customer" ? "Customer" : "Guest"}</span></td>
@@ -807,12 +845,11 @@ function DetailBody({ detail, variantId }: { detail: ProductDetail; variantId?: 
           note={variantId
             ? "All recorded subscriptions for this variant; other product details use the selected date range."
             : "Back-in-stock alert subscriptions created in the selected range."}
-          shown={subscriptions.length}
-          total={detail.subscriptions.length}
+          pagination={subscriptions}
           empty="No back-in-stock subscriptions for this product in the selected range."
           head={<><th>Contact</th><th>Channel</th><th>Variant</th><th>Status</th><th>Signed up</th><th>Notified</th><th>Purchase</th></>}
         >
-          {subscriptions.map((a) => (
+          {subscriptions.rows.map((a) => (
             <tr key={a.id}>
               <td>{a.contact}</td>
               <td>{a.channel === "sms" ? "SMS" : a.channel}</td>
@@ -835,12 +872,11 @@ function DetailBody({ detail, variantId }: { detail: ProductDetail; variantId?: 
           title="Pending alerts"
           count={summary.pendingAlerts}
           note="Waiting alerts (PENDING, CONFIRMED or SENDING) that have not been notified yet."
-          shown={pendingAlerts.length}
-          total={detail.pendingAlerts.length}
+          pagination={pendingAlerts}
           empty="No alerts are waiting for this product in the selected range."
           head={<><th>Contact</th><th>Channel</th><th>Variant</th><th>Status</th><th>Reason</th><th>Requested</th></>}
         >
-          {pendingAlerts.map((a) => (
+          {pendingAlerts.rows.map((a) => (
             <tr key={a.id}>
               <td>{a.contact}</td>
               <td>{a.channel === "sms" ? "SMS" : a.channel}</td>
@@ -858,12 +894,11 @@ function DetailBody({ detail, variantId }: { detail: ProductDetail; variantId?: 
           title="Notification sends"
           count={detail.notifications.length}
           note="Notification log entries created in the selected range. Sent does not confirm delivery or opening."
-          shown={notifications.length}
-          total={detail.notifications.length}
+          pagination={notifications}
           empty="No notifications recorded for this product in the selected range."
           head={<><th>Created</th><th>Sent</th><th>Recipient</th><th>Channel</th><th>Status</th><th>Delivered</th><th>Opened</th><th>Clicked</th></>}
         >
-          {notifications.map((log) => (
+          {notifications.rows.map((log) => (
             <tr
               key={log.id}
               title={log.errorReason ? `Error: ${log.errorReason}` : log.retryCount ? `Retries: ${log.retryCount}` : undefined}
@@ -886,12 +921,11 @@ function DetailBody({ detail, variantId }: { detail: ProductDetail; variantId?: 
           title="Attributed orders"
           count={summary.attributedOrders}
           note="Last-click attribution. Revenue is the attributed line-item total after discounts."
-          shown={orders.length}
-          total={detail.orders.length}
+          pagination={orders}
           empty="No attributed orders for this product in the selected range."
           head={<><th>Order</th><th>Date</th><th>Customer</th><th>Source</th><th>Attribution</th><th className="pd-n">Units</th><th className="pd-n">Revenue</th></>}
         >
-          {orders.map((o) => (
+          {orders.rows.map((o) => (
             <tr key={o.id}>
               <td>{o.orderNumber}</td>
               <td>{fmtDate(o.orderedAt)}</td>

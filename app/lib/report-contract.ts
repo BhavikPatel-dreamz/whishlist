@@ -25,6 +25,7 @@ export const REPORT_SLUGS = [
   // 3. Back in Stock
   "stock-list",
   "alert-subscriptions",
+  "alert-customers",
   "pending-alerts",
   "alert-purchases",
   "restock-conversion",
@@ -72,6 +73,7 @@ export const REPORT_PHASE: Record<ReportSlug, 1 | 2 | 3> = {
   // 3. Back in Stock
   "stock-list": 2,
   "alert-subscriptions": 1,
+  "alert-customers": 1,
   "pending-alerts": 1,
   "alert-purchases": 2,
   "restock-conversion": 1,
@@ -163,6 +165,7 @@ export const REPORT_CSV_COLUMNS: Record<ReportSlug, string[]> = {
     "Total subscriptions",
     "New in period",
   ],
+  "alert-customers": ["Contact", "Channel", "Requests", "Last requested"],
   "pending-alerts": [
     "Shopper",
     "Contact",
@@ -404,6 +407,7 @@ export const REPORT_CSV_ROW_KEYS: Record<ReportSlug, string[]> = {
     "totalSubscriptions",
     "newSubscriptions",
   ],
+  "alert-customers": ["contact", "channel", "requests", "lastRequestedAt"],
   "pending-alerts": [
     "shopper",
     "contact",

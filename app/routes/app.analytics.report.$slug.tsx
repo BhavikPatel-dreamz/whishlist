@@ -35,6 +35,7 @@ const REPORT_TITLES: Record<string, string> = {
   "guest-to-customer": "Guest-to-Customer Conversion",
   "stock-list": "Stock List & Inventory",
   "alert-subscriptions": "Alert Subscriptions",
+  "alert-customers": "Alert Request Customers",
   "pending-alerts": "Pending Alerts",
   "alert-purchases": "Alert Purchases",
   "restock-conversion": "Restock Conversion",

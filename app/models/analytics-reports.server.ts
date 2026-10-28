@@ -1283,6 +1283,43 @@ async function alertSubscriptionData(
   };
 }
 
+async function alertCustomersData(
+  shopId: string,
+  range: DateRange,
+): Promise<ReportData> {
+  const groups = await db.stockAlert.groupBy({
+    by: ["contactKey"],
+    where: { shopId, createdAt: rangeBounds(range) },
+    _count: { _all: true },
+    _max: { createdAt: true },
+  });
+  const rows = groups
+    .map((group) => {
+      const [channel, contact] = group.contactKey.split(":", 2);
+      return {
+        contact: contact ?? group.contactKey,
+        channel: channel === "sms" ? "SMS" : "Email",
+        requests: group._count._all,
+        lastRequestedAt: group._max.createdAt?.toISOString() ?? "",
+      };
+    })
+    .sort(
+      (left, right) =>
+        right.requests - left.requests ||
+        right.lastRequestedAt.localeCompare(left.lastRequestedAt),
+    );
+  return {
+    summary: {
+      customers: rows.length,
+      requests: rows.reduce((total, row) => total + row.requests, 0),
+    },
+    delta: EMPTY_DELTA,
+    series: [],
+    rows,
+    revenueLabel: REVENUE_LABEL.direct,
+  };
+}
+
 async function pendingAlertData(
   shopId: string,
   range: DateRange,
@@ -4143,6 +4180,9 @@ export async function loadAnalyticsReport(
       break;
     case "alert-subscriptions":
       data = await alertSubscriptionData(shopId, range);
+      break;
+    case "alert-customers":
+      data = await alertCustomersData(shopId, range);
       break;
     case "pending-alerts":
       data = await pendingAlertData(shopId, range);
