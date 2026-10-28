@@ -9,8 +9,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const { shop, session, topic } = await authenticate.webhook(request);
     console.log(`Received ${topic} webhook for ${shop}`);
 
-    // Mark Store inactive + install event (do not wipe wishlist/alert data yet —
-    // shop/redact handles hard delete). Drop sessions and clear operational token.
+    // Mark Shop inactive + install event (do not wipe wishlist/alert data yet —
+    // shop/redact handles hard delete). Drop sessions; markStoreUninstalled clears token.
     await markStoreUninstalled(shop).catch((error) => {
       console.error("markStoreUninstalled failed", error);
     });
@@ -18,7 +18,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (session) {
       await db.session.deleteMany({ where: { shop } });
     }
-    await db.shop.updateMany({ where: { shop }, data: { accessToken: null } });
     invalidateShopCache(shop);
 
     return new Response();

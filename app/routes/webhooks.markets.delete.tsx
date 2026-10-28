@@ -6,8 +6,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { shop, topic, payload } = await authenticate.webhook(request);
     console.log(`Received ${topic} webhook for ${shop}`);
-    const store = await db.store.findUnique({ where: { shopDomain: shop } });
-    if (!store) return new Response();
+    const shopRecord = await db.shop.findUnique({ where: { shop } });
+    if (!shopRecord) return new Response();
     const marketId =
       payload?.admin_graphql_api_id != null
         ? String(payload.admin_graphql_api_id)
@@ -16,7 +16,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           : null;
     if (marketId) {
       await db.storeMarket.deleteMany({
-        where: { storeId: store.id, shopifyMarketId: marketId },
+        where: { shopId: shopRecord.id, shopifyMarketId: marketId },
       });
     }
     return new Response();

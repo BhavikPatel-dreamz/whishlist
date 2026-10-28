@@ -7,7 +7,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { shop, topic } = await authenticate.webhook(request);
     console.log(`Received ${topic} webhook for ${shop}`);
-    await withStoreAdmin(shop, (admin, storeId) => resyncStoreThemes(admin, storeId));
+    await withStoreAdmin(shop, (admin, shopId) => resyncStoreThemes(admin, shopId));
     return new Response();
   } catch (error) {
     console.error("themes/publish handler error", error);

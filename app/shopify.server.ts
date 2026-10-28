@@ -36,8 +36,8 @@ const shopify = shopifyApp({
         const client = admin
           ? admin
           : await shopify.unauthenticated.admin(session.shop).then((ctx) => ctx.admin);
-        const { storeId } = await syncStoreInfo(client, session);
-        enqueueStoreEnrichment(client, storeId);
+        const { shopId } = await syncStoreInfo(client, session);
+        enqueueStoreEnrichment(client, shopId);
       } catch (error) {
         console.error("[afterAuth] store sync failed (install continues)", error);
       }

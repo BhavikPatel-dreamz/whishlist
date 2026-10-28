@@ -5,11 +5,11 @@ export async function withStoreAdmin(
   shopDomain: string,
   run: (
     admin: { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> },
-    storeId: string,
+    shopId: string,
   ) => Promise<void>,
 ): Promise<void> {
-  const store = await db.store.findUnique({ where: { shopDomain } });
-  if (!store) return;
+  const shop = await db.shop.findUnique({ where: { shop: shopDomain } });
+  if (!shop) return;
   const { admin } = await unauthenticated.admin(shopDomain);
-  await run(admin, store.id);
+  await run(admin, shop.id);
 }

@@ -7,7 +7,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { shop, topic } = await authenticate.webhook(request);
     console.log(`Received ${topic} webhook for ${shop}`);
-    await withStoreAdmin(shop, (admin, storeId) => resyncStoreLocations(admin, storeId));
+    await withStoreAdmin(shop, (admin, shopId) => resyncStoreLocations(admin, shopId));
     return new Response();
   } catch (error) {
     console.error("locations/create handler error", error);

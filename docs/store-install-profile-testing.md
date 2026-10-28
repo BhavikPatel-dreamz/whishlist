@@ -22,23 +22,18 @@ shopify app deploy
 
 - [ ] Install the app on a clean / previously uninstalled dev store.
 - [ ] Confirm `afterAuth` completes quickly (app loads; no long hang).
-- [ ] `Store` row exists for `shopDomain` with shop fields (name, currency, timezone, plan, address).
-- [ ] `StoreInstallEvent` has type `INSTALL`, scopes, and `appVersion` if set.
+- [ ] `Shop` row exists for the domain with profile fields (name, currency, timezone, plan, address).
+- [ ] `StoreInstallEvent` has type `INSTALL`, scopes, and `appVersion` if set (`shopId` → Shop).
 - [ ] `installCount` is `1`, `isActive` is `true`, `uninstalledAt` is null.
 - [ ] If an online session was available, `StoreInstaller` has user id / name / email / locale / flags; otherwise the row may be absent (expected).
 - [ ] Within a few seconds (background enrichers), confirm:
   - [ ] `accessScopes` / `activeSubscriptions` / `uninstallUrl` filled when available
-  - [ ] `StoreLocation` rows
-  - [ ] `StoreMarket` rows (needs `read_markets`)
-  - [ ] `shopLocales` JSON (needs `read_locales`)
-  - [ ] `themes` JSON (name + role)
-  - [ ] `publications` JSON (needs `read_publications`)
-  - [ ] `StoreStats` row with counts + `capturedAt` (no customer PII)
+  - [ ] (optional / currently disabled) locations, markets, locales, themes, publications, stats
 
 ## Reinstall
 
 - [ ] Uninstall, then reinstall the same shop.
-- [ ] Same `Store.shopDomain` row is updated (no duplicate).
+- [ ] Same `Shop.shop` row is updated (no duplicate).
 - [ ] `installCount` increments by 1.
 - [ ] New `StoreInstallEvent` with type `REINSTALL`.
 - [ ] `isActive` true again; `uninstalledAt` cleared; `installedAt` refreshed.
@@ -47,32 +42,32 @@ shopify app deploy
 
 - [ ] Uninstall from Admin → Apps.
 - [ ] `app/uninstalled` returns 200.
-- [ ] `Store.isActive` false, `uninstalledAt` set, `UNINSTALL` event created.
-- [ ] Sessions for that shop are deleted; operational `Shop.accessToken` cleared.
+- [ ] `Shop.isActive` false, `uninstalledAt` set, `UNINSTALL` event created.
+- [ ] Sessions for that shop are deleted; `Shop.accessToken` cleared.
 - [ ] Wishlist / stock-alert data still present until `shop/redact` (by design).
 
 ## shop/update
 
 - [ ] Edit store name or address in Shopify Admin → Settings → Store details.
-- [ ] Confirm `shop/update` webhook fires and `Store` name/address/currency/timezone update.
+- [ ] Confirm `shop/update` webhook fires and `Shop` name/address/currency/timezone update.
 
 ## app/scopes_update
 
 - [ ] Change granted scopes (or re-auth with updated scopes).
-- [ ] `Store.scopes` / `accessScopes` update and a `SCOPES_UPDATE` event is recorded.
+- [ ] `Shop.scopes` / `accessScopes` update and a `SCOPES_UPDATE` event is recorded.
 
 ## Optional sync webhooks
 
 - [ ] Publish a theme → `themes` JSON refreshes.
-- [ ] Create/update/delete a location → `StoreLocation` stays in sync.
-- [ ] Create/update/delete a market → `StoreMarket` stays in sync.
+- [ ] Create/update/delete a location → `StoreLocation` stays in sync (when webhook enabled).
+- [ ] Create/update/delete a market → `StoreMarket` stays in sync (when webhook enabled).
 
 ## GDPR compliance
 
 - [ ] From Partner Dashboard → App setup → Compliance webhooks (or Shopify’s GDPR test tools), fire:
   - [ ] `customers/data_request` → 200 (ack; no standalone PII profiles to export).
   - [ ] `customers/redact` → wishlist / stock-alert / tracking / notification rows for that customer removed.
-  - [ ] `shop/redact` → `Store` (+ installer/locations/markets/stats/events), `Session`, and operational `Shop` (cascades) deleted for that domain.
+  - [ ] `shop/redact` → `Shop` (+ installer/locations/markets/stats/events cascades) and `Session` deleted for that domain.
 
 ## Failure isolation
 

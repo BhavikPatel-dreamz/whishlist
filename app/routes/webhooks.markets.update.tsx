@@ -7,7 +7,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { shop, topic } = await authenticate.webhook(request);
     console.log(`Received ${topic} webhook for ${shop}`);
-    await withStoreAdmin(shop, (admin, storeId) => resyncStoreMarkets(admin, storeId));
+    await withStoreAdmin(shop, (admin, shopId) => resyncStoreMarkets(admin, shopId));
     return new Response();
   } catch (error) {
     console.error("markets/update handler error", error);
