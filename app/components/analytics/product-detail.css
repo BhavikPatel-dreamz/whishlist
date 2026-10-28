@@ -1,5 +1,5 @@
 /* Product detail — same card + table look as the Analytics page */
-.pd{--bg:#f1f2f4;--card:#fff;--line:#e3e5e8;--text:#202223;--mute:#6d7175;--green:#0c7a5a;--green-bg:#e6f4ef;--red:#c9372c;--red-bg:#fbeae8;--amber:#b06a00;--amber-bg:#fdf1dc;--blue:#2c6ecb;
+.pd{--bg:var(--wl-background,#f1f5f9);--card:var(--wl-surface,#fff);--line:var(--wl-border,#e2e8f0);--text:var(--wl-text,#0f172a);--mute:var(--wl-text-secondary,#64748b);--green:var(--wl-primary,#334155);--green-bg:var(--wl-primary-soft,#e2e8f0);--red:var(--wl-error,#dc2626);--red-bg:var(--wl-error-soft,#fee2e2);--amber:var(--wl-warning,#b45309);--amber-bg:var(--wl-warning-soft,#ffedd5);--blue:var(--wl-info,#2563eb);
 font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);background:var(--bg);min-height:100%;padding:20px 16px 40px;font-size:13px}
 .pd *{box-sizing:border-box}
 .pd-wrap{max-width:1034px;margin:0 auto;display:grid;gap:14px}

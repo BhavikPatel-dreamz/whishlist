@@ -34,9 +34,9 @@
 /* The Insights section is a plain wrapper — its chart cards supply the
    card chrome, so the outer box must not draw a border around them. */
 .ws-overview-section--teal {
-  --ov-accent: #199c88;
-  --ov-accent-2: #43bfa9;
-  --ov-accent-soft: #e5f6f3;
+  --ov-accent: var(--wl-primary, #334155);
+  --ov-accent-2: var(--wl-secondary, #38bdf8);
+  --ov-accent-soft: var(--wl-accent-soft, #e0f2fe);
   padding: 4px 0 0;
   border: 0;
   background: none;
@@ -51,14 +51,14 @@
   gap: 14px;
 }
 .ws-overview-section--green {
-  --ov-accent: #178a56;
-  --ov-accent-2: #2fae74;
-  --ov-accent-soft: #e7f6ee;
+  --ov-accent: var(--wl-primary, #334155);
+  --ov-accent-2: var(--wl-secondary, #38bdf8);
+  --ov-accent-soft: var(--wl-accent-soft, #e0f2fe);
 }
 .ws-overview-section--violet {
-  --ov-accent: #6b5ce7;
-  --ov-accent-2: #9b7cf6;
-  --ov-accent-soft: #f1edff;
+  --ov-accent: var(--wl-primary-variant, #1e293b);
+  --ov-accent-2: var(--wl-info, #2563eb);
+  --ov-accent-soft: var(--wl-info-soft, #dbeafe);
 }
 .ws-overview-card {
   position: relative;
@@ -114,7 +114,7 @@
   font-variant-numeric: tabular-nums;
 }
 .ws-overview-card-delta[data-trend="up"] {
-  color: #18794e;
+  color: var(--wl-success, #15803d);
 }
 .ws-overview-card-delta[data-trend="down"] {
   color: #b42318;
@@ -307,7 +307,7 @@
   width: 16px;
   min-height: 16px;
   margin: 0;
-  accent-color: #168a63;
+  accent-color: var(--wl-primary, #334155);
 }
 .ws-reports input,
 .ws-reports select {
@@ -503,7 +503,7 @@
   border-left-color: #8c9196;
 }
 .ws-stock-summary .ws-overview-card:nth-child(2) {
-  border-left-color: #29845a;
+  border-left-color: var(--wl-success, #15803d);
 }
 .ws-stock-summary .ws-overview-card:nth-child(3) {
   border-left-color: #b98900;
@@ -664,7 +664,7 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #25b69c, #6bd5c0);
+  background: linear-gradient(90deg, var(--wl-primary, #334155), var(--wl-secondary, #38bdf8));
   transition: width 240ms ease;
 }
 .ws-chart-bars li:nth-child(2) .ws-chart-bar-fill { background: linear-gradient(90deg, #438fc4, #80bce1); }
@@ -709,7 +709,7 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
 }
 .ws-donut-value {
   fill: none;
-  stroke: #19b59a;
+  stroke: var(--wl-secondary, #38bdf8);
   stroke-linecap: round;
   stroke-width: 9;
 }
@@ -722,8 +722,8 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
 }
 .ws-donut-segment.ws-tone-good,
 .ws-chart-swatch.ws-tone-good {
-  stroke: #2f8f5b;
-  background: #2f8f5b;
+  stroke: var(--wl-success, #15803d);
+  background: var(--wl-success, #15803d);
 }
 .ws-donut-segment.ws-tone-warn,
 .ws-chart-swatch.ws-tone-warn {

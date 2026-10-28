@@ -36,7 +36,14 @@
   --p-color-bg-fill-brand: var(--wl-primary);
   --p-color-bg-fill-brand-hover: var(--wl-primary-variant);
   --p-color-bg-fill-brand-active: var(--wl-primary-variant);
+  --p-color-bg-fill-brand-selected: var(--wl-primary);
   --p-color-text-brand-on-bg-fill: #ffffff;
+  --p-color-bg-fill-success: var(--wl-primary);
+  --p-color-bg-fill-success-hover: var(--wl-primary-variant);
+  --p-color-bg-fill-success-active: var(--wl-primary-variant);
+  --p-color-text-success-on-bg-fill: #ffffff;
+  --p-color-border-focus: var(--wl-accent);
+  --p-color-border-brand: var(--wl-primary);
   --p-color-bg-fill-info: var(--wl-info);
   --p-color-bg-fill-success: var(--wl-success);
   --p-color-bg-fill-warning: var(--wl-warning);
@@ -60,6 +67,23 @@
   min-height: 420px;
   background: var(--wl-background);
   color: var(--wl-text);
+}
+
+/* Force Polaris primary actions off Shopify's default green onto the app theme */
+.ws-admin-pages .Polaris-Button--variantPrimary,
+.ws-admin-pages .Polaris-Button--primary {
+  --pc-button-bg: var(--wl-primary);
+  --pc-button-bg-hover: var(--wl-primary-variant);
+  --pc-button-bg-active: var(--wl-primary-variant);
+  --pc-button-color: #ffffff;
+  background: var(--wl-primary) !important;
+  border-color: var(--wl-primary) !important;
+  color: #ffffff !important;
+}
+.ws-admin-pages .Polaris-Button--variantPrimary:hover,
+.ws-admin-pages .Polaris-Button--primary:hover {
+  background: var(--wl-primary-variant) !important;
+  border-color: var(--wl-primary-variant) !important;
 }
 
 .ws-admin-pages > .ws-home-page,
