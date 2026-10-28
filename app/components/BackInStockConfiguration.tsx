@@ -230,9 +230,11 @@ type Props = {
   smsEnabled?: boolean;
   whatsappEnabled?: boolean;
   emailDeliveryUrl?: string;
+  emailProviderUrl?: string;
   smsIntegrationsUrl?: string;
   whatsappIntegrationsUrl?: string;
   smsLearnMoreUrl?: string;
+  pricingPlansUrl?: string;
   canConfigureEmailProvider?: boolean;
   emailsSent?: number;
   sentLabel?: string;
@@ -251,6 +253,7 @@ type FeatureItem = {
   channel?: "email" | "sms";
   to?: string;
   locked?: boolean;
+  actionLabel?: string;
 };
 
 /* ---------- Icons ---------- */
@@ -348,9 +351,11 @@ export function BackInStockConfiguration({
   smsEnabled = false,
   whatsappEnabled = false,
   emailDeliveryUrl = "/app/integrations?section=email",
+  emailProviderUrl = "/app/integrations?section=email",
   smsIntegrationsUrl = "/app/integrations?section=sms",
   whatsappIntegrationsUrl = "/app/integrations?section=whatsapp",
   smsLearnMoreUrl = "https://help.shopify.com/",
+  pricingPlansUrl = "/app/settings/pricing",
   canConfigureEmailProvider = false,
   emailsSent = 0,
   sentLabel = "this month",
@@ -374,12 +379,22 @@ export function BackInStockConfiguration({
     {
       key: "email-delivery",
       title: "Email alerts",
-      description: canConfigureEmailProvider
-        ? "Turn email alerts on or off, and choose your own email provider on Scale for unlimited sends."
-        : `Emails sent ${sentLabel}: ${emailsSent}. Turn email alerts on or off. Starter and Growth use the managed sender.`,
+      description: `Emails sent ${sentLabel}: ${emailsSent}. Turn email alerts on or off without changing your provider.`,
       enabled: backInStockEnabled && emailDeliveryEnabled,
       art: <EmailTemplateIllustration />,
       to: emailDeliveryUrl,
+    },
+    {
+      key: "email-provider",
+      title: "Email provider",
+      description: canConfigureEmailProvider
+        ? "Connect Resend, Brevo, SendGrid, Mailgun, or Klaviyo. Scale merchant sends are unlimited."
+        : "Included with Scale. Starter and Growth send through Wishlist Stock Notify (Mailgun).",
+      enabled: canConfigureEmailProvider,
+      art: <EmailTemplateIllustration />,
+      to: canConfigureEmailProvider ? emailProviderUrl : pricingPlansUrl,
+      locked: false,
+      actionLabel: canConfigureEmailProvider ? "Settings" : "Upgrade",
     },
     {
       key: "sms-delivery",
@@ -477,8 +492,14 @@ export function BackInStockConfiguration({
                   {item.enabled ? "Enabled" : "Disabled"}
                 </span>
                 {item.locked ? null : item.to ? (
-                  <Link className="ws-bis-btn ws-bis-btn-outline" to={item.to}>
-                    <PencilIcon /> Settings
+                  <Link
+                    className="ws-bis-btn ws-bis-btn-outline"
+                    to={item.to}
+                    {...(item.to.startsWith("http") || item.actionLabel === "Upgrade"
+                      ? { target: "_top" as const }
+                      : {})}
+                  >
+                    <PencilIcon /> {item.actionLabel || "Settings"}
                   </Link>
                 ) : (
                   <button

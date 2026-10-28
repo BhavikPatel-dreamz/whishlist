@@ -1967,6 +1967,8 @@ export default function Settings() {
             backInStockEnabled={saved.backInStockEnabled}
             emailDeliveryEnabled={loaderData.shop.emailAlertsEnabled}
             emailDeliveryUrl="/app/integrations?section=email&returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
+            emailProviderUrl="/app/integrations?section=email&returnTo=%2Fapp%2Fsettings%3Fsection%3Dback-in-stock"
+            pricingPlansUrl={loaderData.pricingPlansUrl}
             canConfigureEmailProvider={loaderData.canConfigureEmailProvider}
             emailsSent={loaderData.emailsSent}
             sentLabel={loaderData.sentLabel}
