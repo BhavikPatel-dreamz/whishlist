@@ -1,0 +1,19 @@
+---
+description: All UI colors must use the global theme tokens from app/styles/theme.css
+globs: app/**/*.{css,tsx,ts},extensions/theme/assets/**/*.css
+alwaysApply: false
+---
+
+# Global theme colors
+
+Source of truth: `app/styles/theme.css` (loaded from `app/root.tsx` / `app/routes/app.tsx`).
+
+When adding or editing pages, components, or CSS:
+
+- Never introduce new hardcoded hex/rgb colors for UI chrome (backgrounds, text, borders, buttons, focus rings, status).
+- Use `var(--wl-*)` tokens: primary, primary-variant, secondary, accent, background, surface, text, text-secondary, text-disabled, border, border-strong, success, warning, error, info, and `*-soft` / `chart-*` variants.
+- Prefer `--wl-*` over legacy `--ca-*` / one-off locals; if a local alias is needed, define it as `var(--wl-…)`.
+- Storefront assets: keep `--ws-*` API but default them from `--wl-*`.
+- Palette changes: edit only `:root` in `app/styles/theme.css`.
+
+See also `agent.md` → **Global theme**.

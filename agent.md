@@ -1,5 +1,33 @@
 # Agent working notes
 
+## Global theme (required for all UI)
+
+**Single source of truth:** [`app/styles/theme.css`](app/styles/theme.css)
+
+Loaded app-wide from `app/root.tsx` and again on admin routes via `app/routes/app.tsx`. Login also loads it.
+
+### When adding or editing any admin / marketing page
+
+1. **Do not hardcode hex colors** in new CSS, inline `style={}`, or SVG fills for UI chrome.
+2. Use CSS variables from the theme, e.g.:
+   - `var(--wl-primary)` / `var(--wl-primary-variant)` — brand / primary buttons
+   - `var(--wl-secondary)` / `var(--wl-accent)` — accent / focus
+   - `var(--wl-background)` / `var(--wl-surface)` — page / cards
+   - `var(--wl-text)` / `var(--wl-text-secondary)` / `var(--wl-text-disabled)`
+   - `var(--wl-border)` / `var(--wl-border-strong)`
+   - `var(--wl-success)` / `var(--wl-warning)` / `var(--wl-error)` / `var(--wl-info)`
+   - Soft tints: `--wl-*-soft`; charts: `--wl-chart-1` … `--wl-chart-6`
+3. Analytics aliases (`--ca-bg`, `--ca-ac`, etc.) are defined in `theme.css` — prefer `--wl-*` for new code.
+4. New CSS files: import nothing special if the route is under `/app` or uses `root` links; just consume `var(--wl-*)`.
+5. Storefront extension CSS (`extensions/theme/assets/*`) should map `--ws-*` defaults to `--wl-*` (see existing wishlist / back-in-stock assets).
+6. To change the palette later, edit **only** `:root` hex values in `app/styles/theme.css`. Optional bulk remapper: `node scripts/apply-theme-colors.mjs`.
+7. Polaris primary buttons are forced to `--wl-primary` in `theme.css` — do not reintroduce Shopify default green.
+
+### Exceptions
+
+- Merchant-configurable colors (wishlist button primary/secondary from settings) stay as saved hex on the storefront.
+- Decorative product mock SVGs may keep illustration colors if they are not chrome/UI; prefer theme tokens when practical.
+
 ## Audit status
 
 Stock-alert notification audit is **complete**. Product decisions in section 12 of `docs/stock-alert-notification-audit.md` are **approved**. No application code has been implemented yet.
