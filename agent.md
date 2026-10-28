@@ -11,7 +11,7 @@ Full write-up: `docs/stock-alert-notification-audit.md`.
 - Stack: Shopify Remix app, Polaris admin, theme extension, Prisma/PostgreSQL.
 - Stock alerts are real: `StockAlert`, app proxy `app/routes/api.stock-alert.tsx`, webhooks `inventory_levels/update` and `products/update`, dispatch in `app/lib/notifications/dispatch.server.ts`.
 - Email providers in code: Resend (default), Brevo, SendGrid, and Klaviyo (event only). **Mailgun is not implemented.**
-- Shop-level API key is encrypted (`app/lib/crypto.server.ts`). Env fallbacks: `DEFAULT_EMAIL_PROVIDER`, `DEFAULT_EMAIL_API_KEY`, `DEFAULT_SENDER_EMAIL`.
+- Shop-level API key is encrypted (`app/lib/crypto.server.ts`). Platform-managed email uses Mailgun: `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `DEFAULT_SENDER_EMAIL` (optional `MAILGUN_API_BASE_URL` for EU, `DEFAULT_SENDER_NAME`).
 - No Shopify billing, no plan tables, no usage ledger, no SMTP, no test-email endpoint, no delivery-attempt history, no queue. Sends run inside the webhook (batch 500) plus optional `POST /api/cron/retry-alerts` when `CRON_SECRET` is set. No scheduler is defined in the repo.
 - Idempotency is webhook-id plus `claimPendingAlerts` (`FOR UPDATE SKIP LOCKED`), not a restock-event id. Provider message ids are not stored.
 - `alertsPerVariantCap` is saved in settings but not passed into `createStockAlert`.
@@ -63,8 +63,8 @@ Plan handles should include starter, growth, or scale. Welcome link: `/app/setti
 - `UsageCounter` and `UsageLedger` migration `prisma/migrations/20261022153000_usage_ledger`.
 - Email sends reserve quota before the provider call, consume it only when the provider accepts, and release it on failure. The same alert generation cannot consume twice. A new signup increments `notifyGeneration`.
 - Allowances (UTC day): Starter 30, Growth 250, Scale 1000 on the managed sender. Over quota puts the alert back to pending with “Notification limit reached” and does not call the provider.
-- Starter and Growth cannot save their own email provider (managed sender only). Scale (`allowMerchantProvider`) can save Resend, Brevo, SendGrid, Mailgun, or Klaviyo; Scale merchant/custom sends are unlimited and do not count toward the 1000/day cap.
+- Starter and Growth cannot save their own email provider; they send through platform Mailgun. Scale (`allowMerchantProvider`) can save Resend, Brevo, SendGrid, Mailgun, or Klaviyo; Scale merchant/custom sends are unlimited and do not count toward the 1000/day cap. Scale without a merchant key also uses platform Mailgun.
 
 ## Next pending task
 
-Provider delivery service: Mailgun for managed sending, and Resend, Brevo, SendGrid, and SMTP for Scale. Encrypt credentials. Validate the From address. Add a rate-limited test email that does not use quota.
+Add a rate-limited test email that does not use quota. Optional: Mailgun bounce webhooks / SMTP for Scale.

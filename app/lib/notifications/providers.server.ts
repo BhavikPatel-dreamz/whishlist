@@ -1,4 +1,10 @@
 import type { ResolvedNotificationSettings } from "../shop.server";
+import {
+  managedMailgunApiBaseUrl,
+  managedMailgunApiKey,
+  managedMailgunDomain,
+  managedSenderEmail,
+} from "./managed-mailgun.server";
 
 export type EmailMessage = {
   to: string;
@@ -28,17 +34,31 @@ export function providerFromApiKey(apiKey: string): EmailProvider | null {
 }
 
 /**
- * Live server ma settings ma apiKey / senderEmail khali hoy to .env / hosting env variables
- * ma thi fallback lo. (BREVO_API_KEY, DEFAULT_SENDER_EMAIL)
+ * Fill empty credentials from platform env. Managed Mailgun is preferred;
+ * Brevo remains a legacy fallback only when Mailgun is not configured.
  */
 function withEnvFallback(
   settings: ResolvedNotificationSettings,
 ): ResolvedNotificationSettings {
+  const managedKey = managedMailgunApiKey();
+  const useManagedMailgun =
+    settings.provider === "mailgun" ||
+    (!settings.apiKey && Boolean(managedKey));
   return {
     ...settings,
-    apiKey: settings.apiKey || process.env.BREVO_API_KEY || "",
+    provider: useManagedMailgun && !settings.usesMerchantEmailProvider
+      ? "mailgun"
+      : settings.provider,
+    apiKey:
+      settings.apiKey ||
+      managedKey ||
+      process.env.BREVO_API_KEY ||
+      "",
     senderEmail:
-      settings.senderEmail || process.env.DEFAULT_SENDER_EMAIL || "",
+      settings.senderEmail ||
+      managedSenderEmail() ||
+      process.env.DEFAULT_SENDER_EMAIL ||
+      "",
   };
 }
 
@@ -244,24 +264,33 @@ async function sendWithBrevo(
 
 /**
  * Mailgun transactional email. Auth is HTTP Basic with username `api` and the private API key.
- * The sending domain must be verified in Mailgun. The domain is taken from MAILGUN_DOMAIN when
- * set, otherwise derived from the sender email's domain.
+ * Platform-managed sends use MAILGUN_DOMAIN + MAILGUN_API_KEY. Merchant Mailgun (Scale)
+ * may omit MAILGUN_DOMAIN and derive the domain from the sender address.
  */
 async function sendWithMailgun(
   settings: ResolvedNotificationSettings,
   message: EmailMessage,
 ): Promise<SendResult> {
+  if (!settings.apiKey) {
+    return {
+      ok: false,
+      error: "Mailgun API key is not configured (set MAILGUN_API_KEY)",
+    };
+  }
   if (!settings.senderEmail) {
     return {
       ok: false,
-      error: "Sender email required for Mailgun but not configured",
+      error: "Sender email required for Mailgun (set DEFAULT_SENDER_EMAIL)",
     };
   }
 
   const domain =
-    process.env.MAILGUN_DOMAIN || settings.senderEmail.split("@")[1] || "";
+    managedMailgunDomain() || settings.senderEmail.split("@")[1] || "";
   if (!domain) {
-    return { ok: false, error: "Mailgun sending domain not configured" };
+    return {
+      ok: false,
+      error: "Mailgun sending domain not configured (set MAILGUN_DOMAIN)",
+    };
   }
 
   const form = new URLSearchParams({
@@ -273,8 +302,9 @@ async function sendWithMailgun(
   });
   if (message.replyTo) form.set("h:Reply-To", message.replyTo);
 
+  const baseUrl = managedMailgunApiBaseUrl();
   return postProviderRequest(
-    `https://api.mailgun.net/v3/${encodeURIComponent(domain)}/messages`,
+    `${baseUrl}/v3/${encodeURIComponent(domain)}/messages`,
     {
       method: "POST",
       headers: {

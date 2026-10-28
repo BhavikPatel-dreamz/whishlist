@@ -10,8 +10,9 @@
 
 import db from "../db.server";
 import { fetchReport } from "../lib/analytics-api.client";
+import { getShopPlan } from "../lib/billing/plan.server";
 import { sendEmail } from "../lib/notifications/providers.server";
-import { resolveSettings } from "../lib/shop.server";
+import { resolveSettingsForPlan } from "../lib/shop.server";
 import { appOrigin } from "../lib/app-url.server";
 import { getShopSettings } from "../models/shop-settings.server";
 import { unauthenticated } from "../shopify.server";
@@ -195,7 +196,8 @@ async function sendShopReport(
     return { shop: shopDomain, sent: false, error: "Shop not found" };
   }
 
-  const emailSettings = resolveSettings(shopForSettings);
+  const plan = await getShopPlan(shopId);
+  const emailSettings = resolveSettingsForPlan(shopForSettings, plan);
   const totalRevenue =
     (overview.summary?.wishlistRevenueDirect ?? 0) +
     (overview.summary?.wishlistRevenueEstimated ?? 0) +

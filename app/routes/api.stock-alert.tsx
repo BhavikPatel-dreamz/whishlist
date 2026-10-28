@@ -14,7 +14,8 @@ import {
   confirmationEmailHtml,
   confirmationEmailText,
 } from "../lib/notifications/template.server";
-import { resolveSettings } from "../lib/shop.server";
+import { getShopPlan } from "../lib/billing/plan.server";
+import { resolveSettingsForPlan } from "../lib/shop.server";
 import db from "../db.server";
 import { getUIConfigByShopId } from "../models/ui-config.server";
 import {
@@ -145,7 +146,8 @@ export const action = async ({ request }: ActionFunctionArgs) =>
     // double opt-in on they'd stay unconfirmed forever and never receive the restock alert. An
     // already-CONFIRMED or in-flight SENDING row is not PENDING, so it is never re-sent.
     if (ctx.shop.doubleOptIn && alert.status === ALERT_STATUS.pending) {
-      const settings = resolveSettings(ctx.shop);
+      const plan = await getShopPlan(ctx.shop.id);
+      const settings = resolveSettingsForPlan(ctx.shop, plan);
       const confirmUrl = alertConfirmUrl(alert.id);
       const unsubscribeUrl = alertUnsubscribeUrl(alert.id);
 

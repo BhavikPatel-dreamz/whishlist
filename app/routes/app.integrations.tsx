@@ -315,7 +315,7 @@ export default function Integrations() {
               <BlockStack gap="100">
                 <Text as="h2" variant="headingMd">Email delivery</Text>
                 <Text as="p" tone="subdued">
-                  Turn email alerts on or off without changing SMS. Scale can also choose a custom email provider for unlimited sends.
+                  Turn email alerts on or off without changing SMS. Scale can also choose a custom email provider for unlimited sends. Starter and Growth send through Wishlist Stock Notify (Mailgun).
                 </Text>
               </BlockStack>
               <Select
@@ -389,7 +389,7 @@ export default function Integrations() {
                 <Text as="h2" variant="headingMd">Email delivery</Text>
                 <Text as="p" variant="headingLg">{data.emailsSent}</Text>
                 <Text as="p" tone="subdued">
-                  Emails sent {data.sentLabel}. Starter and Growth use the managed sender. Upgrade to Scale to use your own email provider for unlimited sends.
+                  Emails sent {data.sentLabel}. Starter and Growth send through Wishlist Stock Notify (Mailgun). Upgrade to Scale to use your own email provider for unlimited sends.
                 </Text>
                 <Select
                   label="Email alerts"

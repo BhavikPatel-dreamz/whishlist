@@ -1,5 +1,10 @@
 import db from "../db.server";
 import { decryptSecret } from "./crypto.server";
+import {
+  managedMailgunApiKey,
+  managedSenderEmail,
+  managedSenderName,
+} from "./notifications/managed-mailgun.server";
 import { ProxyError } from "./proxy.server";
 import { ttlDelete, ttlGet, ttlSet } from "./ttl-cache.server";
 import type { Shop } from "@prisma/client";
@@ -150,7 +155,7 @@ export function resolveSettings(shop: Shop): ResolvedNotificationSettings {
 }
 
 /**
- * Starter/Growth always send via the managed platform key.
+ * Starter/Growth always send via platform Mailgun.
  * Scale may use the shop's own provider credentials when configured.
  */
 export function resolveSettingsForPlan(
@@ -163,8 +168,12 @@ export function resolveSettingsForPlan(
   }
   return {
     ...settings,
-    provider: "brevo",
-    apiKey: process.env.BREVO_API_KEY || "",
+    provider: "mailgun",
+    apiKey: managedMailgunApiKey(),
+    senderEmail: managedSenderEmail(),
+    senderName:
+      settings.senderName ||
+      managedSenderName(shop.shop.replace(".myshopify.com", "")),
     usesMerchantEmailProvider: false,
   };
 }
