@@ -3670,11 +3670,8 @@ async function notificationLogData(
   shopId: string,
   admin: GraphqlClient,
   range: DateRange,
-  params: AnalyticsParams,
   logLimit: number | null,
 ): Promise<ReportData> {
-  const validStatuses = ["queued", "sent", "delivered", "bounced", "failed"];
-  const status = validStatuses.find((value) => value === params.status);
   const bounds = rangeBounds(range);
   // Fetch enough rows to merge NotificationLog + StockAlert fallbacks, then apply the plan cap.
   const fetchTake = logLimit == null ? 5000 : Math.max(logLimit * 3, logLimit);
@@ -3684,7 +3681,6 @@ async function notificationLogData(
         shopId,
         channel: "EMAIL",
         OR: [{ sentAt: bounds }, { createdAt: bounds }],
-        ...(status ? { status } : {}),
       },
       orderBy: { createdAt: "desc" },
       take: fetchTake,
@@ -3730,9 +3726,7 @@ async function notificationLogData(
     logs.flatMap((log) => (log.subscriptionId ? [log.subscriptionId] : [])),
   );
   const fallbackAlerts = sentAlerts.filter(
-    (alert) =>
-      !logSubscriptionIds.has(alert.id) &&
-      (!status || alert.status.toLowerCase() === status),
+    (alert) => !logSubscriptionIds.has(alert.id),
   );
   const [products] = await Promise.all([
     getProductsByIds(
@@ -4100,9 +4094,14 @@ function applyFilters(
       params.status ?? "",
     )
   ) {
-    filtered = filtered.filter(
-      (row) =>
-        String(row.status ?? "").toLowerCase() === params.status!.toLowerCase(),
+    const statuses =
+      params.status === "sent"
+        ? ["sent", "delivered"]
+        : params.status === "failed"
+          ? ["failed", "bounced"]
+          : [params.status];
+    filtered = filtered.filter((row) =>
+      statuses.includes(String(row.status ?? "").toLowerCase()),
     );
   }
   return sortRows(
@@ -4211,7 +4210,7 @@ export async function loadAnalyticsReport(
     case "notification-log": {
       const plan = await getShopPlan(shopId);
       const logLimit = planNotificationLogLimit(plan.code);
-      data = await notificationLogData(shopId, admin, range, params, logLimit);
+      data = await notificationLogData(shopId, admin, range, logLimit);
       break;
     }
     case "usage":

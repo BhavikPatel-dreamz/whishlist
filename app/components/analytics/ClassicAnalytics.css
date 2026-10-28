@@ -2,6 +2,7 @@
    Light/dark theme via CSS variables, matching the original colour palette. */
 .ca-body {
   /* Colors from app/styles/theme.css (--ca-* aliases + --wl-*) */
+  --ca-bg: #f3f3f3;
   color-scheme: light;
 }
 .ca-box-sizing {

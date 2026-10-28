@@ -610,18 +610,28 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
 
   const renderKpis = () => {
     if (slug === "notification-log") {
+      const metrics: Array<[string, number | undefined, string | undefined]> = [
+        ["Total attempts", summary.total, undefined],
+        ["Sent", summary.sent, "sent"],
+        ["Failed", summary.failed, "failed"],
+      ];
       return (
         <div className="ca-kpis" style={{ margin: 0 }}>
-          {[
-            ["Total attempts", summary.total],
-            ["Sent", summary.sent],
-            ["Failed", summary.failed],
-          ].map(([label, value]) => (
-            <div className="ca-k" key={label}>
+          {metrics.map(([label, value, status]) => {
+            const active = filterValue === (status ?? "");
+            return (
+            <button
+              type="button"
+              className={`ca-k ca-k-button${active ? " ca-k-active" : ""}`}
+              key={label}
+              aria-pressed={active}
+              onClick={() => updateParams({ status, page: "1" })}
+            >
               <span className="ca-mu">{label}</span>
               <b>{fmtN(Number(value ?? 0))}</b>
-            </div>
-          ))}
+            </button>
+            );
+          })}
         </div>
       );
     }

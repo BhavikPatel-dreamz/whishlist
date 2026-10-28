@@ -6,7 +6,7 @@
 
 .ws-metrics {
   padding: 18px 22px 12px;
-  background: var(--wl-background);
+  background: #f3f3f3;
   border: 1px solid var(--wl-border);
   border-radius: 14px;
   color: var(--wl-text);

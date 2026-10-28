@@ -104,6 +104,9 @@ function HelpIllustration({ support = false }: { support?: boolean }) {
 }
 
 export function DashboardHelp() {
+  const supportEmail = "devdyna@gmail.com";
+  const supportUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(supportEmail)}`;
+
   return (
     <>
       <section className="ws-help-grid" aria-label="Help and support">
@@ -112,14 +115,14 @@ export function DashboardHelp() {
             <h2 className="ws-help-title">Need Help?</h2>
             <p className="ws-help-description">
               Please email us at{" "}
-              <a className="ws-help-email" href="mailto:support@dynamicdreamz.com">
-                support@dynamicdreamz.com
+              <a className="ws-help-email" href={supportUrl} target="_blank" rel="noopener noreferrer">
+                {supportEmail}
               </a>
               . We will respond to you within 24-48 hours
             </p>
-            <button type="button" className="ws-help-button" aria-label="Get Help" disabled>
+            <a className="ws-help-button" href={supportUrl} target="_blank" rel="noopener noreferrer">
               Get Help <span aria-hidden="true">→</span>
-            </button>
+            </a>
           </div>
           <HelpIllustration support />
         </article>
