@@ -108,6 +108,14 @@ export type ReportResponse = {
     pageCount: number;
   };
   revenueLabel: string;
+  /** Present on notification-log: plan row caps (Starter 25 / Growth 50 / Scale full). */
+  planGate?: {
+    planCode: string;
+    planName: string;
+    logLimit: number | null;
+    truncated: boolean;
+    upgradePlanCode: string | null;
+  };
 };
 
 /**

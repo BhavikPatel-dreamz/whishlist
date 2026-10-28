@@ -7,6 +7,7 @@ import {
   BlockStack,
   Button,
   Card,
+  InlineStack,
   Page,
   Select,
   Text,
@@ -281,7 +282,12 @@ export default function Integrations() {
                 <Text as="p" tone="subdued">
                   {data.emailAlertsEnabled ? "Enabled" : "Disabled"}. Emails sent {data.sentLabel}: {data.emailsSent}.
                 </Text>
-                <Link to={sectionQuery("email")}>Email settings</Link>
+                <InlineStack gap="300">
+                  <Link to={sectionQuery("email")}>Email settings</Link>
+                  <Link to="/app/analytics?report=notification-log">
+                    View send log &amp; report
+                  </Link>
+                </InlineStack>
               </BlockStack>
             </Card>
             <Card>
@@ -316,6 +322,12 @@ export default function Integrations() {
                 <Text as="h2" variant="headingMd">Email delivery</Text>
                 <Text as="p" tone="subdued">
                   Turn email alerts on or off without changing SMS. Scale can also choose a custom email provider for unlimited sends. Starter and Growth send through Wishlist Stock Notify (Mailgun).
+                </Text>
+                <Text as="p" tone="subdued">
+                  <Link to="/app/analytics?report=notification-log">
+                    Open the email send log and delivery report
+                  </Link>
+                  {" "}(Starter: last 25, Growth: last 50, Scale: full history).
                 </Text>
               </BlockStack>
               <Select
@@ -390,6 +402,12 @@ export default function Integrations() {
                 <Text as="p" variant="headingLg">{data.emailsSent}</Text>
                 <Text as="p" tone="subdued">
                   Emails sent {data.sentLabel}. Starter and Growth send through Wishlist Stock Notify (Mailgun). Upgrade to Scale to use your own email provider for unlimited sends.
+                </Text>
+                <Text as="p" tone="subdued">
+                  <Link to="/app/analytics?report=notification-log">
+                    Open the email send log and delivery report
+                  </Link>
+                  {" "}(Starter: last 25, Growth: last 50, Scale: full history).
                 </Text>
                 <Select
                   label="Email alerts"

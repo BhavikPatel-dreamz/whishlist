@@ -15,6 +15,22 @@ export function planAllowsSmsWhatsApp(planCode: string): boolean {
 }
 
 /**
+ * How many notification send-log rows a plan may view.
+ * `null` = full access (Scale).
+ */
+export function planNotificationLogLimit(planCode: string): number | null {
+  if (planCode === PLAN_CODES.growth) return 50;
+  if (planCode === PLAN_CODES.scale) return null;
+  return 25;
+}
+
+export function nextPlanForLogUpgrade(planCode: string): PlanCode | null {
+  if (planCode === PLAN_CODES.starter) return PLAN_CODES.growth;
+  if (planCode === PLAN_CODES.growth) return PLAN_CODES.scale;
+  return null;
+}
+
+/**
  * Whether an email send should reserve plan quota.
  * Klaviyo is event-only. Scale with a merchant/custom provider is unlimited.
  * Starter and Growth always count (app-managed sender only).

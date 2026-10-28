@@ -6,6 +6,7 @@
  */
 
 import {
+  Banner,
   Card,
   Button,
   InlineStack,
@@ -74,11 +75,45 @@ export function ReportViewer({
     .filter(([_, v]) => typeof v === "number")
     .slice(0, 6);
 
+  const planGate = data.planGate as
+    | {
+        planCode: string;
+        planName: string;
+        logLimit: number | null;
+        truncated: boolean;
+        upgradePlanCode: string | null;
+      }
+    | undefined;
+
   return (
-    <BlockStack>
+    <BlockStack gap="400">
       <Text as="p" variant="bodyMd" fontWeight="semibold">
         {title}
       </Text>
+      {slug === "notification-log" && planGate?.logLimit != null && (
+        <Banner
+          tone={planGate.truncated ? "warning" : "info"}
+          title={`${planGate.planName} plan: latest ${planGate.logLimit} email sends`}
+          action={
+            planGate.upgradePlanCode
+              ? {
+                  content:
+                    planGate.upgradePlanCode === "scale"
+                      ? "Upgrade to Scale for full access"
+                      : "Upgrade to Growth for 50 rows",
+                  url: "/app/settings/pricing",
+                  target: "_top",
+                }
+              : undefined
+          }
+        >
+          <p>
+            {planGate.truncated
+              ? "Older notification rows are hidden until you upgrade."
+              : "Upgrade for a longer send history and full export access."}
+          </p>
+        </Banner>
+      )}
       {kpiMetrics.length > 0 && (
         <Grid>
           {kpiMetrics.map(([key, value]) => (

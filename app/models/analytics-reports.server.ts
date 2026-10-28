@@ -32,6 +32,11 @@ import {
 } from "../lib/shopify-data.server";
 import { loadInventoryVariants } from "./out-of-stock.server";
 import { getShopSettings } from "./shop-settings.server";
+import {
+  getShopPlan,
+  nextPlanForLogUpgrade,
+  planNotificationLogLimit,
+} from "../lib/billing/plan.server";
 
 type ReportData = {
   summary: Record<string, number>;
@@ -3666,20 +3671,23 @@ async function notificationLogData(
   admin: GraphqlClient,
   range: DateRange,
   params: AnalyticsParams,
+  logLimit: number | null,
 ): Promise<ReportData> {
   const validStatuses = ["queued", "sent", "delivered", "bounced", "failed"];
   const status = validStatuses.find((value) => value === params.status);
   const bounds = rangeBounds(range);
+  // Fetch enough rows to merge NotificationLog + StockAlert fallbacks, then apply the plan cap.
+  const fetchTake = logLimit == null ? 5000 : Math.max(logLimit * 3, logLimit);
   const [logs, sentAlerts] = await Promise.all([
     db.notificationLog.findMany({
       where: {
         shopId,
         channel: "EMAIL",
-        sentAt: bounds,
+        OR: [{ sentAt: bounds }, { createdAt: bounds }],
         ...(status ? { status } : {}),
       },
       orderBy: { createdAt: "desc" },
-      take: 200,
+      take: fetchTake,
       select: {
         id: true,
         subscriptionId: true,
@@ -3701,7 +3709,7 @@ async function notificationLogData(
         notifiedAt: bounds,
       },
       orderBy: { notifiedAt: "desc" },
-      take: 200,
+      take: fetchTake,
       select: {
         id: true,
         email: true,
@@ -3778,14 +3786,18 @@ async function notificationLogData(
       retries: Math.max(0, alert.attempts - 1),
     })),
   ].sort((left, right) => right.date.localeCompare(left.date));
+  const truncated = logLimit != null && rows.length > logLimit;
+  const visibleRows = logLimit != null ? rows.slice(0, logLimit) : rows;
   return {
     summary: {
-      total: rows.length,
-      retries: rows.reduce((sum, row) => sum + row.retries, 0),
+      total: visibleRows.length,
+      retries: visibleRows.reduce((sum, row) => sum + row.retries, 0),
+      logLimit: logLimit ?? 0,
+      logTruncated: truncated ? 1 : 0,
     },
     delta: EMPTY_DELTA,
     series: [],
-    rows,
+    rows: visibleRows,
     revenueLabel: REVENUE_LABEL.direct,
   };
 }
@@ -4190,9 +4202,12 @@ export async function loadAnalyticsReport(
     case "segments":
       data = await segmentsData(shopId, range);
       break;
-    case "notification-log":
-      data = await notificationLogData(shopId, admin, range, params);
+    case "notification-log": {
+      const plan = await getShopPlan(shopId);
+      const logLimit = planNotificationLogLimit(plan.code);
+      data = await notificationLogData(shopId, admin, range, params, logLimit);
       break;
+    }
     case "usage":
       data = await usageData(shopId, range);
       break;
@@ -4265,5 +4280,16 @@ export async function loadAnalyticsReport(
     pagination: page.pagination,
     revenueLabel: data.revenueLabel,
   };
+  if (slug === "notification-log") {
+    const plan = await getShopPlan(shopId);
+    const logLimit = planNotificationLogLimit(plan.code);
+    response.planGate = {
+      planCode: plan.code,
+      planName: plan.name,
+      logLimit,
+      truncated: Boolean(data.summary.logTruncated),
+      upgradePlanCode: nextPlanForLogUpgrade(plan.code),
+    };
+  }
   return { response, csvRows: allRows };
 }

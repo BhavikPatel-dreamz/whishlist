@@ -113,6 +113,13 @@ type AnalyticsReport = {
   columns: string[];
   pagination: { page: number; pageSize: number; total: number; pageCount: number };
   revenueLabel?: string;
+  planGate?: {
+    planCode: string;
+    planName: string;
+    logLimit: number | null;
+    truncated: boolean;
+    upgradePlanCode: string | null;
+  };
 };
 
 /* ------------------------------------------------------------------ */
@@ -1480,6 +1487,33 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
                 <div className="ca-report-intro">
                   <h2 className="ca-h2">Alert purchases</h2>
                   <p className="ca-mu">Orders that followed a restock alert</p>
+                </div>
+              )}
+              {slug === "notification-log" && (
+                <div className="ca-report-intro">
+                  <h2 className="ca-h2">Notification log</h2>
+                  <p className="ca-mu">
+                    Recent email sends and delivery status.
+                    {report.planGate?.logLimit
+                      ? ` Your ${report.planGate.planName} plan shows the latest ${report.planGate.logLimit} rows.`
+                      : " Full history is included on your plan."}
+                  </p>
+                  {report.planGate?.truncated && report.planGate.upgradePlanCode && (
+                    <p className="ca-mu" style={{ marginTop: 8 }}>
+                      Older sends are hidden on this plan.{" "}
+                      <a href="/app/settings/pricing" target="_top">
+                        Upgrade to{" "}
+                        {report.planGate.upgradePlanCode === "scale"
+                          ? "Scale"
+                          : "Growth"}{" "}
+                        for{" "}
+                        {report.planGate.upgradePlanCode === "scale"
+                          ? "full access"
+                          : "50 recent rows"}
+                        .
+                      </a>
+                    </p>
+                  )}
                 </div>
               )}
               {renderKpis()}

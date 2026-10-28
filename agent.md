@@ -64,6 +64,7 @@ Plan handles should include starter, growth, or scale. Welcome link: `/app/setti
 - Email sends reserve quota before the provider call, consume it only when the provider accepts, and release it on failure. The same alert generation cannot consume twice. A new signup increments `notifyGeneration`.
 - Allowances (UTC day): Starter 30, Growth 250, Scale 1000 on the managed sender. Over quota puts the alert back to pending with “Notification limit reached” and does not call the provider.
 - Starter and Growth cannot save their own email provider; they send through platform Mailgun. Scale (`allowMerchantProvider`) can save Resend, Brevo, SendGrid, Mailgun, or Klaviyo; Scale merchant/custom sends are unlimited and do not count toward the 1000/day cap. Scale without a merchant key also uses platform Mailgun.
+- Notification send log (Analytics → Notification log): Starter last 25 rows, Growth last 50, Scale full access. Successful/failed restock sends write `NotificationLog` rows.
 
 ## Next pending task
 

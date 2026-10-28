@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
   emailCountsTowardQuota,
+  nextPlanForLogUpgrade,
   PLAN_CODES,
+  planNotificationLogLimit,
   selectInForcePlanCode,
 } from "../plan.server";
+
+describe("planNotificationLogLimit", () => {
+  it("caps Starter at 25, Growth at 50, and Scale unrestricted", () => {
+    expect(planNotificationLogLimit(PLAN_CODES.starter)).toBe(25);
+    expect(planNotificationLogLimit(PLAN_CODES.growth)).toBe(50);
+    expect(planNotificationLogLimit(PLAN_CODES.scale)).toBeNull();
+  });
+
+  it("points upgrades Starter→Growth and Growth→Scale", () => {
+    expect(nextPlanForLogUpgrade(PLAN_CODES.starter)).toBe(PLAN_CODES.growth);
+    expect(nextPlanForLogUpgrade(PLAN_CODES.growth)).toBe(PLAN_CODES.scale);
+    expect(nextPlanForLogUpgrade(PLAN_CODES.scale)).toBeNull();
+  });
+});
 
 const now = new Date("2026-10-22T12:00:00.000Z");
 const future = new Date("2026-11-22T12:00:00.000Z");

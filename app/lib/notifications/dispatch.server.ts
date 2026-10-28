@@ -28,6 +28,7 @@ import {
   variantIdsNeedingRetry,
 } from "../../models/stock-alert.server";
 import { consumeNotification, releaseNotification, reserveNotification } from "../billing/usage.server";
+import { recordRestockNotificationLog } from "../../models/notification-log.server";
 import type { Plan } from "@prisma/client";
 
 const SEND_CONCURRENCY = 10;
@@ -317,11 +318,24 @@ async function deliver(
   if (!result.ok) {
     if (reserved) await releaseNotification(alert.id, alert.notifyGeneration);
     await markAlertFailed(alert.id, result.error, alert.attempts);
+    await recordRestockNotificationLog({
+      alert,
+      status: "failed",
+      errorReason: result.error,
+    }).catch((error) => {
+      console.error(`[restock] notification log failed for ${alert.id}:`, error);
+    });
     return "failed";
   }
 
   if (reserved) await consumeNotification(alert.id, alert.notifyGeneration);
   await markAlertSent(alert.id);
+  await recordRestockNotificationLog({
+    alert,
+    status: "sent",
+  }).catch((error) => {
+    console.error(`[restock] notification log failed for ${alert.id}:`, error);
+  });
   return "sent";
 }
 
