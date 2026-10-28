@@ -1,18 +1,7 @@
 /* Classic Analytics — exact replication of the HTML demo UI.
    Light/dark theme via CSS variables, matching the original colour palette. */
 .ca-body {
-  --ca-bg: var(--wl-background, #f1f5f9);
-  --ca-sf: var(--wl-surface, #ffffff);
-  --ca-tx: var(--wl-text, #0f172a);
-  --ca-mu: var(--wl-text-secondary, #64748b);
-  --ca-bd: var(--wl-border, #e2e8f0);
-  --ca-ac: var(--wl-primary, #334155);
-  --ca-ac-hover: var(--wl-primary-variant, #1e293b);
-  --ca-ok: var(--wl-success, #15803d);
-  --ca-bl: var(--wl-info, #2563eb);
-  --ca-am: var(--wl-warning, #b45309);
-  --ca-rd: var(--wl-error, #dc2626);
-  --ca-hv: var(--wl-primary-soft, #e2e8f0);
+  /* Colors from app/styles/theme.css (--ca-* aliases + --wl-*) */
   color-scheme: light;
 }
 .ca-box-sizing {
@@ -83,7 +72,7 @@
 .ca-btn.p {
   background: var(--ca-ac);
   border-color: var(--ca-ac);
-  color: #fff;
+  color: var(--wl-surface);
 }
 .ca-btn.p:hover {
   background: var(--ca-ac-hover, var(--ca-ac));
@@ -138,7 +127,7 @@ label.ca-cb {
 }
 .ca-chip.on {
   background: var(--ca-ac);
-  color: #fff;
+  color: var(--wl-surface);
   border-color: var(--ca-ac);
 }
 .ca-card {
@@ -308,7 +297,7 @@ label.ca-cb {
   border-radius: 6px;
   background: var(--ca-ac);
   min-width: 3px;
-  color: #fff;
+  color: var(--wl-surface);
   font-weight: 600;
   padding: 3px 8px;
   box-sizing: border-box;

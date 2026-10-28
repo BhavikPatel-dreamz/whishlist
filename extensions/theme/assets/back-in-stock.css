@@ -3,13 +3,31 @@
    (Back-in-stock only: notify button + subscription modal.)
    ============================================================ */
 
-/* ---------- CSS Custom Properties ---------- */
+/* ---------- CSS Custom Properties (aligned with app/styles/theme.css) ---------- */
 .back-in-stock,
 #ws-bis-modal {
-  --ws-bg: #ffffff;
-  --ws-text: #1a1a1a;
-  --ws-text-muted: #6b7280;
-  --ws-border: #e5e7eb;
+  --wl-primary: #334155;
+  --wl-primary-variant: #1e293b;
+  --wl-secondary: #38bdf8;
+  --wl-accent: #38bdf8;
+  --wl-background: #f1f5f9;
+  --wl-surface: #ffffff;
+  --wl-text: #0f172a;
+  --wl-text-secondary: #64748b;
+  --wl-border: #e2e8f0;
+  --wl-border-strong: #cbd5e1;
+  --wl-success: #15803d;
+  --wl-error: #dc2626;
+  --wl-info: #2563eb;
+  --wl-primary-soft: #e2e8f0;
+  --wl-accent-soft: #e0f2fe;
+  --wl-error-soft: #fee2e2;
+  --wl-info-soft: #dbeafe;
+
+  --ws-bg: var(--wl-surface);
+  --ws-text: var(--wl-text);
+  --ws-text-muted: var(--wl-text-secondary);
+  --ws-border: var(--wl-border);
   --ws-radius: 8px;
   --ws-transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: var(--ws-font-family, inherit);
@@ -108,7 +126,7 @@ html[data-ws-bis-disabled] :is(.back-in-stock, #ws-bis-modal) {
   font-size: var(--ws-bis-font-size, 14px);
   cursor: pointer;
 }
-.ws-bis-inline-feedback { margin: 0; color: #b42318; font-size: 13px; }
+.ws-bis-inline-feedback { margin: 0; color: var(--wl-error); font-size: 13px; }
 .ws-bis-inline-feedback.is-success {
   color: var(--ws-bis-confirm-text, #187a60);
   background: var(--ws-bis-confirm-bg, transparent);
@@ -186,7 +204,7 @@ html[data-ws-bis-disabled] :is(.back-in-stock, #ws-bis-modal) {
   border: none;
   cursor: pointer;
   padding: 0;
-  color: #111111;
+  color: var(--wl-text);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -217,7 +235,7 @@ html[data-ws-bis-disabled] :is(.back-in-stock, #ws-bis-modal) {
   padding: 5px 8px 10px;
   border: 0;
   background: transparent;
-  color: #111111;
+  color: var(--wl-text);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
@@ -233,12 +251,12 @@ html[data-ws-bis-disabled] :is(.back-in-stock, #ws-bis-modal) {
   content: '';
 }
 
-.ws-modal__tab.is-active::after { background: #111111; }
+.ws-modal__tab.is-active::after { background: var(--wl-text); }
 
 .ws-modal__body .ws-modal__intro,
 .ws-modal__body .ws-modal__disclaimer {
   font-size: 14px;
-  color: #111111;
+  color: var(--wl-text);
   font-style: italic;
   line-height: 1.4;
 }
@@ -309,7 +327,7 @@ html[data-ws-bis-disabled] :is(.back-in-stock, #ws-bis-modal) {
 
 #ws-bis-modal .ws-btn--primary {
   background: var(--ws-bis-primary);
-  color: #fff;
+  color: var(--wl-surface);
   border-color: var(--ws-bis-primary);
 }
 
@@ -317,20 +335,20 @@ html[data-ws-bis-disabled] :is(.back-in-stock, #ws-bis-modal) {
 #ws-bis-modal .ws-btn--primary:active,
 #ws-bis-modal .ws-btn--primary:disabled:hover {
   background: var(--ws-bis-primary);
-  color: #fff;
+  color: var(--wl-surface);
   border-color: var(--ws-bis-primary);
   opacity: 1;
   filter: none;
 }
 
 #ws-bis-modal .ws-btn--danger {
-  color: #dc2626;
+  color: var(--wl-error);
   border-color: #fca5a5;
 }
 
 #ws-bis-modal .ws-btn--danger:hover {
   background: #fef2f2;
-  border-color: #dc2626;
+  border-color: var(--wl-error);
 }
 
 #ws-bis-modal .ws-btn--small {
@@ -341,10 +359,10 @@ html[data-ws-bis-disabled] :is(.back-in-stock, #ws-bis-modal) {
 .ws-modal__submit {
   min-height: 34px;
   padding: 6px 9px !important;
-  border-color: #000000 !important;
+  border-color: var(--wl-text) !important;
   border-radius: 0 3px 3px 0 !important;
-  background: #000000 !important;
-  color: #ffffff !important;
+  background: var(--wl-text) !important;
+  color: var(--wl-surface) !important;
   font-size: 12px !important;
   font-weight: 500 !important;
 }

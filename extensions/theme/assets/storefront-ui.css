@@ -1,3 +1,15 @@
+/* Theme tokens (aligned with app/styles/theme.css) */
+:root {
+  --wl-primary: #334155;
+  --wl-primary-variant: #1e293b;
+  --wl-secondary: #38bdf8;
+  --wl-surface: #ffffff;
+  --wl-text: #0f172a;
+  --wl-text-secondary: #64748b;
+  --wl-border: #e2e8f0;
+  --wl-background: #f1f5f9;
+}
+
 .ws-variant-selector {
   box-sizing: border-box;
   width: min(460px, calc(100vw - 32px));
@@ -7,12 +19,12 @@
   padding: 28px;
   border: 0;
   border-radius: var(--ws-radius, 12px);
-  background: var(--ws-variant-bg, #fff);
-  color: var(--ws-variant-heading, #000);
+  background: var(--ws-variant-bg, var(--wl-surface));
+  color: var(--ws-variant-heading, var(--wl-text));
   font-family: inherit;
   font-size: var(--ws-variant-primary-size, 14px);
   line-height: 1.5;
-  box-shadow: 0 24px 80px rgb(0 0 0 / 22%);
+  box-shadow: 0 24px 80px rgb(15 23 42 / 22%);
 }
 
 .ws-variant-selector:not([open]) {
@@ -54,7 +66,7 @@
   width: 88px;
   height: 88px;
   object-fit: contain;
-  background: #fff;
+  background: var(--wl-surface);
   border-radius: 6px;
   flex-shrink: 0;
 }

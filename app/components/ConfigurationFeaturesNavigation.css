@@ -41,7 +41,7 @@ button.wl-configuration-row {
 }
 a.wl-configuration-row:hover,
 button.wl-configuration-row:hover {
-  background: #f7f7f7;
+  background: var(--wl-background);
 }
 .wl-configuration-row:focus-visible {
   outline: 2px solid var(--wl-accent);
@@ -49,7 +49,7 @@ button.wl-configuration-row:hover {
 }
 .wl-configuration-row > svg {
   flex-shrink: 0;
-  color: #616161;
+  color: var(--wl-text-secondary);
 }
 .wl-configuration-row > span:nth-child(2) {
   display: flex;
@@ -80,9 +80,9 @@ button.wl-configuration-row:hover {
   width: 42px;
   height: 24px;
   padding: 2px;
-  border: 1px solid #aeb6b4;
+  border: 1px solid var(--wl-border-strong);
   border-radius: 999px;
-  background: #e7eae9;
+  background: var(--wl-primary-soft);
   cursor: pointer;
   transition: background-color 160ms ease, border-color 160ms ease;
 }
@@ -91,13 +91,13 @@ button.wl-configuration-row:hover {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px #0002;
+  background: var(--wl-surface);
+  box-shadow: 0 1px 3px rgba(15,23,42,0.13);
   transition: transform 160ms ease;
 }
 .wl-feature-switch.is-on {
-  border-color: #008060;
-  background: #008060;
+  border-color: var(--wl-primary);
+  background: var(--wl-primary);
 }
 .wl-feature-switch.is-on > span {
   transform: translateX(18px);
@@ -111,10 +111,10 @@ button.wl-configuration-row:hover {
   outline-offset: 3px;
 }
 .wl-configuration-coming-soon {
-  background: #f1f1f1;
+  background: var(--wl-background);
   padding: 3px 7px;
   border-radius: 5px;
-  color: #616161;
+  color: var(--wl-text-secondary);
   font-size: 11px;
   white-space: nowrap;
 }

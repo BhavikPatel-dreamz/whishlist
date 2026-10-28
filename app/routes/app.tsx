@@ -4,6 +4,7 @@ import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
+import themeStyles from "../styles/theme.css?url";
 import dashboardStyles from "../components/DashboardHome.css?url";
 import dashboardHelpStyles from "../components/DashboardHelp.css?url";
 import analyticsMetricsStyles from "../components/AnalyticsMetrics.css?url";
@@ -14,6 +15,7 @@ import { syncShopSubscription, recordPlanHandle } from "../lib/billing/sync-subs
 
 export const links = () => [
   { rel: "stylesheet", href: polarisStyles },
+  { rel: "stylesheet", href: themeStyles },
   { rel: "stylesheet", href: dashboardStyles },
   { rel: "stylesheet", href: dashboardHelpStyles },
   { rel: "stylesheet", href: analyticsMetricsStyles },

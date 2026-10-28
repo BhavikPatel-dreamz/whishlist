@@ -212,7 +212,7 @@
 
 .ws-bis-btn-primary {
   background: var(--wl-primary, #334155);
-  color: #fff;
+  color: var(--wl-surface);
 }
 
 .ws-bis-btn-primary:hover {

@@ -24,7 +24,7 @@
 .text {
   font-size: 1.15rem;
   padding-bottom: 1rem;
-  color: #4a4f54;
+  color: var(--wl-text-secondary);
   line-height: 1.6;
   max-width: 34rem;
 }
@@ -38,12 +38,12 @@
 .badge {
   display: inline-block;
   padding: 0.25rem 0.75rem;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  background: var(--wl-background);
+  border: 1px solid var(--wl-border);
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 500;
-  color: #475569;
+  color: var(--wl-text-secondary);
   letter-spacing: 0.02em;
   justify-self: center;
 }
@@ -66,7 +66,7 @@
 
 .input {
   padding: 0.55rem 0.75rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--wl-border-strong);
   border-radius: 8px;
   font-size: 0.95rem;
   outline: none;
@@ -74,19 +74,19 @@
 }
 
 .input:focus {
-  border-color: #6366f1;
+  border-color: var(--wl-info);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
 .hint {
   font-size: 0.8rem;
-  color: #9ca3af;
+  color: var(--wl-text-disabled);
 }
 
 .button {
   padding: 0.55rem 1.5rem;
-  background: #1a1a1a;
-  color: #fff;
+  background: var(--wl-text);
+  color: var(--wl-surface);
   border: none;
   border-radius: 8px;
   font-size: 0.95rem;
@@ -96,7 +96,7 @@
 }
 
 .button:hover {
-  background: #333;
+  background: var(--wl-primary);
 }
 
 .features {
@@ -108,8 +108,8 @@
 }
 
 .feature {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--wl-surface-muted);
+  border: 1px solid var(--wl-border);
   border-radius: 12px;
   padding: 1.25rem;
 }
@@ -117,14 +117,14 @@
 .featureIcon {
   width: 40px;
   height: 40px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--wl-surface);
+  border: 1px solid var(--wl-border);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 0.75rem;
-  color: #6366f1;
+  color: var(--wl-info);
 }
 
 .feature h3 {
@@ -137,7 +137,7 @@
   margin: 0;
   font-size: 0.875rem;
   line-height: 1.5;
-  color: #6b7280;
+  color: var(--wl-text-secondary);
 }
 
 .list {

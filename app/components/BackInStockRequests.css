@@ -2,11 +2,11 @@
 
 .ws-bisr-card {
   margin-top: 16px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--wl-border);
   border-radius: 12px;
   overflow: hidden;
   background: white;
-  box-shadow: 0 1px 0 #0000000a;
+  box-shadow: 0 1px 0 rgba(15,23,42,0.04);
 }
 
 .ws-bisr-heading {
@@ -17,23 +17,23 @@
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: #202223;
+  color: var(--wl-text);
 }
 
 .ws-bisr-heading p {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #6d7175;
+  color: var(--wl-text-secondary);
 }
 
 .ws-bisr-note {
   margin: 10px 16px 0;
   font-size: 12px;
-  color: #303030;
+  color: var(--wl-text);
 }
 
 .ws-bisr-note.is-error {
-  color: #8a1f0d;
+  color: var(--wl-error);
 }
 
 .ws-bisr-toolbar {
@@ -43,7 +43,7 @@
   gap: 12px;
   flex-wrap: wrap;
   padding: 12px 14px;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--wl-border);
 }
 
 .ws-bisr-filters {
@@ -58,9 +58,9 @@
   font: inherit;
   font-size: 12px;
   background: white;
-  color: #303030;
+  color: var(--wl-text);
   padding: 5px 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--wl-border-strong);
   border-radius: 6px;
   min-height: 28px;
 }
@@ -80,13 +80,13 @@
   flex-wrap: wrap;
   gap: 16px;
   padding: 10px 16px;
-  border-bottom: 1px solid #e5e5e5;
-  color: #6d7175;
+  border-bottom: 1px solid var(--wl-border);
+  color: var(--wl-text-secondary);
   font-size: 12px;
 }
 
 .ws-bisr-summary strong {
-  color: #303030;
+  color: var(--wl-text);
   font-weight: 600;
 }
 
@@ -106,14 +106,14 @@
 .ws-bisr-table td {
   padding: 10px 20px;
   text-align: left;
-  border-top: 1px solid #e5e5e5;
+  border-top: 1px solid var(--wl-border);
   vertical-align: middle;
 }
 
 .ws-bisr-table th {
   border-top: 0;
-  background: #f7f7f7;
-  color: #616161;
+  background: var(--wl-background);
+  color: var(--wl-text-secondary);
   font-size: 11px;
   font-weight: 400;
   white-space: nowrap;
@@ -145,7 +145,7 @@
 }
 
 .ws-bisr-table tbody tr:hover {
-  background: #fafafa;
+  background: var(--wl-surface-muted);
 }
 
 .ws-bisr-customer--list {
@@ -163,7 +163,7 @@
 .ws-bisr-customer--list strong {
   display: block;
   overflow: hidden;
-  color: #303030;
+  color: var(--wl-text);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.4;
@@ -177,10 +177,10 @@
   height: 42px;
   flex: 0 0 42px;
   place-items: center;
-  border: 1px solid #e3e5e7;
+  border: 1px solid var(--wl-border);
   border-radius: 7px;
-  background: #f6f6f7;
-  color: #58616a;
+  background: var(--wl-background);
+  color: var(--wl-text-secondary);
   font-size: 14px;
   font-weight: 700;
 }
@@ -201,7 +201,7 @@
 }
 
 .ws-bisr-muted {
-  color: #6d7175;
+  color: var(--wl-text-secondary);
 }
 
 .ws-bisr-channel {
@@ -229,17 +229,17 @@
   width: 40px;
   height: 40px;
   flex: 0 0 40px;
-  border: 1px solid #e5e7e9;
+  border: 1px solid var(--wl-border);
   border-radius: 7px;
-  background: #fff;
+  background: var(--wl-surface);
   object-fit: contain;
 }
 
 .ws-bisr-product-image--empty {
   display: grid;
   place-items: center;
-  background: #f6f6f7;
-  color: #6d7175;
+  background: var(--wl-background);
+  color: var(--wl-text-secondary);
   font-size: 18px;
 }
 
@@ -254,14 +254,14 @@
 .ws-bisr-product-title {
   overflow: hidden;
   font-weight: 500;
-  color: #202223;
+  color: var(--wl-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .ws-bisr-product-variant {
   font-size: 11px;
-  color: #6d7175;
+  color: var(--wl-text-secondary);
 }
 
 .ws-bisr-status-list {
@@ -288,28 +288,28 @@
 }
 
 .ws-bisr-status.is-pending {
-  background: #e4e5e7;
-  color: #303030;
+  background: var(--wl-primary-soft);
+  color: var(--wl-text);
 }
 
 .ws-bisr-status.is-sending {
-  background: #ffd6a4;
-  color: #5c3b00;
+  background: var(--wl-warning-soft);
+  color: var(--wl-warning);
 }
 
 .ws-bisr-status.is-sent {
-  background: #cdfee1;
-  color: #0c5132;
+  background: var(--wl-success-soft);
+  color: var(--wl-success);
 }
 
 .ws-bisr-status.is-failed {
-  background: #fed3d1;
-  color: #8a1f0d;
+  background: var(--wl-error-soft);
+  color: var(--wl-error);
 }
 
 .ws-bisr-status.is-cancelled {
-  background: #f1f1f1;
-  color: #6d7175;
+  background: var(--wl-background);
+  color: var(--wl-text-secondary);
 }
 
 .ws-bisr-link {
@@ -318,7 +318,7 @@
   background: none;
   font: inherit;
   font-size: 11px;
-  color: #2c6ecb;
+  color: var(--wl-info);
   cursor: pointer;
   text-align: left;
 }
@@ -332,7 +332,7 @@
   padding: 24px 16px;
   text-align: center;
   font-size: 12px;
-  color: #6d7175;
+  color: var(--wl-text-secondary);
 }
 
 @media (max-width: 760px) {

@@ -8,7 +8,7 @@ font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text
 .pd-back:focus-visible,.pd-kpi:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 
 .pd-head{display:flex;gap:12px;align-items:center}
-.pd-thumb{width:44px;height:44px;border-radius:8px;border:1px solid var(--line);background:#fff;object-fit:cover;display:grid;place-items:center;flex:none}
+.pd-thumb{width:44px;height:44px;border-radius:8px;border:1px solid var(--line);background:var(--wl-surface);object-fit:cover;display:grid;place-items:center;flex:none}
 .pd-customer-mark{font-size:17px;font-weight:700;color:var(--green);background:var(--green-bg)}
 .pd-head h1{margin:0;font-size:18px;font-weight:600;line-height:1.3}
 .pd-sub{margin:2px 0 0;color:var(--mute);font-size:12.5px}
@@ -16,11 +16,11 @@ font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text
 .pd-meta a{color:var(--blue);font-weight:600;text-decoration:none}
 .pd-meta a:hover{text-decoration:underline}
 
-.pd-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--mute)}
-.pd-badge--g{color:var(--green);border-color:#a9d6c7;background:var(--green-bg)}
-.pd-badge--r{color:var(--red);border-color:#efbcb7;background:var(--red-bg)}
-.pd-badge--a{color:var(--amber);border-color:#f0d49c;background:var(--amber-bg)}
-.pd-badge--b{color:var(--blue);border-color:#bcd2f0;background:#eaf1fb}
+.pd-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:var(--wl-surface);color:var(--mute)}
+.pd-badge--g{color:var(--green);border-color:var(--wl-success-soft);background:var(--green-bg)}
+.pd-badge--r{color:var(--red);border-color:var(--wl-error-soft);background:var(--red-bg)}
+.pd-badge--a{color:var(--amber);border-color:var(--wl-warning-soft);background:var(--amber-bg)}
+.pd-badge--b{color:var(--blue);border-color:var(--wl-info-soft);background:var(--wl-info-soft)}
 
 /* KPI cards */
 .pd-kpis{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
@@ -50,7 +50,7 @@ font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text
 .pd-tw{overflow-x:auto}
 .pd-pagination{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:640px;padding:10px 8px;color:var(--mute);font-size:12px}
 .pd-pagination span:first-child{margin-right:auto}
-.pd-pagination button{padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--text);font:inherit;cursor:pointer}
+.pd-pagination button{padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--wl-surface);color:var(--text);font:inherit;cursor:pointer}
 .pd-pagination button:disabled{opacity:.45;cursor:default}
 .pd-pagination button:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .pd-table{width:100%;border-collapse:collapse;min-width:640px}

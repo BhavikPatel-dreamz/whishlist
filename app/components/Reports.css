@@ -1,6 +1,6 @@
 .ws-reports {
   padding: 12px 18px 28px;
-  color: #303030;
+  color: var(--wl-text);
 }
 .ws-overview-sections {
   display: flex;
@@ -9,9 +9,9 @@
 }
 .ws-overview-section {
   padding: 18px;
-  border: 1px solid #e8eaed;
+  border: 1px solid var(--wl-border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--wl-surface);
   box-shadow: 0 1px 3px rgba(20, 20, 40, 0.05);
 }
 .ws-overview-section h2 {
@@ -69,12 +69,12 @@
   justify-content: center;
   gap: 2px;
   padding: 16px 46px 16px 18px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--wl-border);
   border-left: 4px solid var(--ov-accent, #d8dce2);
   border-radius: 12px;
   background:
     radial-gradient(circle at 115% -25%, var(--ov-accent-soft, transparent), transparent 60%),
-    #fff;
+    var(--wl-surface);
   box-shadow: 0 1px 3px rgba(20, 20, 40, 0.06);
   color: inherit;
   text-decoration: none;
@@ -91,7 +91,7 @@
 }
 .ws-overview-card-label {
   overflow: hidden;
-  color: #4a5568;
+  color: var(--wl-text-secondary);
   font-size: 12.5px;
   font-weight: 550;
   line-height: 1.4;
@@ -108,7 +108,7 @@
 }
 .ws-overview-card-delta {
   margin-top: 6px;
-  color: #687078;
+  color: var(--wl-text-secondary);
   font-size: 11px;
   line-height: 1.35;
   font-variant-numeric: tabular-nums;
@@ -117,11 +117,11 @@
   color: var(--wl-success, #15803d);
 }
 .ws-overview-card-delta[data-trend="down"] {
-  color: #b42318;
+  color: var(--wl-error);
 }
 .ws-overview-compare-note {
   margin: 0;
-  color: #626a72;
+  color: var(--wl-text-secondary);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -168,13 +168,13 @@
 .ws-reports-tabs a,
 .ws-reports-tabs > span {
   padding: 6px 11px;
-  color: #303030;
+  color: var(--wl-text);
   text-decoration: none;
   font-size: 12px;
   border-radius: 8px;
 }
 .ws-reports-tabs [aria-current="page"] {
-  background: #dedede;
+  background: var(--wl-border);
   font-weight: 550;
 }
 .ws-reports-heading {
@@ -192,7 +192,7 @@
 }
 .ws-reports-heading p {
   font-size: 13px;
-  color: #616161;
+  color: var(--wl-text-secondary);
   margin: 2px 0 0;
 }
 .ws-reports-actions {
@@ -204,9 +204,9 @@
 }
 .ws-reports-button,
 .ws-reports-dates summary {
-  border: 1px solid #ccc;
+  border: 1px solid var(--wl-border-strong);
   background: white;
-  color: #303030;
+  color: var(--wl-text);
   font: inherit;
   font-size: 12px;
   border-radius: 7px;
@@ -215,7 +215,7 @@
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
-  box-shadow: 0 1px 1px #00000008;
+  box-shadow: 0 1px 1px rgba(15,23,42,0.03);
 }
 .ws-reports-button:disabled {
   opacity: 0.45;
@@ -233,7 +233,7 @@
   gap: 5px;
   min-height: 26px;
   padding: 3px 8px;
-  border-color: #e3e3e3;
+  border-color: var(--wl-border);
   border-radius: 8px;
   font-size: 11px;
   font-weight: 500;
@@ -253,13 +253,13 @@
   height: 14px;
   flex-shrink: 0;
   fill: none;
-  stroke: #4a4a4a;
+  stroke: var(--wl-text-secondary);
   stroke-width: 1.4;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 .ws-reports-dates summary:hover {
-  background: #f7f7f7;
+  background: var(--wl-background);
 }
 .ws-reports-dates form {
   position: absolute;
@@ -271,7 +271,7 @@
   display: grid;
   gap: 12px;
   padding: 14px 14px 12px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--wl-border-strong);
   background: white;
   border-radius: 12px;
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.1);
@@ -300,7 +300,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #303030;
+  color: var(--wl-text);
   font-size: 12px;
 }
 .ws-reports-dates .ws-reports-compare-toggle input {
@@ -314,18 +314,18 @@
   font: inherit;
   font-size: 12px;
   background: white;
-  color: #303030;
+  color: var(--wl-text);
   padding: 5px 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--wl-border-strong);
   border-radius: 6px;
   min-height: 28px;
 }
 .ws-reports-card {
-  border: 1px solid #ddd;
+  border: 1px solid var(--wl-border);
   border-radius: 12px;
   overflow: hidden;
   background: white;
-  box-shadow: 0 1px 0 #0000000a;
+  box-shadow: 0 1px 0 rgba(15,23,42,0.04);
 }
 .ws-reports-toolbar {
   display: flex;
@@ -333,12 +333,12 @@
   justify-content: space-between;
   gap: 12px;
   padding: 7px 10px;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--wl-border);
 }
 .ws-reports-toolbar > span {
   padding: 5px 12px;
   border-radius: 7px;
-  background: #eee;
+  background: var(--wl-border);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -358,24 +358,24 @@
 }
 .ws-reports-table-scroll th {
   padding: 10px 16px;
-  background: #f7f7f7;
+  background: var(--wl-background);
   font-weight: 400;
-  color: #616161;
+  color: var(--wl-text-secondary);
   font-size: 11px;
   white-space: nowrap;
 }
 .ws-reports-table-scroll td {
   padding: 8px 16px;
   height: 52px;
-  border-top: 1px solid #e5e5e5;
+  border-top: 1px solid var(--wl-border);
   min-width: 100px;
 }
 .ws-reports-table-scroll tbody tr:hover {
-  background: #fafafa;
+  background: var(--wl-surface-muted);
 }
 .ws-reports-table-scroll td img {
   object-fit: contain;
-  border: 1px solid #eee;
+  border: 1px solid var(--wl-border);
   border-radius: 7px;
   display: block;
   margin: auto;
@@ -393,7 +393,7 @@
   outline-offset: 2px;
 }
 .ws-reports-image-link:hover img {
-  border-color: #8c9196;
+  border-color: var(--wl-text-disabled);
 }
 .ws-reports-no-image {
   display: grid;
@@ -401,10 +401,10 @@
   height: 40px;
   place-items: center;
   margin: auto;
-  border: 1px dashed #c9cccf;
+  border: 1px dashed var(--wl-border-strong);
   border-radius: 7px;
-  background: #f6f6f7;
-  color: #6d7175;
+  background: var(--wl-background);
+  color: var(--wl-text-secondary);
   font-size: 20px;
 }
 .ws-stock-table {
@@ -438,8 +438,8 @@
   width: 60px;
   height: 60px;
   object-fit: contain;
-  border-color: #e5e7e9;
-  background: #fff;
+  border-color: var(--wl-border);
+  background: var(--wl-surface);
 }
 .ws-stock-table .ws-reports-image-link,
 .ws-stock-table .ws-reports-no-image {
@@ -455,19 +455,19 @@
   min-width: 0;
 }
 .ws-stock-product strong {
-  color: #303030;
+  color: var(--wl-text);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.4;
 }
 .ws-stock-inventory {
-  color: #303030;
+  color: var(--wl-text);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
 }
 .ws-stock-variant {
-  color: #616161;
+  color: var(--wl-text-secondary);
   font-size: 13px;
   line-height: 1.4;
 }
@@ -482,34 +482,34 @@
   font-weight: 600;
 }
 .ws-stock-status.is-in-stock {
-  background: #eaf5ed;
-  color: #23683a;
+  background: var(--wl-success-soft);
+  color: var(--wl-success);
 }
 .ws-stock-status.is-low-stock {
-  background: #fff3d7;
-  color: #825b00;
+  background: var(--wl-warning-soft);
+  color: var(--wl-warning);
 }
 .ws-stock-status.is-out-of-stock {
-  background: #fdebea;
-  color: #a3312a;
+  background: var(--wl-error-soft);
+  color: var(--wl-error);
 }
 .ws-stock-summary {
   margin: 0 0 18px;
 }
 .ws-stock-summary .ws-overview-card[aria-current="page"] {
-  box-shadow: 0 0 0 2px #303030, 0 2px 4px #00000012;
+  box-shadow: 0 0 0 2px var(--wl-text), 0 2px 4px rgba(15,23,42,0.07);
 }
 .ws-stock-summary .ws-overview-card:nth-child(1) {
-  border-left-color: #8c9196;
+  border-left-color: var(--wl-text-disabled);
 }
 .ws-stock-summary .ws-overview-card:nth-child(2) {
   border-left-color: var(--wl-success, #15803d);
 }
 .ws-stock-summary .ws-overview-card:nth-child(3) {
-  border-left-color: #b98900;
+  border-left-color: var(--wl-warning);
 }
 .ws-stock-summary .ws-overview-card:nth-child(4) {
-  border-left-color: #b42318;
+  border-left-color: var(--wl-error);
 }
 .ws-reports-empty {
   min-height: 385px;
@@ -533,9 +533,9 @@
   margin: 0 0 16px;
 }
 .ws-reports-primary {
-  background: #333;
+  background: var(--wl-primary);
   color: white;
-  border-color: #222;
+  border-color: var(--wl-text);
 }
 .ws-reports-pagination {
   display: flex;
@@ -548,17 +548,17 @@
 .ws-reports-pagination a,
 .ws-reports-pagination [aria-disabled] {
   padding: 3px 9px;
-  background: #e6e6e6;
+  background: var(--wl-border);
   border-radius: 4px;
   font-size: 18px;
   text-decoration: none;
-  color: #333;
+  color: var(--wl-primary);
 }
 .ws-reports-pagination [aria-disabled] {
   opacity: 0.35;
 }
 .ws-reports-note {
-  color: #717171;
+  color: var(--wl-text-secondary);
   font-size: 12px;
   line-height: 1.5;
   margin-top: 14px;
@@ -600,9 +600,9 @@
 .ws-chart-card {
   margin: 0;
   padding: 14px 15px 15px;
-  border: 1px solid #e8eaed;
+  border: 1px solid var(--wl-border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--wl-surface);
   box-shadow: 0 1px 3px rgba(20, 20, 40, 0.05);
   min-width: 0;
 }
@@ -617,12 +617,12 @@
 .ws-chart-card .ws-chart-card-head strong {
   font-size: 12px;
   font-weight: 650;
-  color: #202a38;
+  color: var(--wl-text);
 }
 .ws-chart-card figcaption span,
 .ws-chart-card .ws-chart-card-head span {
   font-size: 11px;
-  color: #6b7684;
+  color: var(--wl-text-secondary);
 }
 
 /* ---------- Bar series ---------- */
@@ -649,7 +649,7 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
 .ws-chart-bar-label {
   overflow: hidden;
   font-size: 11px;
-  color: #34435a;
+  color: var(--wl-text);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -657,7 +657,7 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
   display: block;
   height: 10px;
   border-radius: 999px;
-  background: #eef0f2;
+  background: var(--wl-primary-soft);
   overflow: hidden;
 }
 .ws-chart-bar-fill {
@@ -667,18 +667,18 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
   background: linear-gradient(90deg, var(--wl-primary, #334155), var(--wl-secondary, #38bdf8));
   transition: width 240ms ease;
 }
-.ws-chart-bars li:nth-child(2) .ws-chart-bar-fill { background: linear-gradient(90deg, #438fc4, #80bce1); }
-.ws-chart-bars li:nth-child(3) .ws-chart-bar-fill { background: linear-gradient(90deg, #d8a33d, #f0cc72); }
-.ws-chart-bars li:nth-child(4) .ws-chart-bar-fill { background: linear-gradient(90deg, #d7755d, #efa58e); }
-.ws-chart-bars li:nth-child(5) .ws-chart-bar-fill { background: linear-gradient(90deg, #7f9a58, #b0c984); }
+.ws-chart-bars li:nth-child(2) .ws-chart-bar-fill { background: linear-gradient(90deg, var(--wl-info), var(--wl-accent)); }
+.ws-chart-bars li:nth-child(3) .ws-chart-bar-fill { background: linear-gradient(90deg, var(--wl-warning), var(--wl-warning-soft)); }
+.ws-chart-bars li:nth-child(4) .ws-chart-bar-fill { background: linear-gradient(90deg, var(--wl-error), var(--wl-error-soft)); }
+.ws-chart-bars li:nth-child(5) .ws-chart-bar-fill { background: linear-gradient(90deg, var(--wl-chart-5), var(--wl-chart-5)); }
 .ws-chart-bar-track-accent .ws-chart-bar-fill {
-  background: linear-gradient(90deg, #d7755d, #efa58e);
+  background: linear-gradient(90deg, var(--wl-error), var(--wl-error-soft));
 }
 .ws-chart-bar-value {
   text-align: right;
   font-size: 12px;
   font-weight: 650;
-  color: #202a38;
+  color: var(--wl-text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -704,7 +704,7 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
 }
 .ws-donut-track {
   fill: none;
-  stroke: #eef0f2;
+  stroke: var(--wl-primary-soft);
   stroke-width: 9;
 }
 .ws-donut-value {
@@ -714,7 +714,7 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
   stroke-width: 9;
 }
 .ws-chart-donut:nth-child(2) .ws-donut-value {
-  stroke: #438fc4;
+  stroke: var(--wl-info);
 }
 .ws-donut-segment {
   fill: none;
@@ -727,16 +727,16 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
 }
 .ws-donut-segment.ws-tone-warn,
 .ws-chart-swatch.ws-tone-warn {
-  stroke: #d9a441;
-  background: #d9a441;
+  stroke: var(--wl-warning);
+  background: var(--wl-warning);
 }
 .ws-donut-segment.ws-tone-bad,
 .ws-chart-swatch.ws-tone-bad {
-  stroke: #c4553f;
-  background: #c4553f;
+  stroke: var(--wl-error);
+  background: var(--wl-error);
 }
 .ws-donut-text {
-  fill: #202a38;
+  fill: var(--wl-text);
   font-size: 15px;
   font-weight: 650;
 }
@@ -749,11 +749,11 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
 .ws-chart-donut figcaption strong {
   font-size: 12px;
   font-weight: 650;
-  color: #202a38;
+  color: var(--wl-text);
 }
 .ws-chart-donut figcaption span {
   font-size: 11px;
-  color: #6b7684;
+  color: var(--wl-text-secondary);
 }
 
 /* ---------- Legend (inventory donut) ---------- */
@@ -771,7 +771,7 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: #34435a;
+  color: var(--wl-text);
 }
 .ws-chart-swatch {
   width: 10px;
@@ -788,7 +788,7 @@ a.ws-chart-bar:hover .ws-chart-bar-label {
 }
 .ws-chart-legend-value {
   font-weight: 650;
-  color: #202a38;
+  color: var(--wl-text);
   font-variant-numeric: tabular-nums;
 }
 

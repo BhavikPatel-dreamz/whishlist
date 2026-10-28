@@ -6,10 +6,10 @@
 
 .ws-metrics {
   padding: 18px 22px 12px;
-  background: #f3f3f3;
-  border: 1px solid #e5e5e5;
+  background: var(--wl-background);
+  border: 1px solid var(--wl-border);
   border-radius: 14px;
-  color: #303030;
+  color: var(--wl-text);
 }
 
 /* ---------- Header ---------- */
@@ -31,13 +31,13 @@
   font-size: 18px;
   font-weight: 700;
   line-height: 1.2;
-  color: #2f2f2f;
+  color: var(--wl-text);
 }
 
 .ws-metrics .ws-metrics-heading p,
 .ws-metrics .ws-metrics-column > p {
   margin: 0;
-  color: #6b6b6b;
+  color: var(--wl-text-secondary);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -45,10 +45,10 @@
 .ws-metrics .ws-metrics-error {
   margin: 0 0 14px;
   padding: 8px 12px;
-  border: 1px solid #f0c4bb;
+  border: 1px solid var(--wl-error-soft);
   border-radius: 8px;
-  background: #fdf1ee;
-  color: #b83c25;
+  background: var(--wl-error-soft);
+  color: var(--wl-error);
   font-size: 12px;
 }
 
@@ -59,7 +59,7 @@
   flex-wrap: wrap;
   gap: 8px;
   padding: 5px 10px;
-  border: 1px solid #d5d5d5;
+  border: 1px solid var(--wl-border-strong);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.8);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
@@ -70,13 +70,13 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #4a4a4a;
+  color: var(--wl-text-secondary);
 }
 
 .ws-metrics .ws-metrics-filter input {
   border: none;
   background: transparent;
-  color: #2f2f2f;
+  color: var(--wl-text);
   font: inherit;
   min-height: 24px;
   padding: 0;
@@ -93,7 +93,7 @@
   border: none;
   border-radius: 999px;
   background: var(--wl-primary, #334155);
-  color: #fff;
+  color: var(--wl-surface);
   font: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -124,8 +124,8 @@
 .ws-metrics .ws-metrics-columns {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  background: #fff;
-  border: 1px solid #e1e1e1;
+  background: var(--wl-surface);
+  border: 1px solid var(--wl-border);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   border-radius: 12px;
   overflow: hidden;
@@ -136,11 +136,11 @@
   flex-direction: column;
   padding: 18px 16px 12px;
   min-width: 0;
-  background: #fff;
+  background: var(--wl-surface);
 }
 
 .ws-metrics .ws-metrics-column + .ws-metrics-column {
-  border-left: 1px solid #ececec;
+  border-left: 1px solid var(--wl-border);
 }
 
 .ws-metrics .ws-metrics-column h3 {
@@ -148,7 +148,7 @@
   font-size: 14px;
   font-weight: 700;
   line-height: 1.4;
-  color: #2c2c2c;
+  color: var(--wl-text);
 }
 
 /* ---------- Product / shopper lists ---------- */
@@ -159,7 +159,7 @@
   padding: 0 8px 0 0;
   margin: 16px 0 10px;
   scrollbar-width: thin;
-  scrollbar-color: #cfcfcf transparent;
+  scrollbar-color: var(--wl-border-strong) transparent;
 }
 
 .ws-metrics .ws-metrics-list li {
@@ -167,7 +167,7 @@
   align-items: center;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px dashed #e6e6e6;
+  border-bottom: 1px dashed var(--wl-border);
   font-size: 12px;
 }
 
@@ -186,20 +186,20 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   font-size: 13px;
-  color: #2d2d2d;
+  color: var(--wl-text);
 }
 
 .ws-metrics .ws-metrics-list li > div > span {
   display: block;
   margin-top: 4px;
-  color: #777;
+  color: var(--wl-text-secondary);
   line-height: 1.4;
 }
 
 .ws-metrics .ws-metrics-list .ws-metrics-empty {
   justify-content: center;
   padding: 40px 0;
-  color: #8a8a8a;
+  color: var(--wl-text-disabled);
   text-align: center;
   border-bottom: none;
 }
@@ -210,7 +210,7 @@
   width: 34px;
   height: 34px;
   border-radius: 4px;
-  background: #f5f5f5;
+  background: var(--wl-background);
 }
 
 .ws-metrics .ws-metrics-avatar,
@@ -221,8 +221,8 @@
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background: #f4ebba;
-  color: #6a5b19;
+  background: var(--wl-warning-soft);
+  color: var(--wl-warning);
   font-size: 12px;
   font-weight: 700;
 }
@@ -231,8 +231,8 @@
   width: 34px;
   height: 34px;
   border-radius: 4px;
-  background: #f5f5f5;
-  color: #8d8d8d;
+  background: var(--wl-background);
+  color: var(--wl-text-disabled);
 }
 
 /* ---------- Customers who requested (Back-in-Stock) ---------- */
@@ -247,7 +247,7 @@
   gap: 8px;
   margin-top: auto;
   padding: 7px 0 3px;
-  color: #444;
+  color: var(--wl-text-secondary);
   font-size: 12px;
   font-weight: 600;
   text-decoration: none;
@@ -261,8 +261,8 @@
 .ws-metrics .ws-metrics-note {
   margin: 14px 0 0;
   padding: 8px 0 0;
-  border-top: 1px solid #dde1e3;
-  color: #737373;
+  border-top: 1px solid var(--wl-border);
+  color: var(--wl-text-secondary);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -275,7 +275,7 @@
 
   .ws-metrics .ws-metrics-column + .ws-metrics-column {
     border-left: none;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--wl-border);
   }
 
   .ws-metrics .ws-metrics-list {

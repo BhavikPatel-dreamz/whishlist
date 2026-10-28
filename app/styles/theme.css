@@ -1,0 +1,122 @@
+/**
+ * Global app theme — single source of truth for colors.
+ * Import this stylesheet first on every admin route.
+ *
+ * Usage: color: var(--wl-text); background: var(--wl-surface);
+ */
+:root {
+  /* Core brand */
+  --wl-primary: #334155;
+  --wl-primary-variant: #1e293b;
+  --wl-secondary: #38bdf8;
+  --wl-accent: #38bdf8;
+
+  /* Surfaces */
+  --wl-background: #f1f5f9;
+  --wl-surface: #ffffff;
+  --wl-surface-muted: #f8fafc;
+  --wl-overlay: rgba(15, 23, 42, 0.45);
+
+  /* Text */
+  --wl-text: #0f172a;
+  --wl-text-secondary: #64748b;
+  --wl-text-disabled: #94a3b8;
+  --wl-text-on-primary: #ffffff;
+  --wl-text-link: #2563eb;
+
+  /* Borders / dividers */
+  --wl-border: #e2e8f0;
+  --wl-border-strong: #cbd5e1;
+  --wl-border-focus: #38bdf8;
+
+  /* Feedback */
+  --wl-success: #15803d;
+  --wl-warning: #b45309;
+  --wl-error: #dc2626;
+  --wl-info: #2563eb;
+
+  /* Soft tints */
+  --wl-primary-soft: #e2e8f0;
+  --wl-accent-soft: #e0f2fe;
+  --wl-success-soft: #dcfce7;
+  --wl-warning-soft: #ffedd5;
+  --wl-error-soft: #fee2e2;
+  --wl-info-soft: #dbeafe;
+
+  /* Shadows (slate-tinted) */
+  --wl-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --wl-shadow-md: 0 2px 6px rgba(15, 23, 42, 0.08);
+  --wl-shadow-lg: 0 4px 16px rgba(15, 23, 42, 0.12);
+
+  /* Chart series (theme-aligned, distinct) */
+  --wl-chart-1: #334155;
+  --wl-chart-2: #38bdf8;
+  --wl-chart-3: #2563eb;
+  --wl-chart-4: #b45309;
+  --wl-chart-5: #15803d;
+  --wl-chart-6: #dc2626;
+
+  /* Aliases used by feature CSS (keep in sync) */
+  --ca-bg: var(--wl-background);
+  --ca-sf: var(--wl-surface);
+  --ca-tx: var(--wl-text);
+  --ca-mu: var(--wl-text-secondary);
+  --ca-bd: var(--wl-border);
+  --ca-ac: var(--wl-primary);
+  --ca-ac-hover: var(--wl-primary-variant);
+  --ca-ok: var(--wl-success);
+  --ca-bl: var(--wl-info);
+  --ca-am: var(--wl-warning);
+  --ca-rd: var(--wl-error);
+  --ca-hv: var(--wl-primary-soft);
+
+  /* Polaris token bridge */
+  --p-color-bg: var(--wl-background);
+  --p-color-bg-surface: var(--wl-surface);
+  --p-color-bg-surface-secondary: var(--wl-background);
+  --p-color-text: var(--wl-text);
+  --p-color-text-secondary: var(--wl-text-secondary);
+  --p-color-text-disabled: var(--wl-text-disabled);
+  --p-color-border: var(--wl-border);
+  --p-color-border-secondary: var(--wl-border-strong);
+  --p-color-bg-fill-brand: var(--wl-primary);
+  --p-color-bg-fill-brand-hover: var(--wl-primary-variant);
+  --p-color-bg-fill-brand-active: var(--wl-primary-variant);
+  --p-color-bg-fill-brand-selected: var(--wl-primary);
+  --p-color-text-brand-on-bg-fill: var(--wl-text-on-primary);
+  --p-color-bg-fill-info: var(--wl-info);
+  --p-color-bg-fill-success: var(--wl-success);
+  --p-color-bg-fill-success-hover: var(--wl-success);
+  --p-color-bg-fill-success-active: var(--wl-success);
+  --p-color-text-success-on-bg-fill: var(--wl-text-on-primary);
+  --p-color-bg-fill-warning: var(--wl-warning);
+  --p-color-bg-fill-critical: var(--wl-error);
+  --p-color-text-info: var(--wl-info);
+  --p-color-text-success: var(--wl-success);
+  --p-color-text-warning: var(--wl-warning);
+  --p-color-text-critical: var(--wl-error);
+  --p-color-focus-ring: var(--wl-accent);
+  --p-color-border-focus: var(--wl-accent);
+  --p-color-border-brand: var(--wl-primary);
+}
+
+/* Force Polaris primary actions onto theme primary (not Shopify green) */
+.ws-admin-pages .Polaris-Button--variantPrimary,
+.ws-admin-pages .Polaris-Button--primary,
+.Polaris-Button--variantPrimary,
+.Polaris-Button--primary {
+  --pc-button-bg: var(--wl-primary);
+  --pc-button-bg-hover: var(--wl-primary-variant);
+  --pc-button-bg-active: var(--wl-primary-variant);
+  --pc-button-color: var(--wl-text-on-primary);
+  background: var(--wl-primary) !important;
+  border-color: var(--wl-primary) !important;
+  color: var(--wl-text-on-primary) !important;
+}
+.ws-admin-pages .Polaris-Button--variantPrimary:hover,
+.ws-admin-pages .Polaris-Button--primary:hover,
+.Polaris-Button--variantPrimary:hover,
+.Polaris-Button--primary:hover {
+  background: var(--wl-primary-variant) !important;
+  border-color: var(--wl-primary-variant) !important;
+}
