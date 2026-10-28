@@ -9,23 +9,53 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 import { getOrCreateShop } from "./lib/shop.server";
+import {
+  enqueueStoreEnrichment,
+  syncStoreInfo,
+} from "./models/store.server";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
-  apiVersion: ApiVersion.January25,
+  apiVersion: ApiVersion.October25,
   scopes: process.env.SCOPES?.split(","),
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
   hooks: {
-    afterAuth: async ({ session }) => {
+    afterAuth: async ({ session, admin }) => {
+      // Operational shop row (wishlist / alerts) — keep existing behaviour.
       await getOrCreateShop(session.shop, session.accessToken);
+
+      // Register mandatory + declared webhooks early.
       await shopify.registerWebhooks({ session });
+
+      // Fast store profile upsert; heavy GraphQL enrichers run in the background.
+      try {
+        const client = admin
+          ? admin
+          : await shopify.unauthenticated.admin(session.shop).then((ctx) => ctx.admin);
+        const { storeId } = await syncStoreInfo(client, session);
+        enqueueStoreEnrichment(client, storeId);
+      } catch (error) {
+        console.error("[afterAuth] store sync failed (install continues)", error);
+      }
     },
   },
-    webhooks: {
+  webhooks: {
+    APP_UNINSTALLED: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/app/uninstalled",
+    },
+    APP_SCOPES_UPDATE: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/app/scopes_update",
+    },
+    SHOP_UPDATE: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/shop/update",
+    },
     INVENTORY_LEVELS_UPDATE: {
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks/inventory",
@@ -50,22 +80,28 @@ const shopify = shopifyApp({
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks/orders/updated",
     },
-    ORDERS_EDITED: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/orders/edited",
-    },
     CUSTOMERS_CREATE: {
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks/customers/create",
     },
-    CUSTOMERS_DELETE: {
+    CUSTOMERS_UPDATE: {
       deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/customers/delete",
+      callbackUrl: "/webhooks/customers/update",
     },
-    SHOP_UPDATE: {
+    CUSTOMERS_DATA_REQUEST: {
       deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/shop/update",
+      callbackUrl: "/webhooks/customers/data_request",
     },
+    CUSTOMERS_REDACT: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/customers/redact",
+    },
+    SHOP_REDACT: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/shop/redact",
+    },
+    // Temporarily disabled unused store-profile sync:
+    // themes/publish, locations/*, markets/*
   },
   future: {
     unstable_newEmbeddedAuthStrategy: true,
@@ -77,7 +113,7 @@ const shopify = shopifyApp({
 });
 
 export default shopify;
-export const apiVersion = ApiVersion.January25;
+export const apiVersion = ApiVersion.October25;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const authenticate = shopify.authenticate;
 export const unauthenticated = shopify.unauthenticated;

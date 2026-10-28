@@ -596,3 +596,134 @@ model UsageLedger {
   @@index([shopId, periodKey])
   @@index([stockAlertId])
 }
+
+/// Shopify shop profile captured at install / shop/update. Separate from operational `Shop`.
+model Store {
+  id                    String    @id @default(cuid())
+  shopDomain            String    @unique
+  shopifyShopId         String?
+  name                  String?
+  email                 String?
+  contactEmail          String?
+  description           String?
+  url                   String?
+  primaryDomain         String?
+  currency              String?
+  timezone              String?
+  timezoneOffset        String?
+  weightUnit            String?
+  unitSystem            String?
+  planName              String?
+  isDevStore            Boolean   @default(false)
+  isShopifyPlus         Boolean   @default(false)
+  address               Json?
+  billingAddress        Json?
+  presentmentCurrencies Json?
+  currencyFormats       Json?
+  taxesIncluded         Boolean?
+  taxShipping           Boolean?
+  checkoutApiSupported  Boolean?
+  setupRequired         Boolean?
+  shipsToCountries      Json?
+  features              Json?
+  resourceLimits        Json?
+  paymentSettings       Json?
+  shopLocales           Json?
+  themes                Json?
+  publications          Json?
+  accessScopes          Json?
+  activeSubscriptions   Json?
+  uninstallUrl          String?
+  shopCreatedAt         DateTime?
+  scopes                String?
+  isActive              Boolean   @default(true)
+  installCount          Int       @default(1)
+  installedAt           DateTime  @default(now())
+  uninstalledAt         DateTime?
+  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime  @default(now())
+
+  installer   StoreInstaller?
+  locations   StoreLocation[]
+  markets     StoreMarket[]
+  stats       StoreStats[]
+  events      StoreInstallEvent[]
+}
+
+/// Staff account that installed the app (online session only; skipped when unavailable).
+model StoreInstaller {
+  id            String   @id @default(cuid())
+  storeId       String   @unique
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  shopifyUserId String?
+  firstName     String?
+  lastName      String?
+  email         String?
+  locale        String?
+  accountOwner  Boolean  @default(false)
+  collaborator  Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+}
+
+model StoreLocation {
+  id                String   @id @default(cuid())
+  storeId           String
+  store             Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  shopifyLocationId String
+  name              String?
+  isActive          Boolean  @default(true)
+  isPrimary         Boolean  @default(false)
+  address           Json?
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
+
+  @@unique([storeId, shopifyLocationId])
+  @@index([storeId])
+}
+
+model StoreMarket {
+  id              String   @id @default(cuid())
+  storeId         String
+  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  shopifyMarketId String
+  name            String?
+  handle          String?
+  primary         Boolean  @default(false)
+  enabled         Boolean  @default(true)
+  raw             Json?
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@unique([storeId, shopifyMarketId])
+  @@index([storeId])
+}
+
+/// Snapshot of resource counts only — never customer PII.
+model StoreStats {
+  id              String   @id @default(cuid())
+  storeId         String
+  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  productsCount   Int      @default(0)
+  collectionsCount Int     @default(0)
+  ordersCount     Int      @default(0)
+  customersCount  Int      @default(0)
+  capturedAt      DateTime @default(now())
+
+  @@index([storeId, capturedAt])
+}
+
+model StoreInstallEvent {
+  id         String   @id @default(cuid())
+  storeId    String
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  /// INSTALL | REINSTALL | UNINSTALL | SCOPES_UPDATE
+  type       String
+  scopes     String?
+  appVersion String?
+  utmSource  String?
+  createdAt  DateTime @default(now())
+
+  @@index([storeId, createdAt])
+  @@index([type])
+}

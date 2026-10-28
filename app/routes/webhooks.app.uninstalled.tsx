@@ -2,21 +2,28 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { invalidateShopCache } from "../lib/shop.server";
+import { markStoreUninstalled } from "../models/store.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, session, topic } = await authenticate.webhook(request);
+  try {
+    const { shop, session, topic } = await authenticate.webhook(request);
+    console.log(`Received ${topic} webhook for ${shop}`);
 
-  console.log(`Received ${topic} webhook for ${shop}`);
+    // Mark Store inactive + install event (do not wipe wishlist/alert data yet —
+    // shop/redact handles hard delete). Drop sessions and clear operational token.
+    await markStoreUninstalled(shop).catch((error) => {
+      console.error("markStoreUninstalled failed", error);
+    });
 
-  // Webhook requests can trigger multiple times and after an app has already been uninstalled.
-  // If this webhook already ran, the session may have been deleted previously.
-  if (session) {
-    await db.session.deleteMany({ where: { shop } });
+    if (session) {
+      await db.session.deleteMany({ where: { shop } });
+    }
+    await db.shop.updateMany({ where: { shop }, data: { accessToken: null } });
+    invalidateShopCache(shop);
+
+    return new Response();
+  } catch (error) {
+    console.error("app/uninstalled handler error", error);
+    return new Response();
   }
-
-  // Keep wishlists and waitlists so a reinstall restores them, but drop the stored token.
-  await db.shop.updateMany({ where: { shop }, data: { accessToken: null } });
-  invalidateShopCache(shop);
-
-  return new Response();
 };
