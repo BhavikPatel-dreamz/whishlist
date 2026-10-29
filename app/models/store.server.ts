@@ -8,10 +8,7 @@ import type { GraphqlClient } from "../lib/shopify-data.server";
 import { getOrCreateShop, invalidateShopCache } from "../lib/shop.server";
 
 export type StoreInstallEventType =
-  | "INSTALL"
-  | "REINSTALL"
-  | "UNINSTALL"
-  | "SCOPES_UPDATE";
+  "INSTALL" | "REINSTALL" | "UNINSTALL" | "SCOPES_UPDATE";
 
 /** Minimal session shape used by install sync (offline + optional onlineAccessInfo). */
 export type InstallSession = {
@@ -71,7 +68,8 @@ export type ShopifyShopNode = {
 
 type AdminClient = Pick<GraphqlClient, "graphql">;
 
-const APP_VERSION = process.env.npm_package_version || process.env.APP_VERSION || null;
+const APP_VERSION =
+  process.env.npm_package_version || process.env.APP_VERSION || null;
 
 const SHOP_QUERY = `#graphql
   query StoreInstallShop {
@@ -120,9 +118,6 @@ const SHOP_QUERY = `#graphql
       resourceLimits {
         maxProductVariants
         locationLimit
-      }
-      paymentSettings {
-        currencyCode
       }
     }
   }
@@ -285,12 +280,17 @@ export async function syncStoreInfo(
 ): Promise<{ shopId: string; reinstall: boolean }> {
   const shopDomain = session.shop;
   const existing = await db.shop.findUnique({ where: { shop: shopDomain } });
-  const reinstall = Boolean(existing && (!existing.isActive || existing.uninstalledAt));
+  const reinstall = Boolean(
+    existing && (!existing.isActive || existing.uninstalledAt),
+  );
 
   let profile: ShopifyShopNode | null = null;
   if (admin) {
     try {
-      const data = await adminGraphqlJson<{ shop: ShopifyShopNode }>(admin, SHOP_QUERY);
+      const data = await adminGraphqlJson<{ shop: ShopifyShopNode }>(
+        admin,
+        SHOP_QUERY,
+      );
       profile = data.shop;
     } catch (error) {
       console.warn("[store] full shop query failed, trying fallback", error);
@@ -301,7 +301,10 @@ export async function syncStoreInfo(
         );
         profile = data.shop;
       } catch (fallbackError) {
-        console.error("[store] shop query failed; continuing with domain only", fallbackError);
+        console.error(
+          "[store] shop query failed; continuing with domain only",
+          fallbackError,
+        );
       }
     }
   }
@@ -335,7 +338,8 @@ export async function syncStoreInfo(
     contactEmail: profile?.contactEmail || null,
     description: profile?.description || null,
     url: profile?.url || profile?.primaryDomain?.url || null,
-    primaryDomain: profile?.primaryDomain?.url || profile?.primaryDomain?.host || null,
+    primaryDomain:
+      profile?.primaryDomain?.url || profile?.primaryDomain?.host || null,
     currency: profile?.currencyCode || null,
     timezone: profile?.ianaTimezone || null,
     timezoneOffset: profile?.timezoneOffset || null,
@@ -379,15 +383,22 @@ export async function syncStoreInfo(
       contactEmail: profile?.contactEmail || undefined,
       description: profile?.description || undefined,
       url: profile?.url || profile?.primaryDomain?.url || undefined,
-      primaryDomain: profile?.primaryDomain?.url || profile?.primaryDomain?.host || undefined,
+      primaryDomain:
+        profile?.primaryDomain?.url ||
+        profile?.primaryDomain?.host ||
+        undefined,
       currency: profile?.currencyCode || undefined,
       timezone: profile?.ianaTimezone || undefined,
       timezoneOffset: profile?.timezoneOffset || undefined,
       weightUnit: profile?.weightUnit || undefined,
       unitSystem: profile?.unitSystem || undefined,
       planName: profile?.plan?.displayName || undefined,
-      isDevStore: profile?.plan ? Boolean(profile.plan.partnerDevelopment) : undefined,
-      isShopifyPlus: profile?.plan ? Boolean(profile.plan.shopifyPlus) : undefined,
+      isDevStore: profile?.plan
+        ? Boolean(profile.plan.partnerDevelopment)
+        : undefined,
+      isShopifyPlus: profile?.plan
+        ? Boolean(profile.plan.shopifyPlus)
+        : undefined,
       address: asJson(address),
       billingAddress: asJson(billingAddress),
       presentmentCurrencies: asJson(profile?.enabledPresentmentCurrencies),
@@ -400,7 +411,9 @@ export async function syncStoreInfo(
       features: asJson(profile?.features),
       resourceLimits: asJson(profile?.resourceLimits),
       paymentSettings: asJson(profile?.paymentSettings),
-      shopCreatedAt: profile?.createdAt ? new Date(profile.createdAt) : undefined,
+      shopCreatedAt: profile?.createdAt
+        ? new Date(profile.createdAt)
+        : undefined,
       scopes: session.scope || undefined,
       isActive: true,
       uninstalledAt: null,
@@ -418,9 +431,11 @@ export async function syncStoreInfo(
       update: { ...installer },
     });
   } else {
-    await upsertInstallerFromOfflineSessionFields(shop.id, session).catch((error) => {
-      console.warn("[store] installer upsert skipped", error);
-    });
+    await upsertInstallerFromOfflineSessionFields(shop.id, session).catch(
+      (error) => {
+        console.warn("[store] installer upsert skipped", error);
+      },
+    );
   }
 
   if (!existing || reinstall) {
@@ -592,7 +607,11 @@ async function syncMarkets(admin: AdminClient, shopId: string) {
 
 async function syncShopLocales(admin: AdminClient, shopId: string) {
   const data = await adminGraphqlJson<{
-    shopLocales: Array<{ locale?: string | null; primary?: boolean | null; published?: boolean | null }>;
+    shopLocales: Array<{
+      locale?: string | null;
+      primary?: boolean | null;
+      published?: boolean | null;
+    }>;
   }>(
     admin,
     `#graphql
@@ -609,7 +628,13 @@ async function syncShopLocales(admin: AdminClient, shopId: string) {
 
 async function syncThemes(admin: AdminClient, shopId: string) {
   const data = await adminGraphqlJson<{
-    themes: { nodes: Array<{ id?: string | null; name?: string | null; role?: string | null }> };
+    themes: {
+      nodes: Array<{
+        id?: string | null;
+        name?: string | null;
+        role?: string | null;
+      }>;
+    };
   }>(
     admin,
     `#graphql
@@ -629,7 +654,11 @@ async function syncThemes(admin: AdminClient, shopId: string) {
 async function syncPublications(admin: AdminClient, shopId: string) {
   const data = await adminGraphqlJson<{
     publications: {
-      nodes: Array<{ id?: string | null; name?: string | null; catalog?: { title?: string | null } | null }>;
+      nodes: Array<{
+        id?: string | null;
+        name?: string | null;
+        catalog?: { title?: string | null } | null;
+      }>;
     };
   }>(
     admin,
@@ -802,10 +831,15 @@ export async function applyShopUpdateWebhook(
       name: typeof payload.name === "string" ? payload.name : undefined,
       email: typeof payload.email === "string" ? payload.email : undefined,
       contactEmail:
-        typeof payload.customer_email === "string" ? payload.customer_email : undefined,
-      currency: typeof payload.currency === "string" ? payload.currency : undefined,
+        typeof payload.customer_email === "string"
+          ? payload.customer_email
+          : undefined,
+      currency:
+        typeof payload.currency === "string" ? payload.currency : undefined,
       timezone:
-        typeof payload.iana_timezone === "string" ? payload.iana_timezone : undefined,
+        typeof payload.iana_timezone === "string"
+          ? payload.iana_timezone
+          : undefined,
       planName: planName,
       address,
     },

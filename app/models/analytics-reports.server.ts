@@ -101,6 +101,34 @@ function revenueLabel(direct: number, estimated: number) {
   return estimated > 0 ? REVENUE_LABEL.estimated : REVENUE_LABEL.direct;
 }
 
+export function isRecurringCustomerEligible(row: {
+  saves: number;
+  subscriptions: number;
+  clicks: number;
+  orders: number;
+}): boolean {
+  return row.saves + row.subscriptions + row.clicks + row.orders > 0;
+}
+
+export function resolveNotificationRecipientLabel(params: {
+  customerName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  contactKey?: string | null;
+  shopperId?: string | null;
+  customerId?: string | null;
+}): string {
+  return (
+    params.customerName ||
+    params.email ||
+    params.phone ||
+    params.contactKey ||
+    params.shopperId ||
+    params.customerId ||
+    "Unknown"
+  );
+}
+
 type WishlistOrderRevenue = {
   total: number;
   wishlistDirect: number;
@@ -3361,9 +3389,7 @@ async function recurringCustomersData(
     getActivity(customerId).orders = orderIds.size;
   }
   const activeCustomers = [...activity.values()]
-    .filter(
-      (row) => row.saves + row.subscriptions + row.clicks + row.orders >= 3,
-    )
+    .filter((row) => isRecurringCustomerEligible(row))
     .sort(
       (left, right) =>
         right.saves +
@@ -3765,7 +3791,7 @@ async function notificationLogData(
   const fallbackAlerts = sentAlerts.filter(
     (alert) => !logSubscriptionIds.has(alert.id),
   );
-  const [products] = await Promise.all([
+  const [products, customerNames] = await Promise.all([
     getProductsByIds(
       admin,
       [
@@ -3776,6 +3802,9 @@ async function notificationLogData(
       ],
       1,
     ).catch(() => new Map()),
+    getCustomerNamesByIds(admin, [
+      ...new Set(sentAlerts.map((alert) => alert.customerId).filter(Boolean)),
+    ]).catch(() => new Map()),
   ]);
   const alertById = new Map(sentAlerts.map((alert) => [alert.id, alert]));
   const rows = [
@@ -3783,13 +3812,22 @@ async function notificationLogData(
       const alert = log.subscriptionId
         ? alertById.get(log.subscriptionId)
         : undefined;
+      const customerName = alert?.customerId
+        ? customerNames.get(alert.customerId)
+        : undefined;
       return {
         detailId: log.id,
         detailType: "log",
         productId: log.productId,
         date: (log.sentAt ?? log.createdAt).toISOString(),
-        recipient:
-          alert?.email ?? alert?.phone ?? alert?.contactKey ?? log.shopperId,
+        recipient: resolveNotificationRecipientLabel({
+          customerName,
+          email: alert?.email ?? undefined,
+          phone: alert?.phone ?? undefined,
+          contactKey: alert?.contactKey ?? undefined,
+          shopperId: log.shopperId,
+          customerId: alert?.customerId ?? undefined,
+        }),
         kind: log.kind,
         channel: log.channel,
         shopper: log.shopperId,
@@ -3799,23 +3837,35 @@ async function notificationLogData(
         retries: log.retryCount,
       };
     }),
-    ...fallbackAlerts.map((alert) => ({
-      detailId: alert.id,
-      detailType: "alert",
-      productId: alert.productId,
-      date: alert.notifiedAt!.toISOString(),
-      recipient: alert.email ?? alert.phone ?? alert.contactKey,
-      kind: "RESTOCK",
-      channel: "EMAIL",
-      shopper: alert.shopperId ?? alert.customerId ?? alert.contactKey,
-      product:
-        alert.productTitle ??
-        products.get(alert.productId)?.title ??
-        alert.productId,
-      status: alert.status.toLowerCase(),
-      error: alert.lastError ?? "",
-      retries: Math.max(0, alert.attempts - 1),
-    })),
+    ...fallbackAlerts.map((alert) => {
+      const customerName = alert.customerId
+        ? customerNames.get(alert.customerId)
+        : undefined;
+      return {
+        detailId: alert.id,
+        detailType: "alert",
+        productId: alert.productId,
+        date: alert.notifiedAt!.toISOString(),
+        recipient: resolveNotificationRecipientLabel({
+          customerName,
+          email: alert.email ?? undefined,
+          phone: alert.phone ?? undefined,
+          contactKey: alert.contactKey ?? undefined,
+          shopperId: alert.shopperId ?? undefined,
+          customerId: alert.customerId ?? undefined,
+        }),
+        kind: "RESTOCK",
+        channel: "EMAIL",
+        shopper: alert.shopperId ?? alert.customerId ?? alert.contactKey,
+        product:
+          alert.productTitle ??
+          products.get(alert.productId)?.title ??
+          alert.productId,
+        status: alert.status.toLowerCase(),
+        error: alert.lastError ?? "",
+        retries: Math.max(0, alert.attempts - 1),
+      };
+    }),
   ].sort((left, right) => right.date.localeCompare(left.date));
   const truncated = logLimit != null && rows.length > logLimit;
   const visibleRows = logLimit != null ? rows.slice(0, logLimit) : rows;
