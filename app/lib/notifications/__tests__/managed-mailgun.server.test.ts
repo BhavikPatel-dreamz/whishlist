@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  emailDomain,
   managedMailgunApiBaseUrl,
   managedMailgunApiKey,
   managedMailgunConfigured,
   managedMailgunDomain,
   managedSenderEmail,
+  sanitizeEnvValue,
 } from "../managed-mailgun.server";
 
 const KEYS = [
@@ -53,5 +55,29 @@ describe("managedMailgun helpers", () => {
     setEnv("MAILGUN_DOMAIN", "mg.example.com");
     setEnv("DEFAULT_SENDER_EMAIL", "alerts@mg.example.com");
     expect(managedMailgunConfigured()).toBe(false);
+  });
+
+  it("strips accidental KEY= and quotes from env values", () => {
+    expect(
+      sanitizeEnvValue(
+        "DEFAULT_SENDER_EMAIL='alerts@mg.example.com'",
+        "DEFAULT_SENDER_EMAIL",
+      ),
+    ).toBe("alerts@mg.example.com");
+    expect(sanitizeEnvValue('"key-abc"', "MAILGUN_API_KEY")).toBe("key-abc");
+    expect(emailDomain("postmaster@Sandbox.Mailgun.Org")).toBe(
+      "sandbox.mailgun.org",
+    );
+  });
+
+  it("reads sender when env was pasted as a full assignment line", () => {
+    setEnv(
+      "DEFAULT_SENDER_EMAIL",
+      "DEFAULT_SENDER_EMAIL='alerts@mg.example.com'",
+    );
+    setEnv("MAILGUN_API_KEY", "key-test");
+    setEnv("MAILGUN_DOMAIN", "mg.example.com");
+    expect(managedSenderEmail()).toBe("alerts@mg.example.com");
+    expect(managedMailgunConfigured()).toBe(true);
   });
 });

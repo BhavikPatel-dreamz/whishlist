@@ -1,5 +1,6 @@
 import type { ResolvedNotificationSettings } from "../shop.server";
 import {
+  emailDomain,
   managedMailgunApiBaseUrl,
   managedMailgunApiKey,
   managedMailgunDomain,
@@ -54,11 +55,7 @@ function withEnvFallback(
       managedKey ||
       process.env.BREVO_API_KEY ||
       "",
-    senderEmail:
-      settings.senderEmail ||
-      managedSenderEmail() ||
-      process.env.DEFAULT_SENDER_EMAIL ||
-      "",
+    senderEmail: settings.senderEmail || managedSenderEmail() || "",
   };
 }
 
@@ -266,6 +263,13 @@ async function sendWithBrevo(
  * Mailgun transactional email. Auth is HTTP Basic with username `api` and the private API key.
  * Platform-managed sends use MAILGUN_DOMAIN + MAILGUN_API_KEY. Merchant Mailgun (Scale)
  * may omit MAILGUN_DOMAIN and derive the domain from the sender address.
+ *
+ * Free / sandbox Mailgun notes:
+ *  - Use the Private API key (Sending → Domain settings → API Keys), not the public key
+ *  - DEFAULT_SENDER_EMAIL must be on MAILGUN_DOMAIN (e.g. postmaster@sandbox….mailgun.org)
+ *    — Gmail/Yahoo/Outlook addresses cannot be the From address
+ *  - EU accounts need MAILGUN_API_BASE_URL=https://api.eu.mailgun.net
+ *  - Sandbox can only send to Authorized Recipients listed in the Mailgun dashboard
  */
 async function sendWithMailgun(
   settings: ResolvedNotificationSettings,
@@ -284,12 +288,33 @@ async function sendWithMailgun(
     };
   }
 
-  const domain =
-    managedMailgunDomain() || settings.senderEmail.split("@")[1] || "";
+  const configuredDomain = managedMailgunDomain();
+  const senderHost = emailDomain(settings.senderEmail);
+  const domain = configuredDomain || senderHost;
   if (!domain) {
     return {
       ok: false,
       error: "Mailgun sending domain not configured (set MAILGUN_DOMAIN)",
+    };
+  }
+
+  // Gmail/etc. as From will never authenticate against a Mailgun domain.
+  const publicHosts = new Set([
+    "gmail.com",
+    "googlemail.com",
+    "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+    "live.com",
+    "icloud.com",
+  ]);
+  if (publicHosts.has(senderHost)) {
+    return {
+      ok: false,
+      error:
+        `Mailgun From address cannot be ${settings.senderEmail}. ` +
+        `Set DEFAULT_SENDER_EMAIL to an address on your Mailgun domain ` +
+        `(e.g. postmaster@${configuredDomain || "sandboxXXXX.mailgun.org"}), not a personal inbox.`,
     };
   }
 
@@ -313,7 +338,22 @@ async function sendWithMailgun(
       },
       body: form.toString(),
     },
-    { label: "Mailgun", idField: "id" },
+    {
+      label: "Mailgun",
+      idField: "id",
+      formatError: (payload, status) => {
+        const detail =
+          payload.message || payload.error || JSON.stringify(payload).slice(0, 180);
+        if (status === 401) {
+          return (
+            `Mailgun HTTP 401 (unauthorized). Check MAILGUN_API_KEY is the Private API key, ` +
+            `MAILGUN_DOMAIN matches that key’s account, and EU regions use ` +
+            `MAILGUN_API_BASE_URL=https://api.eu.mailgun.net. Details: ${detail}`
+          );
+        }
+        return `Mailgun HTTP ${status}: ${detail}`;
+      },
+    },
   );
 }
 

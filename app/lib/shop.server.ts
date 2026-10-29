@@ -135,8 +135,10 @@ export function resolveSettings(shop: Shop): ResolvedNotificationSettings {
   return {
     provider,
     apiKey: merchantKey,
-    senderEmail: shop.senderEmail || process.env.DEFAULT_SENDER_EMAIL || "",
-    senderName: shop.senderName || shop.shop.replace(".myshopify.com", ""),
+    senderEmail: shop.senderEmail || managedSenderEmail() || "",
+    senderName:
+      shop.senderName ||
+      managedSenderName(shop.shop.replace(".myshopify.com", "")),
     emailSubject: shop.emailSubject,
     emailHeading: shop.emailHeading,
     emailBody: shop.emailBody,
