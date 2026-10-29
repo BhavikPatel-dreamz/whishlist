@@ -49,7 +49,6 @@ export default function App() {
         {/* Back-in-Stock Requests are part of Analytics → Back in Stock → Stock List */}
         <Link to="/app/analytics">Analytics</Link>
         <Link to="/app/settings">Configurations</Link>
-        <Link to="/app/email-test">Email test</Link>
       </NavMenu>
       <div className="ws-admin-pages">
         {isNavigating ? (
