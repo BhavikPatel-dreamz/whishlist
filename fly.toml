@@ -1,0 +1,30 @@
+# Free-tier restock worker on Fly.io (no AWS).
+# See docs/restock-queue-ops.md
+#
+#   fly apps create wishlist-restock-worker
+#   fly secrets set DATABASE_URL=... DEFAULT_EMAIL_API_KEY=... ...
+#   fly deploy --config fly.toml --dockerfile Dockerfile.worker
+#   fly scale count 1
+#   fly machine update --autostop=false   # keep always-on if needed
+
+app = "wishlist-restock-worker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.worker"
+
+[env]
+  NODE_ENV = "production"
+  RESTOCK_QUEUE_ENABLED = "true"
+  RESTOCK_WORKER_CONCURRENCY = "5"
+  RESTOCK_SEND_RATE = "5"
+
+# No HTTP service — this machine only polls Postgres and sends email.
+[processes]
+  worker = "npx tsx app/workers/restock-worker.server.ts"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  cpus = 1
+  processes = ["worker"]

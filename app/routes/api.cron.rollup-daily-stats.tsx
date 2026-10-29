@@ -1,12 +1,16 @@
 /**
  * Cron entry point for the DailyStat rollup (ANALYTICS_REPORTS_SPEC.md section 4).
  *
- * Protected by `CRON_SECRET`. Point a scheduler at it (Vercel cron uses GET):
+ * Protected by `CRON_SECRET`.
  *
- *   # Every hour — roll up today (incomplete day, safe to re-run)
+ * Vercel Hobby cannot run hourly crons — the Fly restock worker schedules
+ * `rollupToday` / `rollupYesterday` instead. These HTTP routes remain for
+ * manual runs or an external free scheduler:
+ *
+ *   # Roll up today (incomplete day, safe to re-run)
  *   GET/POST /api/cron/rollup-daily-stats?range=today
  *
- *   # Nightly — roll up yesterday (complete day)
+ *   # Roll up yesterday (complete day)
  *   GET/POST /api/cron/rollup-daily-stats?range=yesterday
  *
  *   # Backfill last N days (default 90)

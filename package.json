@@ -22,13 +22,16 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "worker:restock": "tsx app/workers/restock-worker.server.ts",
+    "loadtest:restock-queue": "tsx scripts/restock-queue-load-test.ts"
   },
   "type": "module",
   "engines": {
     "node": ">=20.19 <22 || >=22.12"
   },
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.1158.0",
     "@prisma/client": "^6.2.1",
     "@remix-run/dev": "^2.16.1",
     "@remix-run/fs-routes": "^2.16.1",
@@ -44,6 +47,7 @@
     "prisma": "^6.2.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "tsx": "^4.23.15",
     "vite-tsconfig-paths": "^5.0.1"
   },
   "devDependencies": {

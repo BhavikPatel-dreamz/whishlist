@@ -123,8 +123,13 @@ model Shop {
   shopifyOrders   ShopifyOrderRecord[]
   stockAlerts     StockAlert[]
   webhookEvents   WebhookEvent[]
+  restockEvents   RestockEvent[]
+  notificationJobs NotificationJob[]
+  outboxMessages  OutboxMessage[]
   rateLimits      RateLimitBucket[]
   uiConfig        UIConfig?
+  /// When true, restock webhooks enqueue NotificationJobs instead of sending inline.
+  restockQueueEnabled Boolean @default(false)
 
   // --- Analytics ---
   settings        ShopSettings?
@@ -249,6 +254,104 @@ model WebhookEvent {
 
   @@unique([shopId, webhookId])
   @@index([processedAt])
+}
+
+/// One logical restock cycle for a shop/variant (absorbs duplicate inventory ticks).
+model RestockEvent {
+  id                      String   @id @default(uuid())
+  shopId                  String
+  shop                    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  variantId               String
+  productId               String?
+  inventoryItemId         String?
+  /// Stable key for this restock wave (e.g. day-bucket or first-webhook id).
+  cycleKey                String
+  available               Int?
+  sellableOnlineQuantity  Int?
+  /// open | enqueued | completed | cancelled
+  status                  String   @default("open")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  jobs NotificationJob[]
+
+  @@unique([shopId, variantId, cycleKey])
+  @@index([shopId, variantId, status])
+  @@index([shopId, createdAt])
+}
+
+/// One durable notification send unit. SQS messages carry only this id.
+model NotificationJob {
+  id             String    @id @default(uuid())
+  shopId         String
+  shop           Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  restockEventId String
+  restockEvent   RestockEvent @relation(fields: [restockEventId], references: [id], onDelete: Cascade)
+  stockAlertId   String
+  /// queued | sending | sent | held | failed | dead
+  status         String    @default("queued")
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5)
+  nextRetryAt    DateTime?
+  lastError      String?
+  /// Shop round-robin / fair-share hint (unix ms of enqueue or last claim).
+  fairShareKey   BigInt    @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  deliveryAttempts EmailDeliveryAttempt[]
+
+  @@unique([shopId, restockEventId, stockAlertId])
+  @@index([status, nextRetryAt])
+  @@index([shopId, status])
+  @@index([status, fairShareKey])
+  @@index([stockAlertId])
+  @@index([restockEventId])
+}
+
+/// Transactional outbox: committed with NotificationJob, published to SQS asynchronously.
+model OutboxMessage {
+  id          String    @id @default(uuid())
+  shopId      String
+  shop        Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// notification_job
+  kind        String    @default("notification_job")
+  /// JSON payload, typically { "jobId": "..." }
+  payload     Json
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  attempts    Int       @default(0)
+  lastError   String?
+
+  @@index([publishedAt, createdAt])
+  @@index([shopId, publishedAt])
+}
+
+/// One provider API attempt for a NotificationJob (Mailgun etc.).
+model EmailDeliveryAttempt {
+  id                String   @id @default(uuid())
+  notificationJobId String
+  notificationJob   NotificationJob @relation(fields: [notificationJobId], references: [id], onDelete: Cascade)
+  provider          String
+  attemptNumber     Int
+  /// success | failed | timeout_ambiguous | throttled
+  outcome           String
+  httpStatus        Int?
+  providerMessageId String?
+  errorMessage      String?
+  createdAt         DateTime @default(now())
+
+  @@index([notificationJobId, createdAt])
+  @@index([providerMessageId])
+}
+
+/// Global send-rate limiter state (token bucket) shared by workers.
+model SendRateLimit {
+  id           String   @id @default("global")
+  tokens       Float    @default(20)
+  maxTokens    Float    @default(20)
+  refillPerSec Float    @default(20)
+  updatedAt    DateTime @updatedAt
 }
 
 /// Fixed-window rate limiting for the public App Proxy endpoints.

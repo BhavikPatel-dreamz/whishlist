@@ -64,7 +64,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (pendingForVariant === 0) return new Response();
 
     const shopContext = await getShopContext(admin);
-    const result = await dispatchRestockAlerts({ shop: shopRecord, variant, shopContext });
+    const result = await dispatchRestockAlerts({
+      shop: shopRecord,
+      variant,
+      shopContext,
+      inventoryItemId,
+      available,
+    });
     console.log(
       `[${topic}] ${shop} variant ${variant.variantId}: claimed=${result.claimed} sent=${result.sent} failed=${result.failed}${
         result.skippedReason ? ` (${result.skippedReason})` : ""

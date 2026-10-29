@@ -1,39 +1,35 @@
-import type { Shop, StockAlert } from "@prisma/client";
-import db from "../../db.server";
-import { resolveSettingsForPlan } from "../shop.server";
-import { appOrigin } from "../app-url.server";
-import { signPayload } from "../crypto.server";
+import type { Shop } from "@prisma/client";
 import {
-  formatMoney,
   getVariantsByIds,
   type GraphqlClient,
   type ShopContext,
   type VariantSummary,
 } from "../shopify-data.server";
-import { sendEmail, sendSms, sendWhatsApp } from "./providers.server";
-import {
-  emailCountsTowardQuota,
-  getShopPlan,
-  planAllowsSmsWhatsApp,
-} from "../billing/plan.server";
-import { backInStockHtml, backInStockText, render } from "./template.server";
-import { getUIConfigRow } from "../../models/ui-config.server";
-import type { BackInStockSettings } from "../ui-config.shared";
+import { getShopPlan } from "../billing/plan.server";
 import {
   claimPendingAlerts,
-  holdAlertForQuota,
-  markAlertFailed,
-  markAlertSent,
   reactivateFailedAlerts,
   variantIdsNeedingRetry,
 } from "../../models/stock-alert.server";
+import { checkRestockEligibility } from "./restock-eligibility.server";
+import { deliverOne, buildDeliverSettings } from "./deliver-one.server";
+import { isRestockQueueEnabled } from "./queue-flag.server";
+import { enqueueRestockAlerts } from "./enqueue.server";
 import {
-  consumeNotification,
-  releaseNotification,
-  reserveNotification,
-} from "../billing/usage.server";
-import { recordRestockNotificationLog } from "../../models/notification-log.server";
-import type { Plan } from "@prisma/client";
+  alertConfirmUrl,
+  alertTrackingUrl,
+  alertUnsubscribeUrl,
+  cartPermalink,
+  emailLogoUrl,
+} from "./notification-urls.server";
+
+export {
+  alertConfirmUrl,
+  alertTrackingUrl,
+  alertUnsubscribeUrl,
+  cartPermalink,
+  emailLogoUrl,
+};
 
 const SEND_CONCURRENCY = 10;
 
@@ -45,62 +41,32 @@ export type DispatchResult = {
   skippedReason?: string;
 };
 
-export function alertTrackingUrl(alertId: string): string {
-  const base = appOrigin();
-  return `${base}/r/alert/${alertId}?sig=${signPayload(alertId)}`;
-}
-
-export function alertConfirmUrl(alertId: string): string {
-  const base = appOrigin();
-  return `${base}/r/confirm/${alertId}?sig=${signPayload(alertId)}`;
-}
-
-export function alertUnsubscribeUrl(alertId: string): string {
-  const base = appOrigin();
-  return `${base}/alerts/unsubscribe?id=${alertId}&sig=${signPayload(alertId)}`;
-}
-
-/**
- * Emails strip `data:` URL images, so an uploaded logo is served from this app instead.
- * External https logos are used as-is.
- */
-export function emailLogoUrl(
-  rawLogo: string | undefined,
-  shopId: string,
-): string | null {
-  if (!rawLogo) return null;
-  if (rawLogo.startsWith("data:")) {
-    const base = appOrigin();
-    return base ? `${base}/logo/${shopId}` : rawLogo;
-  }
-  return rawLogo;
-}
-
-/** Cart permalink: adds the variant and lands the shopper straight on the cart. */
-export function cartPermalink(
-  domain: string,
-  variantId: string,
-  alertId?: string,
-): string {
-  const base = `${domain.replace(/\/$/, "")}/cart/${variantId}:1`;
-  if (!alertId) return base;
-  const properties = Buffer.from(
-    JSON.stringify({
-      _back_in_stock_alert: `${alertId}.${signPayload(alertId)}`,
-    }),
-    "utf8",
-  ).toString("base64url");
-  const params = new URLSearchParams({
-    properties,
-  });
-  return `${base}?${params}`;
-}
-
 /**
  * Sends every pending alert for a variant that just came back in stock.
- * Safe to call repeatedly: `claimPendingAlerts` hands out each row exactly once.
+ * When the restock queue is enabled for the shop, enqueues durable jobs instead
+ * of calling Mailgun inside the webhook/cron request.
  */
 export async function dispatchRestockAlerts(params: {
+  shop: Shop;
+  variant: VariantSummary;
+  shopContext: ShopContext;
+  inventoryItemId?: string | null;
+  available?: number | null;
+}): Promise<DispatchResult> {
+  if (isRestockQueueEnabled(params.shop)) {
+    const enqueued = await enqueueRestockAlerts(params);
+    return {
+      variantId: enqueued.variantId,
+      claimed: enqueued.jobsCreated,
+      sent: 0,
+      failed: 0,
+      skippedReason: enqueued.skippedReason,
+    };
+  }
+  return dispatchRestockAlertsInline(params);
+}
+
+async function dispatchRestockAlertsInline(params: {
   shop: Shop;
   variant: VariantSummary;
   shopContext: ShopContext;
@@ -113,44 +79,9 @@ export async function dispatchRestockAlerts(params: {
     failed: 0,
   };
 
-  // Only email "it's back!" when the shopper can actually buy it on the online store.
-  // sellableOnlineQuantity is the online-channel figure; inventoryQuantity (all locations)
-  // would fire alerts for stock the storefront can't sell.
-  if (!variant.availableForSale || variant.sellableOnlineQuantity <= 0) {
-    return { ...base, skippedReason: "variant not purchasable" };
-  }
-  if (variant.productStatus !== "ACTIVE") {
-    return { ...base, skippedReason: "product not active" };
-  }
-
-  const uiConfig = await getUIConfigRow(shop.id);
-  const rawProductConfig = uiConfig?.productCardConfig;
-  const productConfig =
-    rawProductConfig &&
-    typeof rawProductConfig === "object" &&
-    !Array.isArray(rawProductConfig)
-      ? (rawProductConfig as Record<string, unknown>)
-      : {};
-  if (productConfig.backInStockEnabled === false) {
-    return { ...base, skippedReason: "back-in-stock feature disabled" };
-  }
-  const rawBackInStockSettings = productConfig.backInStockSettings;
-  const backInStockSettings =
-    rawBackInStockSettings &&
-    typeof rawBackInStockSettings === "object" &&
-    !Array.isArray(rawBackInStockSettings)
-      ? (rawBackInStockSettings as Partial<BackInStockSettings>)
-      : undefined;
-  const configuredMinimumQuantity = Number(
-    backInStockSettings?.minimumQuantity,
-  );
-  const minimumQuantity =
-    Number.isInteger(configuredMinimumQuantity) &&
-    configuredMinimumQuantity >= 0
-      ? configuredMinimumQuantity
-      : 1;
-  if (variant.sellableOnlineQuantity < minimumQuantity) {
-    return { ...base, skippedReason: "below minimum stock threshold" };
+  const eligibility = await checkRestockEligibility(shop, variant);
+  if (!eligibility.ok) {
+    return { ...base, skippedReason: eligibility.reason };
   }
 
   const alerts = await claimPendingAlerts(
@@ -162,23 +93,11 @@ export async function dispatchRestockAlerts(params: {
   if (!alerts.length) return { ...base, skippedReason: "no pending alerts" };
 
   const plan = await getShopPlan(shop.id);
-  const settings = resolveSettingsForPlan(shop, plan);
-  if (backInStockSettings?.from?.trim())
-    settings.senderName = backInStockSettings.from.trim();
-  const price = formatMoney(
-    variant.price,
-    variant.currencyCode || shopContext.currencyCode,
+  const { settings, backInStockSettings } = buildDeliverSettings(
+    shop,
+    plan,
+    eligibility.backInStockSettings,
   );
-  const vars = {
-    product_title: variant.productTitle,
-    variant_title: variant.variantTitle,
-    shop_name: shopContext.name,
-    price: price || "",
-    product_url:
-      variant.onlineStoreUrl ||
-      `${shopContext.domain}/products/${variant.productHandle}`,
-    checkout_url: cartPermalink(shopContext.domain, variant.variantId),
-  };
 
   let sent = 0;
   let failed = 0;
@@ -187,11 +106,10 @@ export async function dispatchRestockAlerts(params: {
     const batch = alerts.slice(i, i + SEND_CONCURRENCY);
     const results = await Promise.allSettled(
       batch.map((alert) =>
-        deliver(alert, {
+        deliverOne(alert, {
           plan,
           settings,
           backInStockSettings,
-          vars,
           variant,
           shopContext,
         }),
@@ -216,159 +134,6 @@ export async function dispatchRestockAlerts(params: {
   return { ...base, claimed: alerts.length, sent, failed };
 }
 
-async function deliver(
-  alert: StockAlert,
-  ctx: {
-    plan: Plan;
-    settings: ReturnType<typeof resolveSettingsForPlan>;
-    backInStockSettings?: Partial<BackInStockSettings>;
-    vars: Record<string, string>;
-    variant: VariantSummary;
-    shopContext: ShopContext;
-  },
-): Promise<"sent" | "failed" | "held"> {
-  const { plan, settings, backInStockSettings, vars, variant, shopContext } =
-    ctx;
-  const emailVars = { ...vars, customer_email: alert.email || "" };
-  const actionUrl = alertTrackingUrl(alert.id);
-  const subject = backInStockSettings?.subject
-    ? normalizeEmailTemplate(backInStockSettings.subject)
-    : settings.emailSubject;
-  const heading = backInStockSettings?.headline
-    ? normalizeEmailTemplate(backInStockSettings.headline)
-    : settings.emailHeading;
-  const buttonLabel =
-    backInStockSettings?.emailButtonText || settings.buttonLabel;
-  const replyTo =
-    backInStockSettings?.replyTo &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(backInStockSettings.replyTo)
-      ? backInStockSettings.replyTo
-      : undefined;
-
-  const payload = {
-    heading: render(heading, emailVars),
-    body: render(settings.emailBody, emailVars),
-    buttonLabel: render(buttonLabel, emailVars),
-    productTitle: variant.productTitle,
-    variantTitle: variant.variantTitle,
-    imageUrl: variant.imageUrl,
-    price: vars.price || null,
-    actionUrl,
-    shopName: shopContext.name,
-    unsubscribeUrl: alertUnsubscribeUrl(alert.id),
-    footer: render(backInStockSettings?.footer || "", emailVars),
-    logoUrl: emailLogoUrl(backInStockSettings?.logoUrl, alert.shopId),
-    headerText: render(backInStockSettings?.headerText || "", emailVars),
-  };
-
-  if (alert.channel === "email" && !settings.emailAlertsEnabled) {
-    await holdAlertForQuota(alert.id, "Email alerts are turned off");
-    return "held";
-  }
-  if (alert.channel === "sms" || alert.channel === "whatsapp") {
-    if (!planAllowsSmsWhatsApp(plan.code)) {
-      await holdAlertForQuota(
-        alert.id,
-        "SMS and WhatsApp are available on the Scale plan",
-      );
-      return "held";
-    }
-  }
-  if (alert.channel === "sms" && !settings.smsEnabled) {
-    await holdAlertForQuota(alert.id, "SMS alerts are turned off");
-    return "held";
-  }
-  if (alert.channel === "whatsapp" && !settings.whatsappEnabled) {
-    await holdAlertForQuota(alert.id, "WhatsApp alerts are turned off");
-    return "held";
-  }
-
-  const countsTowardQuota =
-    alert.channel === "email" &&
-    settings.emailAlertsEnabled &&
-    emailCountsTowardQuota(plan, {
-      provider: settings.provider,
-      usesMerchantEmailProvider: settings.usesMerchantEmailProvider,
-    });
-  let reserved = false;
-  if (countsTowardQuota) {
-    const slot = await reserveNotification({
-      shopId: alert.shopId,
-      stockAlertId: alert.id,
-      notifyGeneration: alert.notifyGeneration,
-      plan,
-    });
-    if (slot === "exceeded") {
-      await holdAlertForQuota(alert.id);
-      return "held";
-    }
-    if (slot === "already_consumed") {
-      await markAlertSent(alert.id);
-      return "sent";
-    }
-    reserved = true;
-  }
-
-  const textBody = `${variant.productTitle} is back in stock at ${shopContext.name}. ${actionUrl} Cancel: ${alertUnsubscribeUrl(alert.id)}`;
-  const result =
-    alert.channel === "sms"
-      ? alert.phone
-        ? await sendSms(settings, alert.phone, textBody)
-        : {
-            ok: false as const,
-            error: "No phone number configured for this SMS alert",
-          }
-      : alert.channel === "whatsapp"
-        ? alert.phone
-          ? await sendWhatsApp(settings, alert.phone, textBody)
-          : {
-              ok: false as const,
-              error: "No phone number configured for this WhatsApp alert",
-            }
-        : alert.email
-          ? await sendEmail(settings, {
-              to: alert.email,
-              subject: render(subject, emailVars),
-              html: backInStockHtml(payload),
-              text: backInStockText(payload),
-              replyTo,
-            })
-          : {
-              ok: false as const,
-              error: "No email address configured for this email alert",
-            };
-
-  if (!result.ok) {
-    if (reserved) await releaseNotification(alert.id, alert.notifyGeneration);
-    await markAlertFailed(alert.id, result.error, alert.attempts);
-    await recordRestockNotificationLog({
-      alert,
-      status: "failed",
-      errorReason: result.error,
-    }).catch((error) => {
-      console.error(
-        `[restock] notification log failed for ${alert.id}:`,
-        error,
-      );
-    });
-    return "failed";
-  }
-
-  if (reserved) await consumeNotification(alert.id, alert.notifyGeneration);
-  await markAlertSent(alert.id);
-  await recordRestockNotificationLog({
-    alert,
-    status: "sent",
-  }).catch((error) => {
-    console.error(`[restock] notification log failed for ${alert.id}:`, error);
-  });
-  return "sent";
-}
-
-function normalizeEmailTemplate(template: string): string {
-  return template.replace(/\{\{+\s*Title\s*\}\}+/gi, "{{ product_title }}");
-}
-
 export type RetryResult = {
   variantsChecked: number;
   variantsDispatched: number;
@@ -378,13 +143,8 @@ export type RetryResult = {
 };
 
 /**
- * Re-drives alerts a normal restock webhook would have handled but didn't: sends stranded by a
- * crash (recovered through `claimPendingAlerts`' stale-SENDING sweep), alerts left PENDING after a
- * failed attempt, and — when `includeFailed` — FAILED rows reactivated by an explicit manual retry.
- *
- * Purchasability is still decided inside `dispatchRestockAlerts`, so a variant that is *still* sold
- * out claims nothing and nobody is emailed. This adds no new send path; it only supplies a trigger
- * (admin button / cron) for the same dispatch the webhooks use.
+ * Re-drives alerts a normal restock webhook would have handled but didn't.
+ * With queue enabled this enqueues jobs; otherwise it sends inline.
  */
 export async function retryStuckAlerts(params: {
   shop: Shop;
@@ -409,8 +169,6 @@ export async function retryStuckAlerts(params: {
     result.reactivated = await reactivateFailedAlerts(shop.id, variantIds);
   }
 
-  // `nodes()` accepts up to 250 ids; chunk to stay comfortably under that.
-  // Chunks run concurrently (bounded) so a large sweep doesn't crawl.
   const chunks: string[][] = [];
   for (let i = 0; i < variantIds.length; i += 100)
     chunks.push(variantIds.slice(i, i + 100));

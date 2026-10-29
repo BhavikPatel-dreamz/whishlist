@@ -1,0 +1,18 @@
+FROM node:20-alpine
+RUN apk add --no-cache openssl
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+COPY prisma ./prisma
+RUN npx prisma generate
+
+COPY app ./app
+COPY tsconfig.json ./
+
+# Long-lived poller — no Remix HTTP server
+CMD ["npx", "tsx", "app/workers/restock-worker.server.ts"]
