@@ -309,6 +309,58 @@ label.ca-cb {
   margin-bottom: 6px;
 }
 
+/* Loading skeleton while date/report params reload */
+.ca-main--loading {
+  min-height: 280px;
+}
+.ca-skeleton {
+  margin-top: 12px;
+}
+.ca-skeleton-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.ca-skeleton-card,
+.ca-skeleton-panel {
+  background: linear-gradient(
+    90deg,
+    var(--wl-surface-muted) 0%,
+    #eef2f6 45%,
+    var(--wl-surface-muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: ca-shimmer 1.1s ease-in-out infinite;
+  border: 1px solid var(--ca-bd);
+  border-radius: 12px;
+}
+.ca-skeleton-card {
+  height: 88px;
+}
+.ca-skeleton-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.ca-skeleton-panel {
+  height: 280px;
+}
+@keyframes ca-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+@media (max-width: 720px) {
+  .ca-skeleton-kpis,
+  .ca-skeleton-panels {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Conversion funnel — pixel match to design cards */
 .ca-funnels-wrap {
   margin-top: 12px;

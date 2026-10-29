@@ -3,7 +3,6 @@
  *
  * Computes one `DailyStat` row per shop per day from the raw event and order
  * tables. Designed to be idempotent: re-running for a date range overwrites the
-      AND "channel" = 'EMAIL'
  * same rows, so a replayed job never double-counts.
  *
  * Schedule:
@@ -114,29 +113,57 @@ async function eventCountersByDay(
     shareVisits: number;
     alertSubscriptions: number;
     notificationClicks: number;
+    uniqueSavers: number;
   };
 }> {
-  const [rows, storedClicks, subscriptions] = await Promise.all([
-    db.trackingEvent.groupBy({
-      by: ["createdAt", "type"],
-      where: { shopId, createdAt: bounds },
-      _count: { _all: true },
-    }),
-    db.stockAlert.groupBy({
-      by: ["convertedAt"],
-      where: { shopId, convertedAt: bounds },
-      _count: { _all: true },
-    }),
-    db.stockAlert.groupBy({
-      by: ["createdAt"],
-      where: { shopId, createdAt: bounds },
-      _count: { _all: true },
-    }),
-  ]);
+  const [rows, storedClicks, subscriptions, uniqueSavers, itemSavers, logClicks] =
+    await Promise.all([
+      db.trackingEvent.groupBy({
+        by: ["createdAt", "type"],
+        where: { shopId, createdAt: bounds },
+        _count: { _all: true },
+      }),
+      db.stockAlert.groupBy({
+        by: ["convertedAt"],
+        where: { shopId, convertedAt: bounds },
+        _count: { _all: true },
+      }),
+      db.stockAlert.groupBy({
+        by: ["createdAt"],
+        where: { shopId, createdAt: bounds },
+        _count: { _all: true },
+      }),
+      db.$queryRaw<Array<{ day: string; uniqueSavers: number }>>(Prisma.sql`
+        SELECT "createdAt"::date::text AS day,
+          COUNT(DISTINCT "shopperId")::int AS "uniqueSavers"
+        FROM "TrackingEvent"
+        WHERE "shopId" = ${shopId}
+          AND "type" = 'WISHLIST_SAVE'
+          AND "createdAt" >= ${bounds.gte} AND "createdAt" < ${bounds.lt}
+        GROUP BY 1
+      `),
+      db.$queryRaw<Array<{ day: string; uniqueSavers: number }>>(Prisma.sql`
+        SELECT "createdAt"::date::text AS day,
+          COUNT(DISTINCT COALESCE(NULLIF("shopperId", ''), "customerId", "guestToken"))::int AS "uniqueSavers"
+        FROM "WishlistItem"
+        WHERE "shopId" = ${shopId}
+          AND "createdAt" >= ${bounds.gte} AND "createdAt" < ${bounds.lt}
+        GROUP BY 1
+      `),
+      db.$queryRaw<Array<{ day: string; clicks: number }>>(Prisma.sql`
+        SELECT "clickedAt"::date::text AS day, COUNT(*)::int AS clicks
+        FROM "NotificationLog"
+        WHERE "shopId" = ${shopId}
+          AND "channel" = 'EMAIL'
+          AND "clickedAt" >= ${bounds.gte} AND "clickedAt" < ${bounds.lt}
+        GROUP BY 1
+      `),
+    ]);
 
   const byDay: RollupEventMap = {};
-  const dayFor = (date: Date) => {
-    const dateKey = date.toISOString().slice(0, 10);
+  const dayFor = (date: Date | string) => {
+    const dateKey =
+      typeof date === "string" ? date : date.toISOString().slice(0, 10);
     return (byDay[dateKey] ??= {
       productViews: 0,
       wishlistSaves: 0,
@@ -146,6 +173,7 @@ async function eventCountersByDay(
       shareVisits: 0,
       alertSubscriptions: 0,
       notificationClicks: 0,
+      uniqueSavers: 0,
     });
   };
   for (const row of rows) {
@@ -172,6 +200,9 @@ async function eventCountersByDay(
       case "NOTIFICATION_CLICK":
         day.notificationClicks += row._count._all;
         break;
+      case "ALERT_SUBSCRIBE_CLICK":
+        day.notificationClicks += row._count._all;
+        break;
     }
   }
   for (const subscription of subscriptions) {
@@ -186,6 +217,18 @@ async function eventCountersByDay(
       click._count._all,
     );
   }
+  for (const click of logClicks) {
+    const day = dayFor(click.day);
+    day.notificationClicks = Math.max(day.notificationClicks, click.clicks);
+  }
+  for (const row of uniqueSavers) {
+    const day = dayFor(row.day);
+    day.uniqueSavers = Math.max(day.uniqueSavers, row.uniqueSavers);
+  }
+  for (const row of itemSavers) {
+    const day = dayFor(row.day);
+    day.uniqueSavers = Math.max(day.uniqueSavers, row.uniqueSavers);
+  }
   return byDay;
 }
 
@@ -199,6 +242,7 @@ type RollupEventMap = {
     shareVisits: number;
     alertSubscriptions: number;
     notificationClicks: number;
+    uniqueSavers: number;
   };
 };
 
@@ -260,9 +304,10 @@ async function notificationCountersByDay(
     };
   }
   for (const row of rows) {
-    const notificationsSent = byDay[row.sentDate]?.notificationsSent ?? 0;
+    const prior = byDay[row.sentDate]?.notificationsSent ?? 0;
     byDay[row.sentDate] = {
-      notificationsSent,
+      // Match liveDailyTotals: prefer StockAlert notifiedAt, keep log delivery fields.
+      notificationsSent: Math.max(prior, row.notificationsSent),
       notificationsDelivered: row.notificationsDelivered,
       notificationsOpened: row.notificationsOpened,
       unsubscribes: row.unsubscribes,
@@ -321,6 +366,7 @@ async function rollupShopDay(
     shareVisits: 0,
     alertSubscriptions: 0,
     notificationClicks: 0,
+    uniqueSavers: 0,
   };
   const dayRevenue = revenue[date] ?? {
     wishlistDirect: 0,
@@ -337,65 +383,43 @@ async function rollupShopDay(
     unsubscribes: 0,
   };
 
+  const payload = {
+    productViews: dayEvents.productViews,
+    wishlistSaves: dayEvents.wishlistSaves,
+    wishlistRemoves: dayEvents.wishlistRemoves,
+    uniqueSavers: dayEvents.uniqueSavers,
+    wishlistAddToCart: dayEvents.wishlistAddToCart,
+    shares: dayEvents.shares,
+    shareVisits: dayEvents.shareVisits,
+    alertSubscriptions: dayEvents.alertSubscriptions,
+    notificationClicks: dayEvents.notificationClicks,
+    notificationsSent: dayNotifs.notificationsSent,
+    notificationsDelivered: dayNotifs.notificationsDelivered,
+    notificationsOpened: dayNotifs.notificationsOpened,
+    unsubscribes: dayNotifs.unsubscribes,
+    wishlistOrders: dayRevenue.wishlistOrders,
+    restockOrders: dayRevenue.restockOrders,
+    wishlistRevenueDirect: new Prisma.Decimal(
+      dayRevenue.wishlistDirect.toFixed(2),
+    ),
+    wishlistRevenueEstimated: new Prisma.Decimal(
+      dayRevenue.wishlistEstimated.toFixed(2),
+    ),
+    restockRevenueDirect: new Prisma.Decimal(
+      dayRevenue.restockDirect.toFixed(2),
+    ),
+    restockRevenueEstimated: new Prisma.Decimal(
+      dayRevenue.restockEstimated.toFixed(2),
+    ),
+  };
+
   await db.dailyStat.upsert({
     where: { shopId_date: { shopId, date: new Date(date) } },
-    update: {
-      productViews: dayEvents.productViews,
-      wishlistSaves: dayEvents.wishlistSaves,
-      wishlistRemoves: dayEvents.wishlistRemoves,
-      wishlistAddToCart: dayEvents.wishlistAddToCart,
-      shares: dayEvents.shares,
-      shareVisits: dayEvents.shareVisits,
-      alertSubscriptions: dayEvents.alertSubscriptions,
-      notificationClicks: dayEvents.notificationClicks,
-      notificationsSent: dayNotifs.notificationsSent,
-      notificationsDelivered: dayNotifs.notificationsDelivered,
-      notificationsOpened: dayNotifs.notificationsOpened,
-      unsubscribes: dayNotifs.unsubscribes,
-      wishlistOrders: dayRevenue.wishlistOrders,
-      restockOrders: dayRevenue.restockOrders,
-      wishlistRevenueDirect: new Prisma.Decimal(
-        dayRevenue.wishlistDirect.toFixed(2),
-      ),
-      wishlistRevenueEstimated: new Prisma.Decimal(
-        dayRevenue.wishlistEstimated.toFixed(2),
-      ),
-      restockRevenueDirect: new Prisma.Decimal(
-        dayRevenue.restockDirect.toFixed(2),
-      ),
-      restockRevenueEstimated: new Prisma.Decimal(
-        dayRevenue.restockEstimated.toFixed(2),
-      ),
-    },
+    update: payload,
     create: {
       shopId,
       date: new Date(date),
-      productViews: dayEvents.productViews,
-      wishlistSaves: dayEvents.wishlistSaves,
-      wishlistRemoves: dayEvents.wishlistRemoves,
-      wishlistAddToCart: dayEvents.wishlistAddToCart,
-      shares: dayEvents.shares,
-      shareVisits: dayEvents.shareVisits,
-      alertSubscriptions: dayEvents.alertSubscriptions,
-      notificationClicks: dayEvents.notificationClicks,
-      notificationsSent: dayNotifs.notificationsSent,
-      notificationsDelivered: dayNotifs.notificationsDelivered,
-      notificationsOpened: dayNotifs.notificationsOpened,
-      unsubscribes: dayNotifs.unsubscribes,
-      wishlistOrders: dayRevenue.wishlistOrders,
-      restockOrders: dayRevenue.restockOrders,
-      wishlistRevenueDirect: new Prisma.Decimal(
-        dayRevenue.wishlistDirect.toFixed(2),
-      ),
-      wishlistRevenueEstimated: new Prisma.Decimal(
-        dayRevenue.wishlistEstimated.toFixed(2),
-      ),
-      restockRevenueDirect: new Prisma.Decimal(
-        dayRevenue.restockDirect.toFixed(2),
-      ),
-      restockRevenueEstimated: new Prisma.Decimal(
-        dayRevenue.restockEstimated.toFixed(2),
-      ),
+      ...payload,
     },
   });
 

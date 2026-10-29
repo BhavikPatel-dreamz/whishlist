@@ -4,13 +4,17 @@ import { useLoaderData } from "@remix-run/react";
 import { ClassicAnalytics } from "../components/analytics/ClassicAnalytics";
 import classicAnalyticsStyles from "../components/analytics/ClassicAnalytics.css?url";
 import { requireAdminShop } from "../lib/admin-auth.server";
+import { paramsRange, parseAnalyticsParams } from "../lib/analytics-params";
 import {
   csvRowFor,
   isReportSlug,
   REPORT_CSV_COLUMNS,
 } from "../lib/report-contract";
 import { toCsv } from "../lib/reports";
-import { loadAnalyticsReport } from "../models/analytics-reports.server";
+import {
+  loadAnalyticsReport,
+  loadTopWishlistedProducts,
+} from "../models/analytics-reports.server";
 
 const HIDDEN_REPORTS = new Set([
   "removed-abandoned",
@@ -45,26 +49,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   const { response } = reportResult;
-  const topProducts = slug === "overview"
-    ? await loadAnalyticsReport(shop.id, admin, "wishlisted-products", (() => {
-        const topParams = new URLSearchParams(params);
-        topParams.set("page", "1");
-        topParams.set("pageSize", "5");
-        topParams.set("sort", "saves");
-        topParams.set("order", "desc");
-        return topParams;
-      })()).then(({ response: products }) => products.rows)
-    : [];
-  const productBreakdown = slug === "conversion-funnel"
-    ? await loadAnalyticsReport(shop.id, admin, "wishlisted-products", (() => {
-        const productParams = new URLSearchParams(params);
-        productParams.set("page", "1");
-        productParams.set("pageSize", "8");
-        productParams.set("sort", "saves");
-        productParams.set("order", "desc");
-        return productParams;
-      })()).then(({ response: products }) => products.rows)
-    : [];
+  const analyticsParams = parseAnalyticsParams(params);
+  const range = paramsRange(analyticsParams);
+
+  // Overview: slim top-5 (not a second full wishlisted-products report).
+  // Funnel: skip product breakdown (section is commented out in UI).
+  const topProducts =
+    slug === "overview"
+      ? await loadTopWishlistedProducts(shop.id, admin, range, 5)
+      : [];
+  const productBreakdown: typeof topProducts = [];
+
   return json({ report: response, topProducts, productBreakdown });
 }
 

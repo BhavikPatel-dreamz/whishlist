@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import db from "../db.server";
 import { periodDelta } from "../lib/metrics";
 import {
+  addDays,
   type DateRange,
   type GroupBy,
   rangeBounds,
@@ -88,7 +89,15 @@ async function liveDailyTotals(
         COUNT(*) FILTER (WHERE "clickedAt" >= ${bounds.gte} AND "clickedAt" < ${bounds.lt})::int AS clicks,
         COUNT(*) FILTER (WHERE "unsubscribedAt" >= ${bounds.gte} AND "unsubscribedAt" < ${bounds.lt})::int AS unsubscribes
       FROM "NotificationLog"
-      WHERE "shopId" = ${shopId} AND "channel" = 'EMAIL'
+      WHERE "shopId" = ${shopId}
+        AND "channel" = 'EMAIL'
+        AND (
+          ("sentAt" >= ${bounds.gte} AND "sentAt" < ${bounds.lt})
+          OR ("deliveredAt" >= ${bounds.gte} AND "deliveredAt" < ${bounds.lt})
+          OR ("openedAt" >= ${bounds.gte} AND "openedAt" < ${bounds.lt})
+          OR ("clickedAt" >= ${bounds.gte} AND "clickedAt" < ${bounds.lt})
+          OR ("unsubscribedAt" >= ${bounds.gte} AND "unsubscribedAt" < ${bounds.lt})
+        )
     `),
     db.stockAlert.count({
       where: { shopId, channel: "email", notifiedAt: bounds },
@@ -181,44 +190,65 @@ async function liveDailyTotals(
   };
 }
 
-/**
- * Sums counters for a range.
- * Pass `{ live: true }` to always read raw events/tables (needed for
- * conversion funnel so date presets never show stale DailyStat zeros).
- */
-export async function dailyTotals(
+type DailyStatSumRow = {
+  productViews: number | null;
+  dayCount: number;
+  wishlistSaves: number | null;
+  wishlistRemoves: number | null;
+  uniqueSavers: number | null;
+  wishlistAddToCart: number | null;
+  shares: number | null;
+  shareVisits: number | null;
+  alertSubscriptions: number | null;
+  notificationsSent: number | null;
+  notificationsDelivered: number | null;
+  notificationsOpened: number | null;
+  notificationClicks: number | null;
+  unsubscribes: number | null;
+  wishlistOrders: number | null;
+  restockOrders: number | null;
+  wishlistRevenueDirect: string | number | null;
+  wishlistRevenueEstimated: string | number | null;
+  restockRevenueDirect: string | number | null;
+  restockRevenueEstimated: string | number | null;
+};
+
+function money(value: string | number | null) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function addDailyTotals(a: DailyTotals, b: DailyTotals): DailyTotals {
+  return {
+    productViews: a.productViews + b.productViews,
+    wishlistSaves: a.wishlistSaves + b.wishlistSaves,
+    wishlistRemoves: a.wishlistRemoves + b.wishlistRemoves,
+    uniqueSavers: a.uniqueSavers + b.uniqueSavers,
+    wishlistAddToCart: a.wishlistAddToCart + b.wishlistAddToCart,
+    shares: a.shares + b.shares,
+    shareVisits: a.shareVisits + b.shareVisits,
+    alertSubscriptions: a.alertSubscriptions + b.alertSubscriptions,
+    notificationsSent: a.notificationsSent + b.notificationsSent,
+    notificationsDelivered: a.notificationsDelivered + b.notificationsDelivered,
+    notificationsOpened: a.notificationsOpened + b.notificationsOpened,
+    notificationClicks: a.notificationClicks + b.notificationClicks,
+    unsubscribes: a.unsubscribes + b.unsubscribes,
+    wishlistOrders: a.wishlistOrders + b.wishlistOrders,
+    restockOrders: a.restockOrders + b.restockOrders,
+    wishlistRevenueDirect: a.wishlistRevenueDirect + b.wishlistRevenueDirect,
+    wishlistRevenueEstimated:
+      a.wishlistRevenueEstimated + b.wishlistRevenueEstimated,
+    restockRevenueDirect: a.restockRevenueDirect + b.restockRevenueDirect,
+    restockRevenueEstimated:
+      a.restockRevenueEstimated + b.restockRevenueEstimated,
+  };
+}
+
+async function sumDailyStat(
   shopId: string,
   range: DateRange,
-  options?: { live?: boolean },
-): Promise<DailyTotals> {
-  if (options?.live) {
-    return liveDailyTotals(shopId, range);
-  }
-
-  const [row] = await db.$queryRaw<
-    Array<{
-      productViews: number | null;
-      dayCount: number;
-      wishlistSaves: number | null;
-      wishlistRemoves: number | null;
-      uniqueSavers: number | null;
-      wishlistAddToCart: number | null;
-      shares: number | null;
-      shareVisits: number | null;
-      alertSubscriptions: number | null;
-      notificationsSent: number | null;
-      notificationsDelivered: number | null;
-      notificationsOpened: number | null;
-      notificationClicks: number | null;
-      unsubscribes: number | null;
-      wishlistOrders: number | null;
-      restockOrders: number | null;
-      wishlistRevenueDirect: string | number | null;
-      wishlistRevenueEstimated: string | number | null;
-      restockRevenueDirect: string | number | null;
-      restockRevenueEstimated: string | number | null;
-    }>
-  >(Prisma.sql`
+): Promise<DailyStatSumRow | null> {
+  const [row] = await db.$queryRaw<DailyStatSumRow[]>(Prisma.sql`
     SELECT
       COUNT(DISTINCT "date")::int AS "dayCount",
       COALESCE(SUM("productViews"), 0)::int           AS "productViews",
@@ -245,32 +275,10 @@ export async function dailyTotals(
       AND "date" >= ${range.from}::date
       AND "date" <= ${range.to}::date
   `);
+  return row ?? null;
+}
 
-  if (range.to >= today() || !row || row.dayCount < rangeLength(range)) {
-    return liveDailyTotals(shopId, range);
-  }
-
-  const [storedAlertClicks, alertSubscriptions, emailMeClicks] =
-    await Promise.all([
-      db.stockAlert.count({
-        where: { shopId, convertedAt: rangeBounds(range) },
-      }),
-      db.stockAlert.count({
-        where: { shopId, createdAt: rangeBounds(range) },
-      }),
-      db.trackingEvent.count({
-        where: {
-          shopId,
-          type: "ALERT_SUBSCRIBE_CLICK",
-          createdAt: rangeBounds(range),
-        },
-      }),
-    ]);
-  const money = (value: string | number | null) => {
-    const parsed = Number(value ?? 0);
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
-
+function totalsFromDailyStatRow(row: DailyStatSumRow): DailyTotals {
   return {
     productViews: row.productViews ?? 0,
     wishlistSaves: row.wishlistSaves ?? 0,
@@ -279,12 +287,11 @@ export async function dailyTotals(
     wishlistAddToCart: row.wishlistAddToCart ?? 0,
     shares: row.shares ?? 0,
     shareVisits: row.shareVisits ?? 0,
-    alertSubscriptions,
+    alertSubscriptions: row.alertSubscriptions ?? 0,
     notificationsSent: row.notificationsSent ?? 0,
     notificationsDelivered: row.notificationsDelivered ?? 0,
     notificationsOpened: row.notificationsOpened ?? 0,
-    notificationClicks:
-      Math.max(row.notificationClicks ?? 0, storedAlertClicks) + emailMeClicks,
+    notificationClicks: row.notificationClicks ?? 0,
     unsubscribes: row.unsubscribes ?? 0,
     wishlistOrders: row.wishlistOrders ?? 0,
     restockOrders: row.restockOrders ?? 0,
@@ -293,6 +300,57 @@ export async function dailyTotals(
     restockRevenueDirect: money(row.restockRevenueDirect),
     restockRevenueEstimated: money(row.restockRevenueEstimated),
   };
+}
+
+/**
+ * Sums counters for a range.
+ * Default: hybrid = DailyStat for closed days + live totals for today only.
+ * Pass `{ live: true }` to force a full-window raw scan (tests / recovery).
+ */
+export async function dailyTotals(
+  shopId: string,
+  range: DateRange,
+  options?: { live?: boolean },
+): Promise<DailyTotals> {
+  if (options?.live) {
+    return liveDailyTotals(shopId, range);
+  }
+
+  const todayStr = today();
+
+  // Closed historical range: trust complete DailyStat; otherwise live.
+  if (range.to < todayStr) {
+    const row = await sumDailyStat(shopId, range);
+    if (row && row.dayCount >= rangeLength(range)) {
+      return totalsFromDailyStatRow(row);
+    }
+    return liveDailyTotals(shopId, range);
+  }
+
+  // Range includes today → rollup [from, yesterday] + live today only.
+  const yesterday = addDays(todayStr, -1);
+  const todayRange: DateRange = { from: todayStr, to: todayStr };
+
+  if (range.from > yesterday) {
+    return liveDailyTotals(shopId, {
+      from: range.from > todayStr ? todayStr : range.from,
+      to: todayStr,
+    });
+  }
+
+  const closedRange: DateRange = { from: range.from, to: yesterday };
+  const [closedRow, todayLive] = await Promise.all([
+    sumDailyStat(shopId, closedRange),
+    liveDailyTotals(shopId, todayRange),
+  ]);
+
+  if (closedRow && closedRow.dayCount >= rangeLength(closedRange)) {
+    return addDailyTotals(totalsFromDailyStatRow(closedRow), todayLive);
+  }
+
+  // Incomplete rollup for closed days — live the closed window + today.
+  const [closedLive] = await Promise.all([liveDailyTotals(shopId, closedRange)]);
+  return addDailyTotals(closedLive, todayLive);
 }
 
 /**

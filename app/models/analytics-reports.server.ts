@@ -37,6 +37,7 @@ import {
   nextPlanForLogUpgrade,
   planNotificationLogLimit,
 } from "../lib/billing/plan.server";
+import { ttlRemember } from "../lib/ttl-cache.server";
 
 type ReportData = {
   summary: Record<string, number>;
@@ -531,6 +532,27 @@ async function addWishlistOrderTotals(
 }
 */
 
+/** Skip Shopify order GraphQL when Attribution/DailyStat already has revenue. */
+async function enrichTotalsIfNeeded(
+  shopId: string,
+  admin: GraphqlClient,
+  range: DateRange,
+  totals: Awaited<ReturnType<typeof dailyTotals>>,
+) {
+  const attributed =
+    totals.wishlistRevenueDirect +
+    totals.wishlistRevenueEstimated +
+    totals.restockRevenueDirect +
+    totals.restockRevenueEstimated;
+  if (
+    attributed > 0 ||
+    (totals.wishlistOrders === 0 && totals.restockOrders === 0)
+  ) {
+    return totals;
+  }
+  return addWishlistOrderTotals(shopId, admin, range, totals);
+}
+
 async function overviewData(
   shopId: string,
   admin: GraphqlClient,
@@ -538,43 +560,43 @@ async function overviewData(
   previous: DateRange | null,
   groupBy: AnalyticsParams["groupBy"],
 ): Promise<ReportData> {
-  const totals = await addWishlistOrderTotals(
-    shopId,
-    admin,
-    range,
-    await dailyTotals(shopId, range),
-  );
-  const previousTotals = previous
-    ? await addWishlistOrderTotals(
-        shopId,
-        admin,
-        previous,
-        await dailyTotals(shopId, previous),
-      )
-    : null;
-  const currentSeries = await dailySeries(shopId, range, groupBy);
-  const previousSeries = previous
-    ? await dailySeries(shopId, previous, groupBy)
-    : null;
-  const [pendingAlerts, totalAlertSubscriptions, previousAlertSubscriptions] =
-    await Promise.all([
-      db.stockAlert.count({ where: { shopId, status: "PENDING" } }),
-      // This is a current subscription snapshot, matching the "Total
-      // subscriptions" KPI on the Alert subscriptions report.
-      db.stockAlert.count({ where: { shopId } }),
-      previous
-        ? db.stockAlert.count({
-            where: {
-              shopId,
-              createdAt: { lt: rangeBounds(previous).lt },
-            },
-          })
-        : Promise.resolve(0),
-    ]);
-  const currentTrendExtras = await overviewTrendExtras(shopId, range, groupBy);
-  const previousTrendExtras = previous
-    ? await overviewTrendExtras(shopId, previous, groupBy)
-    : null;
+  const [
+    baseTotals,
+    basePreviousTotals,
+    currentSeries,
+    previousSeries,
+    pendingAlerts,
+    totalAlertSubscriptions,
+    previousAlertSubscriptions,
+    currentTrendExtras,
+    previousTrendExtras,
+  ] = await Promise.all([
+    dailyTotals(shopId, range),
+    previous ? dailyTotals(shopId, previous) : Promise.resolve(null),
+    dailySeries(shopId, range, groupBy),
+    previous ? dailySeries(shopId, previous, groupBy) : Promise.resolve(null),
+    db.stockAlert.count({ where: { shopId, status: "PENDING" } }),
+    db.stockAlert.count({ where: { shopId } }),
+    previous
+      ? db.stockAlert.count({
+          where: {
+            shopId,
+            createdAt: { lt: rangeBounds(previous).lt },
+          },
+        })
+      : Promise.resolve(0),
+    overviewTrendExtras(shopId, range, groupBy),
+    previous
+      ? overviewTrendExtras(shopId, previous, groupBy)
+      : Promise.resolve(null),
+  ]);
+
+  const [totals, previousTotals] = await Promise.all([
+    enrichTotalsIfNeeded(shopId, admin, range, baseTotals),
+    basePreviousTotals
+      ? enrichTotalsIfNeeded(shopId, admin, previous!, basePreviousTotals)
+      : Promise.resolve(null),
+  ]);
   const summary = {
     ...totalsSummary(totals),
     alertSubscriptions: totalAlertSubscriptions,
@@ -779,13 +801,10 @@ async function funnelData(
   range: DateRange,
   previous: DateRange | null,
 ): Promise<ReportData> {
-  // Always live-query so Last week / 30 / 90 day presets reflect real events
-  // for that exact from→to window (not a possibly incomplete DailyStat rollup).
+  // Hybrid DailyStat (closed days) + today-only live — see dailyTotals().
   const [totals, previousTotals] = await Promise.all([
-    dailyTotals(shopId, range, { live: true }),
-    previous
-      ? dailyTotals(shopId, previous, { live: true })
-      : Promise.resolve(null),
+    dailyTotals(shopId, range),
+    previous ? dailyTotals(shopId, previous) : Promise.resolve(null),
   ]);
   const wishlist = buildFunnel([
     ["views", "Product views", totals.productViews],
@@ -4206,7 +4225,92 @@ function applyFilters(
   );
 }
 
+/**
+ * Lightweight top wishlisted products for the overview strip — saves only +
+ * title hydrate (variants:1). Avoids the full wishlisted-products report.
+ */
+export async function loadTopWishlistedProducts(
+  shopId: string,
+  admin: GraphqlClient,
+  range: DateRange,
+  limit = 5,
+): Promise<ReportRow[]> {
+  const bounds = rangeBounds(range);
+  const [eventSaves, itemSaves] = await Promise.all([
+    db.trackingEvent.groupBy({
+      by: ["productId"],
+      where: {
+        shopId,
+        type: "WISHLIST_SAVE",
+        createdAt: bounds,
+        productId: { not: null },
+      },
+      _count: { _all: true },
+    }),
+    db.$queryRaw<Array<{ productId: string; saves: number }>>(Prisma.sql`
+      SELECT "productId", COUNT(*)::int AS saves
+      FROM "WishlistItem"
+      WHERE "shopId" = ${shopId}
+        AND "createdAt" >= ${bounds.gte} AND "createdAt" < ${bounds.lt}
+      GROUP BY "productId"
+      ORDER BY saves DESC
+      LIMIT ${limit * 3}
+    `),
+  ]);
+
+  const savesByProduct = new Map<string, number>();
+  for (const row of eventSaves) {
+    if (!row.productId) continue;
+    savesByProduct.set(
+      row.productId,
+      Math.max(savesByProduct.get(row.productId) ?? 0, row._count._all),
+    );
+  }
+  for (const row of itemSaves) {
+    savesByProduct.set(
+      row.productId,
+      Math.max(savesByProduct.get(row.productId) ?? 0, row.saves),
+    );
+  }
+
+  const ranked = [...savesByProduct.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit);
+  if (!ranked.length) return [];
+
+  const products = await getProductsByIds(
+    admin,
+    ranked.map(([id]) => id),
+    1,
+  );
+
+  return ranked.map(([productId, saves]) => ({
+    productId,
+    title: products.get(productId)?.title ?? `Product ${productId}`,
+    saves,
+    image: products.get(productId)?.imageUrl ?? null,
+  }));
+}
+
 export async function loadAnalyticsReport(
+  shopId: string,
+  admin: GraphqlClient,
+  slug: ReportSlug,
+  searchParams: URLSearchParams,
+): Promise<{ response: ReportResponse; csvRows: ReportRow[] }> {
+  const cacheKey = `analytics:${shopId}:${slug}:${searchParams.toString()}`;
+  // CSV exports must be fresh; JSON report views get a short TTL.
+  if (searchParams.get("format") !== "csv") {
+    return ttlRemember(
+      cacheKey,
+      () => loadAnalyticsReportUncached(shopId, admin, slug, searchParams),
+      45_000,
+    );
+  }
+  return loadAnalyticsReportUncached(shopId, admin, slug, searchParams);
+}
+
+async function loadAnalyticsReportUncached(
   shopId: string,
   admin: GraphqlClient,
   slug: ReportSlug,

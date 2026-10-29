@@ -230,6 +230,8 @@ model StockAlert {
   @@index([shopId, variantId, status])
   @@index([shopId, status, createdAt])
   @@index([shopId, purchasedAt])
+  @@index([shopId, notifiedAt])
+  @@index([shopId, convertedAt])
   @@index([shopId, productId, status])
   @@index([shopId, customerId])
   @@index([shopId, status, updatedAt])
@@ -483,6 +485,7 @@ model NotificationLog {
 
   @@index([shopId, kind, sentAt])
   @@index([shopId, status, sentAt])
+  @@index([shopId, channel, sentAt])
   @@index([shopId, subscriptionId])
 }
 

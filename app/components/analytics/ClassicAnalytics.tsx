@@ -1373,6 +1373,7 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
               value={String(rangePreset)}
               onChange={(e) => handleDateChange(Number(e.target.value))}
               aria-label="Date range"
+              disabled={loading}
             >
               <option value="7">Last week</option>
               <option value="14">Last 14 days</option>
@@ -1432,9 +1433,20 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
             </button>
           ))}
         </div>
-        <main id="main">
+        <main id="main" className={loading ? "ca-main--loading" : undefined} aria-busy={loading}>
           {loading ? (
-            <div className="ca-empty">Loading…</div>
+            <div className="ca-skeleton" aria-label="Loading analytics">
+              <div className="ca-skeleton-kpis">
+                <div className="ca-skeleton-card" />
+                <div className="ca-skeleton-card" />
+                <div className="ca-skeleton-card" />
+                <div className="ca-skeleton-card" />
+              </div>
+              <div className="ca-skeleton-panels">
+                <div className="ca-skeleton-panel" />
+                <div className="ca-skeleton-panel" />
+              </div>
+            </div>
           ) : slug === "overview" ? (
             <>
               {renderKpis()}
