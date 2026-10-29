@@ -1,18 +1,21 @@
 FROM node:20-alpine
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl libc6-compat
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev && npm cache clean --force
-
+# Repo uses pnpm (pnpm-lock.yaml), not package-lock.json — npm ci will fail.
+COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma
-RUN npx prisma generate
+
+RUN pnpm install --frozen-lockfile --prod \
+  && pnpm exec prisma generate \
+  && pnpm store prune
 
 COPY app ./app
 COPY tsconfig.json ./
 
 # Long-lived poller — no Remix HTTP server
-CMD ["npx", "tsx", "app/workers/restock-worker.server.ts"]
+CMD ["pnpm", "exec", "tsx", "app/workers/restock-worker.server.ts"]

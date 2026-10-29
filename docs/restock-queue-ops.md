@@ -15,16 +15,22 @@ No SQS / ECS. Same `NotificationJob` tables; worker polls Postgres.
 ### Deploy Fly worker
 
 ```bash
-fly apps create wishlist-restock-worker   # once
-fly secrets set DATABASE_URL="..." \
+# Prefer deploy (not fly launch) so Fly does not rewrite fly.toml with an HTTP "app" service.
+fly apps create wishlist-restock-worker   # once, if needed
+
+fly secrets set -a wishlist-restock-worker \
+  DATABASE_URL="..." \
   DEFAULT_EMAIL_API_KEY="..." \
   DEFAULT_SENDER_EMAIL="..." \
   SHOPIFY_API_KEY="..." \
   SHOPIFY_API_SECRET="..." \
-  APP_ENCRYPTION_KEY="..." \
-  # plus any other secrets your app needs for Mailgun / sessions
-fly deploy --config fly.toml --dockerfile Dockerfile.worker
+  APP_ENCRYPTION_KEY="..."
+
+fly deploy -a wishlist-restock-worker --config fly.toml --dockerfile Dockerfile.worker
+fly scale count 1 -a wishlist-restock-worker
 ```
+
+Avoid `fly launch` for this worker — it often adds an HTTP service that expects process `app` and breaks a custom `[processes] worker` block.
 
 Do **not** set `AWS_SQS_QUEUE_URL`. Outbox rows are marked published without SQS; the worker drains jobs from the DB.
 
