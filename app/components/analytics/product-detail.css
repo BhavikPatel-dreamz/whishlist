@@ -3,6 +3,13 @@
 font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);background:var(--bg);min-height:100%;padding:20px 16px 40px;font-size:13px}
 .pd *{box-sizing:border-box}
 .pd-wrap{max-width:1034px;margin:0 auto;display:grid;gap:14px}
+.pd-alert-customer{width:100%;min-width:0;overflow-x:hidden}
+.pd-alert-customer .pd-wrap{width:100%;max-width:1180px;min-width:0}
+.pd-alert-customer .pd-card{width:100%;max-width:100%;min-width:0}
+.pd-alert-customer .pd-tw{width:100%;max-width:100%;min-width:0;overscroll-behavior-x:contain}
+.pd-alert-customer .pd-table{width:100%;min-width:760px}
+.pd-alert-customer .pd-table th:first-child,.pd-alert-customer .pd-table td:first-child{min-width:220px;max-width:360px;white-space:normal;overflow-wrap:anywhere}
+.pd-alert-customer .pd-table th:last-child,.pd-alert-customer .pd-table td:last-child{min-width:180px;max-width:260px;white-space:normal;overflow-wrap:anywhere}
 .pd-back{background:none;border:0;padding:0;cursor:pointer;color:var(--blue);font:inherit;font-size:13px;width:fit-content}
 .pd-back:hover{text-decoration:underline}
 .pd-back:focus-visible,.pd-kpi:focus-visible{outline:2px solid var(--green);outline-offset:2px}

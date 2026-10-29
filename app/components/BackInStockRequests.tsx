@@ -65,12 +65,15 @@ const STATUS_TONE: Record<string, string> = {
   SENT: "is-sent",
   FAILED: "is-failed",
   CANCELLED: "is-cancelled",
+  UNSUBSCRIBED: "is-cancelled",
 };
 
 // Failed alerts stay retryable from this screen, so present them as pending work
 // instead of exposing a terminal-looking status to the merchant.
 function displayStatus(status: string) {
-  return status === "FAILED" ? "PENDING" : status;
+  if (status === "FAILED") return "PENDING";
+  if (status === "CANCELLED") return "UNSUBSCRIBED";
+  return status;
 }
 
 function formatDate(value: string | Date) {

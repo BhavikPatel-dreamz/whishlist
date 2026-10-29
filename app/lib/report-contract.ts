@@ -165,7 +165,13 @@ export const REPORT_CSV_COLUMNS: Record<ReportSlug, string[]> = {
     "Total subscriptions",
     "New in period",
   ],
-  "alert-customers": ["Contact", "Channel", "Requests", "Last requested"],
+  "alert-customers": [
+    "Contact",
+    "Channel",
+    "Requests",
+    "Alert status",
+    "Last requested",
+  ],
   "pending-alerts": [
     "Shopper",
     "Contact",
@@ -407,7 +413,13 @@ export const REPORT_CSV_ROW_KEYS: Record<ReportSlug, string[]> = {
     "totalSubscriptions",
     "newSubscriptions",
   ],
-  "alert-customers": ["contact", "channel", "requests", "lastRequestedAt"],
+  "alert-customers": [
+    "contact",
+    "channel",
+    "requests",
+    "alertStatus",
+    "lastRequestedAt",
+  ],
   "pending-alerts": [
     "shopper",
     "contact",

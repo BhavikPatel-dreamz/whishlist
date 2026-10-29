@@ -15,7 +15,7 @@ export const REQUEST_STATUS_OPTIONS = [
   { label: "Sending", value: "SENDING" },
   { label: "Sent", value: "SENT" },
   { label: "Failed", value: "FAILED" },
-  { label: "Cancelled", value: "CANCELLED" },
+  { label: "Unsubscribed", value: "CANCELLED" },
 ];
 
 export const REQUEST_CHANNEL_OPTIONS = [
@@ -59,7 +59,9 @@ export type RequestListFilters = {
   outcome: string;
 };
 
-export function readRequestFilters(params: URLSearchParams): RequestListFilters {
+export function readRequestFilters(
+  params: URLSearchParams,
+): RequestListFilters {
   const page = Number.parseInt(params.get(REQUEST_PARAMS.page) || "1", 10);
   return {
     status: params.get(REQUEST_PARAMS.status) || "ALL",
