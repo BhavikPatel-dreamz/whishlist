@@ -24,6 +24,20 @@ import type { OverviewDetailMetric } from "../../lib/overview-detail";
 import { OverviewMetricDetail } from "./OverviewMetricDetail";
 
 const DAY_MS = 86400000;
+const RANGE_PRESETS = [7, 14, 30, 90] as const;
+
+function nearestRangePreset(days: number): (typeof RANGE_PRESETS)[number] {
+  let best: (typeof RANGE_PRESETS)[number] = 30;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const preset of RANGE_PRESETS) {
+    const dist = Math.abs(preset - days);
+    if (dist < bestDist) {
+      best = preset;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Report catalogue — mirrors the HTML's GN groups + REP report list */
@@ -449,7 +463,10 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
   const prev = report.compareRange;
   const compare = prev !== null;
   const groupBy = searchParams.get("groupBy") ?? "day";
-  const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS) + 1;
+  const days = Math.round(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS,
+  ) + 1;
+  const rangePreset = nearestRangePreset(days);
   const [q, setQ] = useState(searchParams.get("q") ?? "");
   const so = searchParams.get("sort") ?? (
     slug === "wishlist-conversion"
@@ -515,7 +532,14 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
   const currentGroup = GROUPS[group];
 
   const handleDateChange = (nextDays: number) => {
-    updateParams(rangeForDays(nextDays));
+    const nextRange = rangeForDays(nextDays);
+    // Keep the current report (e.g. conversion-funnel) and reload live totals
+    // for the new from/to window.
+    updateParams({
+      from: nextRange.from,
+      to: nextRange.to,
+      page: "1",
+    });
   };
 
   const handleExport = async () => {
@@ -1305,16 +1329,28 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
     ];
 
     return (
-      <div className="ca-funnels">
-        {funnels.map(({ name, attribution, stages }) => (
-          <div className="ca-funnel-card" key={name}>
-            <div className="ca-funnel-head">
-              <h3 className="ca-funnel-title">{name}</h3>
-              <span className="ca-funnel-badge">{attribution}</span>
+      <div className="ca-funnels-wrap">
+        <p className="ca-funnel-period" aria-live="polite">
+          Showing real store events for <strong>{from}</strong> → <strong>{to}</strong>
+          {prev ? (
+            <>
+              {" "}
+              · compared with {prev.from} → {prev.to}
+            </>
+          ) : null}
+          . Change the date dropdown to reload this funnel.
+        </p>
+        <div className="ca-funnels">
+          {funnels.map(({ name, attribution, stages }) => (
+            <div className="ca-funnel-card" key={`${name}-${from}-${to}`}>
+              <div className="ca-funnel-head">
+                <h3 className="ca-funnel-title">{name}</h3>
+                <span className="ca-funnel-badge">{attribution}</span>
+              </div>
+              {buildFunnel(stages)}
             </div>
-            {buildFunnel(stages)}
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     );
   };
@@ -1334,11 +1370,11 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
           <div className="ca-ctl">
             <select
               className="ca-select"
-              value={String(days)}
+              value={String(rangePreset)}
               onChange={(e) => handleDateChange(Number(e.target.value))}
               aria-label="Date range"
             >
-              <option value="7">Last 7 days</option>
+              <option value="7">Last week</option>
               <option value="14">Last 14 days</option>
               <option value="30">Last 30 days</option>
               <option value="90">Last 90 days</option>

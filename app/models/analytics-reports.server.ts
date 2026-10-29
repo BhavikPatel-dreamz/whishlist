@@ -779,9 +779,13 @@ async function funnelData(
   range: DateRange,
   previous: DateRange | null,
 ): Promise<ReportData> {
+  // Always live-query so Last week / 30 / 90 day presets reflect real events
+  // for that exact from→to window (not a possibly incomplete DailyStat rollup).
   const [totals, previousTotals] = await Promise.all([
-    dailyTotals(shopId, range),
-    previous ? dailyTotals(shopId, previous) : Promise.resolve(null),
+    dailyTotals(shopId, range, { live: true }),
+    previous
+      ? dailyTotals(shopId, previous, { live: true })
+      : Promise.resolve(null),
   ]);
   const wishlist = buildFunnel([
     ["views", "Product views", totals.productViews],

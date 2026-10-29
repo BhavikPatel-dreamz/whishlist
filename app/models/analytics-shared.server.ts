@@ -181,11 +181,20 @@ async function liveDailyTotals(
   };
 }
 
-/** Sums the daily rollup for a range. */
+/**
+ * Sums counters for a range.
+ * Pass `{ live: true }` to always read raw events/tables (needed for
+ * conversion funnel so date presets never show stale DailyStat zeros).
+ */
 export async function dailyTotals(
   shopId: string,
   range: DateRange,
+  options?: { live?: boolean },
 ): Promise<DailyTotals> {
+  if (options?.live) {
+    return liveDailyTotals(shopId, range);
+  }
+
   const [row] = await db.$queryRaw<
     Array<{
       productViews: number | null;
