@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { useEffect, useState } from "react";
-import { Form, useActionData, useLoaderData, useNavigation } from "@remix-run/react";
+import { useState } from "react";
+import { useFetcher, useLoaderData } from "@remix-run/react";
 import {
   Banner,
   BlockStack,
@@ -26,6 +26,14 @@ import {
 } from "../lib/notifications/managed-mailgun.server";
 import { sendEmail } from "../lib/notifications/providers.server";
 import { resolveSettingsForPlan } from "../lib/shop.server";
+
+type EmailTestActionData = {
+  ok: boolean;
+  error: string;
+  to: string;
+  provider: string;
+  id?: string;
+};
 
 function maskKey(key: string): string {
   if (!key) return "(missing)";
@@ -136,14 +144,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function DevEmailTestPage() {
   const data = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
-  const navigation = useNavigation();
-  const submitting = navigation.state === "submitting";
-  const [to, setTo] = useState(actionData?.to || "");
-
-  useEffect(() => {
-    if (actionData?.to) setTo(actionData.to);
-  }, [actionData?.to]);
+  // Fetcher (not document <Form>) avoids Remix CSRF abort in the Shopify Admin iframe
+  // when Origin (admin.shopify.com) ≠ x-forwarded-host (app domain).
+  const fetcher = useFetcher<EmailTestActionData>();
+  const result = fetcher.data;
+  const submitting = fetcher.state !== "idle";
+  const [to, setTo] = useState(result?.to || "");
 
   return (
     <Page
@@ -153,24 +159,24 @@ export default function DevEmailTestPage() {
     >
       <TitleBar title="Email test" />
       <BlockStack gap="400">
-        {actionData?.ok === true ? (
+        {result?.ok === true ? (
           <Banner tone="success" title="Test email accepted by the provider">
             <p>
-              Sent to <strong>{actionData.to}</strong> via{" "}
-              <strong>{actionData.provider}</strong>
-              {actionData.id ? (
+              Sent to <strong>{result.to}</strong> via{" "}
+              <strong>{result.provider}</strong>
+              {result.id ? (
                 <>
                   {" "}
-                  (id: <code>{actionData.id}</code>)
+                  (id: <code>{result.id}</code>)
                 </>
               ) : null}
               . Check inbox and spam.
             </p>
           </Banner>
         ) : null}
-        {actionData?.ok === false ? (
+        {result?.ok === false ? (
           <Banner tone="critical" title="Test email failed">
-            <p>{actionData.error}</p>
+            <p>{result.error}</p>
           </Banner>
         ) : null}
 
@@ -197,11 +203,11 @@ export default function DevEmailTestPage() {
                 Uses the same <code>resolveSettingsForPlan</code> →{" "}
                 <code>sendEmail</code> path as restock notifications.
               </Text>
-              <Form method="post">
+              <fetcher.Form method="post">
+                <input type="hidden" name="to" value={to} />
                 <FormLayout>
                   <TextField
                     label="Send to"
-                    name="to"
                     type="email"
                     autoComplete="email"
                     value={to}
@@ -212,7 +218,7 @@ export default function DevEmailTestPage() {
                     Send test email
                   </Button>
                 </FormLayout>
-              </Form>
+              </fetcher.Form>
             </BlockStack>
           </Card>
 
