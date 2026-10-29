@@ -1219,6 +1219,14 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
       ["Purchased", totals.restockOrders ?? 0],
     ];
 
+    const fmtFunnelP = (rate: number) => {
+      const pct = rate * 100;
+      if (Number.isInteger(pct) || Math.abs(pct - Math.round(pct)) < 0.05) {
+        return `${Math.round(pct)}%`;
+      }
+      return `${pct.toFixed(1)}%`;
+    };
+
     const buildFunnel = (stages: [string, number][]) => {
       let previous = Infinity;
       const clamped = stages.map(([, count]) => {
@@ -1226,91 +1234,88 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
         previous = c;
         return c;
       });
-      return stages.map(([label, count], i) => {
-        const c = clamped[i];
-        const prev = i === 0 ? c : clamped[i - 1];
-        const width = clamped[0] > 0 ? Math.max(1, (c / clamped[0]) * 100) : 0;
-        const pRate = prev === 0 ? 1 : safeRate(clamped[i], clamped[i > 0 ? i - 1 : i]);
-        const pDrop = i > 0 ? Math.max(0, clamped[i - 1] - clamped[i]) : 0;
-        return (
-          <div key={label} className="ca-funnel-stage">
-            <div className="ca-funnel-main">
-              <span className="ca-funnel-label">{label}</span>
-              <div className="ca-funnel-track">
-                <div className="ca-bar" style={{ width: `${width}%` }} />
-              </div>
-              <span className="ca-funnel-count">{fmtN(c)}</span>
-            </div>
-            {i > 0 ? (
-              <div className="ca-drop">
-                {fmtP(pRate)} of previous · lost {fmtN(pDrop)} ({fmtP(safeRate(pDrop, prev))})
-              </div>
-            ) : (
-              <div className="ca-drop">Starting stage</div>
-            )}
+      const start = clamped[0] || 0;
+      const end = clamped[clamped.length - 1] || 0;
+      const endToEnd = start > 0 ? end / start : 0;
+
+      return (
+        <>
+          <div className="ca-funnel-list">
+            {stages.map(([label], i) => {
+              const c = clamped[i];
+              const prev = i === 0 ? c : clamped[i - 1];
+              const width =
+                start > 0 ? Math.min(100, Math.max(c > 0 ? 2 : 0, (c / start) * 100)) : 0;
+              const pRate =
+                i === 0 ? 1 : prev === 0 ? 0 : safeRate(clamped[i], clamped[i - 1]);
+              const pDrop = i > 0 ? Math.max(0, clamped[i - 1] - clamped[i]) : 0;
+              const rateClass =
+                i === 0
+                  ? ""
+                  : pRate >= 0.999
+                    ? "ca-funnel-rate--ok"
+                    : "ca-funnel-rate--drop";
+
+              return (
+                <div key={label} className="ca-funnel-stage">
+                  <div className="ca-funnel-label">{label}</div>
+                  <div className="ca-funnel-count">{fmtN(c)}</div>
+                  <div className="ca-funnel-track" aria-hidden="true">
+                    <div
+                      className="ca-funnel-fill"
+                      style={{ width: `${width}%` }}
+                    />
+                  </div>
+                  {i === 0 ? (
+                    <div className="ca-funnel-meta">Starting stage</div>
+                  ) : (
+                    <div className="ca-funnel-meta">
+                      <span className={`ca-funnel-rate ${rateClass}`}>
+                        {fmtFunnelP(pRate)} of previous
+                      </span>
+                      <span className="ca-funnel-sep"> · </span>
+                      <span>
+                        lost {fmtN(pDrop)} ({fmtFunnelP(safeRate(pDrop, prev))})
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        );
-      });
+          <div className="ca-funnel-footer">
+            <span className="ca-funnel-footer-label">End-to-end conversion</span>
+            <span className="ca-funnel-footer-value">{fmtFunnelP(endToEnd)}</span>
+          </div>
+        </>
+      );
     };
 
-    const funnels: Array<{ name: string; stages: [string, number][] }> = [
-      { name: "Wishlist", stages: wishlist },
-      { name: "Back in stock", stages: restock },
+    const funnels: Array<{
+      name: string;
+      attribution: string;
+      stages: [string, number][];
+    }> = [
+      { name: "Wishlist", attribution: "14-day attribution", stages: wishlist },
+      {
+        name: "Back in stock",
+        attribution: "7-day attribution",
+        stages: restock,
+      },
     ];
 
     return (
-      <>
-        <div className="ca-two">
-          {funnels.map(({ name, stages }) => (
-            <div className="ca-card" key={name}>
-              <h3 className="ca-h3">{name}</h3>
-              <div className="ca-funnel-list">{buildFunnel(stages)}</div>
+      <div className="ca-funnels">
+        {funnels.map(({ name, attribution, stages }) => (
+          <div className="ca-funnel-card" key={name}>
+            <div className="ca-funnel-head">
+              <h3 className="ca-funnel-title">{name}</h3>
+              <span className="ca-funnel-badge">{attribution}</span>
             </div>
-          ))}
-        </div>
-        {/* <div className="ca-card">
-          <div className="ca-row">
-            <h3 className="ca-h3">Wishlist product breakdown</h3>
-            <button
-              className="ca-btn"
-              onClick={() => selectReport("wishlisted-products")}
-            >
-              View all products
-            </button>
+            {buildFunnel(stages)}
           </div>
-          <p className="ca-mu">Top products by saves in the selected period</p>
-          {productBreakdown.length > 0 ? (
-            <div className="ca-tw">
-              <table className="ca-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th className="ca-n">Saved</th>
-                    <th className="ca-n">Save rate</th>
-                    <th className="ca-n">Added to cart</th>
-                    <th className="ca-n">Purchased</th>
-                    <th className="ca-n">Conversion rate</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {productBreakdown.map((product, index) => (
-                    <tr key={String(product.productId ?? index)}>
-                      <td>{String(product.title ?? product.productId ?? "Product")}</td>
-                      <td className="ca-n">{fmtN(Number(product.saves) || 0)}</td>
-                      <td className="ca-n">{fmtP(Number(product.saveRate) || 0)}</td>
-                      <td className="ca-n">{fmtN(Number(product.addsToCart) || 0)}</td>
-                      <td className="ca-n">{fmtN(Number(product.purchases) || 0)}</td>
-                      <td className="ca-n">{fmtP(Number(product.conversionRate) || 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="ca-mu">No wishlist product activity in this period.</p>
-          )}
-        </div> */}
-      </>
+        ))}
+      </div>
     );
   };
 
