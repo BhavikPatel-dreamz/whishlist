@@ -27,7 +27,11 @@ import {
   reactivateFailedAlerts,
   variantIdsNeedingRetry,
 } from "../../models/stock-alert.server";
-import { consumeNotification, releaseNotification, reserveNotification } from "../billing/usage.server";
+import {
+  consumeNotification,
+  releaseNotification,
+  reserveNotification,
+} from "../billing/usage.server";
 import { recordRestockNotificationLog } from "../../models/notification-log.server";
 import type { Plan } from "@prisma/client";
 
@@ -80,8 +84,14 @@ export function cartPermalink(
 ): string {
   const base = `${domain.replace(/\/$/, "")}/cart/${variantId}:1`;
   if (!alertId) return base;
+  const properties = Buffer.from(
+    JSON.stringify({
+      _back_in_stock_alert: `${alertId}.${signPayload(alertId)}`,
+    }),
+    "utf8",
+  ).toString("base64url");
   const params = new URLSearchParams({
-    "properties[_back_in_stock_alert]": `${alertId}.${signPayload(alertId)}`,
+    properties,
   });
   return `${base}?${params}`;
 }
@@ -217,7 +227,8 @@ async function deliver(
     shopContext: ShopContext;
   },
 ): Promise<"sent" | "failed" | "held"> {
-  const { plan, settings, backInStockSettings, vars, variant, shopContext } = ctx;
+  const { plan, settings, backInStockSettings, vars, variant, shopContext } =
+    ctx;
   const emailVars = { ...vars, customer_email: alert.email || "" };
   const actionUrl = alertTrackingUrl(alert.id);
   const subject = backInStockSettings?.subject
@@ -256,7 +267,10 @@ async function deliver(
   }
   if (alert.channel === "sms" || alert.channel === "whatsapp") {
     if (!planAllowsSmsWhatsApp(plan.code)) {
-      await holdAlertForQuota(alert.id, "SMS and WhatsApp are available on the Scale plan");
+      await holdAlertForQuota(
+        alert.id,
+        "SMS and WhatsApp are available on the Scale plan",
+      );
       return "held";
     }
   }
@@ -300,11 +314,17 @@ async function deliver(
     alert.channel === "sms"
       ? alert.phone
         ? await sendSms(settings, alert.phone, textBody)
-        : { ok: false as const, error: "No phone number configured for this SMS alert" }
+        : {
+            ok: false as const,
+            error: "No phone number configured for this SMS alert",
+          }
       : alert.channel === "whatsapp"
         ? alert.phone
           ? await sendWhatsApp(settings, alert.phone, textBody)
-          : { ok: false as const, error: "No phone number configured for this WhatsApp alert" }
+          : {
+              ok: false as const,
+              error: "No phone number configured for this WhatsApp alert",
+            }
         : alert.email
           ? await sendEmail(settings, {
               to: alert.email,
@@ -313,7 +333,10 @@ async function deliver(
               text: backInStockText(payload),
               replyTo,
             })
-          : { ok: false as const, error: "No email address configured for this email alert" };
+          : {
+              ok: false as const,
+              error: "No email address configured for this email alert",
+            };
 
   if (!result.ok) {
     if (reserved) await releaseNotification(alert.id, alert.notifyGeneration);
@@ -323,7 +346,10 @@ async function deliver(
       status: "failed",
       errorReason: result.error,
     }).catch((error) => {
-      console.error(`[restock] notification log failed for ${alert.id}:`, error);
+      console.error(
+        `[restock] notification log failed for ${alert.id}:`,
+        error,
+      );
     });
     return "failed";
   }

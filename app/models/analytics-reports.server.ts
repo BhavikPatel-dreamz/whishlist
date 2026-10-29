@@ -3803,7 +3803,11 @@ async function notificationLogData(
       1,
     ).catch(() => new Map()),
     getCustomerNamesByIds(admin, [
-      ...new Set(sentAlerts.map((alert) => alert.customerId).filter(Boolean)),
+      ...new Set(
+        sentAlerts
+          .map((alert) => alert.customerId)
+          .filter((id): id is string => Boolean(id)),
+      ),
     ]).catch(() => new Map()),
   ]);
   const alertById = new Map(sentAlerts.map((alert) => [alert.id, alert]));
