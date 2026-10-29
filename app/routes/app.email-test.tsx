@@ -42,9 +42,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const mailgunDomain = managedMailgunDomain();
   const platformSender = managedSenderEmail();
-  const senderHost = emailDomain(settings.senderEmail);
+  // Compare the same From address that will actually be used to send.
+  const fromEmail = settings.senderEmail || platformSender;
+  const fromHost = emailDomain(fromEmail);
   const domainMismatch = Boolean(
-    mailgunDomain && senderHost && senderHost !== mailgunDomain.toLowerCase(),
+    mailgunDomain &&
+      fromHost &&
+      fromHost !== mailgunDomain.trim().toLowerCase(),
   );
 
   return {
@@ -52,7 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     planCode: plan?.code || "starter",
     usingMerchantProvider: settings.usesMerchantEmailProvider,
     provider: settings.provider,
-    senderEmail: settings.senderEmail || "",
+    senderEmail: fromEmail || "",
     senderName: settings.senderName || "",
     hasApiKey: Boolean(settings.apiKey),
     apiKeyMasked: maskKey(settings.apiKey || ""),
@@ -64,6 +68,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       apiBaseUrl: managedMailgunApiBaseUrl(),
       apiKeyMasked: maskKey(managedMailgunApiKey()),
       domainMismatch,
+      mismatchFrom: domainMismatch ? fromEmail : "",
+      mismatchHost: domainMismatch ? fromHost : "",
     },
   };
 };
@@ -171,10 +177,12 @@ export default function DevEmailTestPage() {
         {data.mailgun.domainMismatch ? (
           <Banner tone="warning" title="Sender domain does not match MAILGUN_DOMAIN">
             <p>
-              Platform sender is <code>{data.mailgun.platformSender}</code> but{" "}
+              Resolved From is <code>{data.mailgun.mismatchFrom}</code> (host{" "}
+              <code>{data.mailgun.mismatchHost}</code>) but{" "}
               <code>MAILGUN_DOMAIN</code> is <code>{data.mailgun.domain}</code>.
-              Mailgun usually requires From to be on the sending domain (e.g.{" "}
-              <code>support@{data.mailgun.domain}</code>).
+              Use a From address on that domain (e.g.{" "}
+              <code>support@{data.mailgun.domain}</code>), or update{" "}
+              <code>MAILGUN_DOMAIN</code> to the verified sender domain.
             </p>
           </Banner>
         ) : null}
