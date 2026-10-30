@@ -315,6 +315,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     backInStockSettings: (storedProductConfig?.backInStockSettings as Partial<BackInStockSettings> | undefined) ?? null,
     shop: {
       emailProvider: shop.emailProvider,
+      emailAlertsEnabled: shop.emailAlertsEnabled,
       hasApiKey: Boolean(providerApiKey),
       apiKeyMasked: providerApiKey ? maskSecret(providerApiKey) : "",
       senderEmail: shop.senderEmail || "",

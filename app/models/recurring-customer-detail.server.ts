@@ -23,7 +23,8 @@ export async function loadRecurringCustomerDetail(
     saves,
     subscriptions,
     clicks,
-    trackingClicks,
+    alertShoppers,
+    wishlistShoppers,
     attributions,
     savedOrders,
   ] = await Promise.all([
@@ -39,13 +40,13 @@ export async function loadRecurringCustomerDetail(
         wishlistItemId: true,
       },
     }),
-    db.trackingEvent.count({
-      where: {
-        shopId,
-        customerId,
-        type: "NOTIFICATION_CLICK",
-        createdAt: bounds,
-      },
+    db.stockAlert.findMany({
+      where: { shopId, customerId },
+      select: { shopperId: true },
+    }),
+    db.wishlistItem.findMany({
+      where: { shopId, customerId },
+      select: { shopperId: true },
     }),
     db.attribution.findMany({
       where: { shopId, customerId, model: "last_click", orderedAt: bounds },
@@ -67,38 +68,56 @@ export async function loadRecurringCustomerDetail(
     }),
   ]);
 
-  const [clickedAlerts, clickedWishlistItems] = await Promise.all([
-    db.stockAlert.findMany({
-      where: {
-        shopId,
-        id: {
-          in: [
-            ...new Set(
-              clicks.flatMap((click) =>
-                click.subscriptionId ? [click.subscriptionId] : [],
+  const shopperIds = [
+    ...new Set([
+      customerId,
+      ...alertShoppers.flatMap((row) => (row.shopperId ? [row.shopperId] : [])),
+      ...wishlistShoppers.flatMap((row) =>
+        row.shopperId ? [row.shopperId] : [],
+      ),
+    ]),
+  ];
+  const [clickedAlerts, clickedWishlistItems, trackingClicks] =
+    await Promise.all([
+      db.stockAlert.findMany({
+        where: {
+          shopId,
+          id: {
+            in: [
+              ...new Set(
+                clicks.flatMap((click) =>
+                  click.subscriptionId ? [click.subscriptionId] : [],
+                ),
               ),
-            ),
-          ],
+            ],
+          },
         },
-      },
-      select: { id: true, customerId: true },
-    }),
-    db.wishlistItem.findMany({
-      where: {
-        shopId,
-        id: {
-          in: [
-            ...new Set(
-              clicks.flatMap((click) =>
-                click.wishlistItemId ? [click.wishlistItemId] : [],
+        select: { id: true, customerId: true },
+      }),
+      db.wishlistItem.findMany({
+        where: {
+          shopId,
+          id: {
+            in: [
+              ...new Set(
+                clicks.flatMap((click) =>
+                  click.wishlistItemId ? [click.wishlistItemId] : [],
+                ),
               ),
-            ),
-          ],
+            ],
+          },
         },
-      },
-      select: { id: true, customerId: true },
-    }),
-  ]);
+        select: { id: true, customerId: true },
+      }),
+      db.trackingEvent.count({
+        where: {
+          shopId,
+          type: "NOTIFICATION_CLICK",
+          createdAt: bounds,
+          OR: [{ customerId }, { shopperId: { in: shopperIds } }],
+        },
+      }),
+    ]);
   const customerByAlert = new Map(
     clickedAlerts.map((alert) => [alert.id, alert.customerId]),
   );
