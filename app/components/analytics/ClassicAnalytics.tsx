@@ -199,7 +199,7 @@ const TEXT_KEYS = new Set([
   "source", "title", "label", "shopper", "cust", "customer", "prod",
   "product", "ord", "order", "variant", "name", "email", "phone",
   "variantid", "varianttitle", "variantnames", "contact", "error", "freq",
-  "to", "segment", "tab", "window", "week",
+  "to", "segment", "tab", "window", "week", "alertstatus",
 ]);
 function inferFormat(key: string): "n" | "p" | "$" | "b" | "d" | "t" | "x" | "m" | "h" {
   const k = key.toLowerCase();
@@ -450,6 +450,16 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
     params.set("returnTo", `${window.location.pathname}${window.location.search}`);
     navigate(`/app/analytics/notification/${detailType}/${encodeURIComponent(detailId)}?${params}`);
   }, [from, to, navigate]);
+  const openNotificationClickDetail = useCallback((productId: string, channel: string) => {
+    const params = new URLSearchParams({ from, to, channel });
+    params.set("returnTo", `${window.location.pathname}${window.location.search}`);
+    navigate(`/app/analytics/notification-clicks/${encodeURIComponent(productId)}?${params}`);
+  }, [from, to, navigate]);
+  const openAlertCustomerDetail = useCallback((contactKey: string) => {
+    const params = new URLSearchParams({ contact: contactKey });
+    params.set("returnTo", `${window.location.pathname}${window.location.search}`);
+    navigate(`/app/analytics/alert-customer?${params}`);
+  }, [navigate]);
   const openCustomerValueDetail = useCallback((segment: CustomerValueSegment) => {
     const params = new URLSearchParams({ from, to });
     params.set("returnTo", `${window.location.pathname}${window.location.search}`);
@@ -729,6 +739,23 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
       const metrics: Array<[string, string]> = [
         ["Total subscriptions", "subscriptions"],
         ["Total new in range", "newSubscriptions"],
+      ];
+      return (
+        <div className="ca-kpis" style={{ margin: 0 }}>
+          {metrics.map(([label, key]) => (
+            <div className="ca-k" key={key}>
+              <span className="ca-mu">{label}</span>
+              <b>{fmtN(summary[key] ?? 0)}</b>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (slug === "alert-customers") {
+      const metrics: Array<[string, string]> = [
+        ["Total requests", "requests"],
+        ["Total customers", "customers"],
       ];
       return (
         <div className="ca-kpis" style={{ margin: 0 }}>
@@ -1042,6 +1069,8 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
                   );
                 })}
                 {slug === "notification-log" && <th>Details</th>}
+                {slug === "notification-delivery" && <th>Details</th>}
+                {slug === "alert-customers" && <th>Details</th>}
                 {slug === "revenue-attribution" && <th>Details</th>}
                 {slug === "alert-subscriptions" && <th>Details</th>}
                 {slug === "variant-demand" && <th>Details</th>}
@@ -1118,6 +1147,33 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
                           row.detailType === "alert" ? "alert" : "log",
                           String(row.detailId),
                         )}
+                      >
+                        Details
+                      </button>
+                    </td>
+                  )}
+                  {slug === "notification-delivery" && (
+                    <td>
+                      <button
+                        type="button"
+                        className="ca-btn"
+                        aria-label={`View clickers for ${String(row.title ?? "product")} via ${String(row.channel ?? "channel")}`}
+                        onClick={() => openNotificationClickDetail(
+                          String(row.productId),
+                          String(row.channel),
+                        )}
+                      >
+                        Details
+                      </button>
+                    </td>
+                  )}
+                  {slug === "alert-customers" && (
+                    <td>
+                      <button
+                        type="button"
+                        className="ca-btn"
+                        aria-label={`View product alert statuses for ${String(row.contact ?? "customer")}`}
+                        onClick={() => openAlertCustomerDetail(String(row.contactKey))}
                       >
                         Details
                       </button>

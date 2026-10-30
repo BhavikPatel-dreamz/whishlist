@@ -1338,19 +1338,45 @@ async function alertCustomersData(
   shopId: string,
   range: DateRange,
 ): Promise<ReportData> {
-  const groups = await db.stockAlert.groupBy({
-    by: ["contactKey"],
-    where: { shopId, createdAt: rangeBounds(range) },
-    _count: { _all: true },
-    _max: { createdAt: true },
-  });
+  const where = { shopId, createdAt: rangeBounds(range) };
+  const [groups, groupedStatuses] = await Promise.all([
+    db.stockAlert.groupBy({
+      by: ["contactKey"],
+      where,
+      _count: { _all: true },
+      _max: { createdAt: true },
+    }),
+    db.stockAlert.groupBy({
+      by: ["contactKey", "status"],
+      where,
+    }),
+  ]);
+  const statusLabels: Record<string, string> = {
+    PENDING: "Pending",
+    CONFIRMED: "Confirmed",
+    SENDING: "Sending",
+    SENT: "Sent",
+    FAILED: "Failed",
+    CANCELLED: "Unsubscribed",
+  };
+  const statusesByContact = new Map<string, Set<string>>();
+  for (const group of groupedStatuses) {
+    const statuses =
+      statusesByContact.get(group.contactKey) ?? new Set<string>();
+    statuses.add(statusLabels[group.status] ?? group.status);
+    statusesByContact.set(group.contactKey, statuses);
+  }
   const rows = groups
     .map((group) => {
       const [channel, contact] = group.contactKey.split(":", 2);
       return {
+        contactKey: group.contactKey,
         contact: contact ?? group.contactKey,
         channel: channel === "sms" ? "SMS" : "Email",
         requests: group._count._all,
+        alertStatus: [...(statusesByContact.get(group.contactKey) ?? [])].join(
+          ", ",
+        ),
         lastRequestedAt: group._max.createdAt?.toISOString() ?? "",
       };
     })
@@ -3277,6 +3303,35 @@ async function recurringCustomersData(
       select: { id: true, customerId: true },
     }),
   ]);
+  const unresolvedShopperIds = [
+    ...new Set(
+      trackingClicks
+        .filter((click) => !click.customerId && !/^\d+$/.test(click.shopperId))
+        .map((click) => click.shopperId),
+    ),
+  ];
+  const [alertsByShopper, itemsByShopper] = await Promise.all([
+    unresolvedShopperIds.length
+      ? db.stockAlert.findMany({
+          where: {
+            shopId,
+            shopperId: { in: unresolvedShopperIds },
+            customerId: { not: null },
+          },
+          select: { shopperId: true, customerId: true },
+        })
+      : Promise.resolve([]),
+    unresolvedShopperIds.length
+      ? db.wishlistItem.findMany({
+          where: {
+            shopId,
+            shopperId: { in: unresolvedShopperIds },
+            customerId: { not: null },
+          },
+          select: { shopperId: true, customerId: true },
+        })
+      : Promise.resolve([]),
+  ]);
   const customerBySubscription = new Map(
     clickedAlerts.flatMap((alert) =>
       alert.customerId ? [[alert.id, alert.customerId] as const] : [],
@@ -3285,6 +3340,13 @@ async function recurringCustomersData(
   const customerByWishlistItem = new Map(
     clickedWishlistItems.flatMap((item) =>
       item.customerId ? [[item.id, item.customerId] as const] : [],
+    ),
+  );
+  const customerByShopper = new Map(
+    [...alertsByShopper, ...itemsByShopper].flatMap((record) =>
+      record.shopperId && record.customerId
+        ? [[record.shopperId, record.customerId] as const]
+        : [],
     ),
   );
   type CustomerActivity = {
@@ -3351,7 +3413,9 @@ async function recurringCustomersData(
   for (const click of trackingClicks) {
     const customerId =
       click.customerId ??
-      (/^\d+$/.test(click.shopperId) ? click.shopperId : null);
+      (/^\d+$/.test(click.shopperId)
+        ? click.shopperId
+        : customerByShopper.get(click.shopperId));
     if (!customerId) continue;
     const current = trackingClicksByCustomer.get(customerId) ?? {
       count: 0,
