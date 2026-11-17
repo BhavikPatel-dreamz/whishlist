@@ -3,7 +3,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useNavigate } from "@remix-run/react";
 import productDetailStyles from "../components/analytics/product-detail.css?url";
 import { requireAdminShop } from "../lib/admin-auth.server";
-import { getProductsByIds } from "../lib/shopify-data.server";
+import { getProductsByIds, type ProductSummary } from "../lib/shopify-data.server";
 import db from "../db.server";
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
@@ -101,9 +101,11 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     };
   }
 
-  const product = (await getProductsByIds(admin, [detail.productId], 1).catch(
-    () => new Map(),
-  )).get(detail.productId);
+  const product = (
+    await getProductsByIds(admin, [detail.productId], 1).catch(
+      () => new Map<string, ProductSummary>(),
+    )
+  ).get(detail.productId);
   const url = new URL(request.url);
   const returnToParam = url.searchParams.get("returnTo") ?? "";
   let returnTo = "/app";
