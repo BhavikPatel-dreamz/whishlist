@@ -50,6 +50,15 @@
   gap: 8px;
   align-items: center;
 }
+.ca-ctl--notification-log {
+  gap: 12px;
+}
+.ca-ctl--notification-log .ca-select {
+  min-width: 112px;
+}
+.ca-ctl--notification-log > .ca-mu {
+  white-space: nowrap;
+}
 .ca-select,
 .ca-input-search,
 .ca-btn {

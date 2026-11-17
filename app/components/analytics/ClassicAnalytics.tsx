@@ -979,21 +979,15 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
   };
 
   const renderTable = () => {
-    if (rows.length === 0) {
-      return (
-        <div className="ca-empty">
-          <b>No results</b><br />
-          Try a wider date range or clear the filters.
-        </div>
-      );
-    }
-
     const hasPrevious = pagination.page > 1;
     const hasNext = pagination.page < pagination.pageCount;
 
     return (
       <>
-        <div className="ca-ctl" style={{ marginBottom: 8, flexWrap: "wrap" }}>
+        <div
+          className={`ca-ctl${slug === "notification-log" ? " ca-ctl--notification-log" : ""}`}
+          style={{ marginBottom: 8, flexWrap: "wrap" }}
+        >
           <form onSubmit={(event) => { event.preventDefault(); updateParams({ q, page: "1" }); }}>
             <input
               className="ca-input-search"
@@ -1044,7 +1038,11 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
           )}
           <span className="ca-mu">{rows.length} rows</span>
         </div>
-        <div className="ca-tw">
+        <div className="ca-empty" hidden={rows.length > 0}>
+          <b>No results</b><br />
+          Try a wider date range or clear the filters.
+        </div>
+        <div className="ca-tw" hidden={rows.length === 0}>
           <table className={`ca-table${slug === "wishlisted-products" ? " ca-table--wishlisted" : ""}`}>
             <thead>
               <tr>
@@ -1263,7 +1261,11 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
             </tbody>
           </table>
         </div>
-        <div className="ca-pg">
+        <div
+          className="ca-pg"
+          hidden={rows.length === 0}
+          style={{ display: rows.length === 0 ? "none" : "flex" }}
+        >
           <button
             className="ca-btn"
             disabled={!hasPrevious}
