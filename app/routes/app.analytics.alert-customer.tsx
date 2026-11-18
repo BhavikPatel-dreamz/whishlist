@@ -5,6 +5,7 @@ import db from "../db.server";
 import classicAnalyticsStyles from "../components/analytics/ClassicAnalytics.css?url";
 import productDetailStyles from "../components/analytics/product-detail.css?url";
 import { requireAdminShop } from "../lib/admin-auth.server";
+import { parseReturnTo } from "../lib/analytics-params";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { shop } = await requireAdminShop(request);
@@ -39,19 +40,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     },
   });
 
-  const returnToParam = url.searchParams.get("returnTo") ?? "";
-  let returnTo = "/app";
-  try {
-    const target = new URL(returnToParam, url.origin);
-    if (
-      target.origin === url.origin &&
-      (target.pathname === "/app" || target.pathname.startsWith("/app/"))
-    ) {
-      returnTo = `${target.pathname}${target.search}${target.hash}`;
-    }
-  } catch {
-    returnTo = "/app";
-  }
+  const returnTo = parseReturnTo(url, url.searchParams.get("returnTo") ?? "");
 
   return json({
     contact:

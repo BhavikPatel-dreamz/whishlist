@@ -48,6 +48,13 @@ export async function fetchActiveSubscription(shopGid: string): Promise<PartnerS
   return body.data?.activeSubscription ?? null;
 }
 
+async function expireSubscription(shopId: string, localGid: string): Promise<void> {
+  await db.billingSubscription.updateMany({
+    where: { shopId, shopifyGid: localGid, status: { in: ["ACTIVE", "CANCELLED"] } },
+    data: { status: "EXPIRED", currentPeriodEnd: new Date() },
+  });
+}
+
 /** Saves the plan Shopify appends as plan_handle after the merchant confirms a charge. */
 export async function recordPlanHandle(shopDomain: string, handle: string): Promise<void> {
   const planCode = planCodeFromHandles([handle]);
@@ -55,23 +62,15 @@ export async function recordPlanHandle(shopDomain: string, handle: string): Prom
   const shop = await getOrCreateShop(shopDomain);
   const localGid = `app-pricing:${shop.id}`;
   if (planCode === PLAN_CODES.starter) {
-    await db.billingSubscription.updateMany({
-      where: { shopId: shop.id, shopifyGid: localGid, status: { in: ["ACTIVE", "CANCELLED"] } },
-      data: { status: "EXPIRED", currentPeriodEnd: new Date() },
-    });
+    await expireSubscription(shop.id, localGid);
     cache.set(shopDomain, Date.now());
     return;
   }
+  const subscriptionData = { planCode, status: "ACTIVE" as const, currentPeriodEnd: null };
   await db.billingSubscription.upsert({
     where: { shopifyGid: localGid },
-    create: {
-      shopId: shop.id,
-      planCode,
-      shopifyGid: localGid,
-      status: "ACTIVE",
-      currentPeriodEnd: null,
-    },
-    update: { planCode, status: "ACTIVE", currentPeriodEnd: null },
+    create: { shopId: shop.id, shopifyGid: localGid, ...subscriptionData },
+    update: subscriptionData,
   });
   cache.set(shopDomain, Date.now());
 }
@@ -155,28 +154,20 @@ export async function syncShopSubscription(params: {
   const record = subscription ? subscriptionRecordFromPartner(subscription) : null;
 
   if (!record) {
-    await db.billingSubscription.updateMany({
-      where: { shopId: shop.id, shopifyGid: localGid, status: { in: ["ACTIVE", "CANCELLED"] } },
-      data: { status: "EXPIRED", currentPeriodEnd: new Date() },
-    });
+    await expireSubscription(shop.id, localGid);
     cache.set(shopDomain, Date.now());
     return;
   }
 
+  const subscriptionData = {
+    planCode: record.planCode,
+    status: record.status,
+    currentPeriodEnd: record.currentPeriodEnd,
+  };
   await db.billingSubscription.upsert({
     where: { shopifyGid: localGid },
-    create: {
-      shopId: shop.id,
-      planCode: record.planCode,
-      shopifyGid: localGid,
-      status: record.status,
-      currentPeriodEnd: record.currentPeriodEnd,
-    },
-    update: {
-      planCode: record.planCode,
-      status: record.status,
-      currentPeriodEnd: record.currentPeriodEnd,
-    },
+    create: { shopId: shop.id, shopifyGid: localGid, ...subscriptionData },
+    update: subscriptionData,
   });
   cache.set(shopDomain, Date.now());
 }

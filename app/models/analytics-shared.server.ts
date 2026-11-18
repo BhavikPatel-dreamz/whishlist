@@ -393,6 +393,20 @@ export type DailySeriesRow = {
   restockOrders: number;
 };
 
+function emptyDailySeriesRow(bucket: string): DailySeriesRow {
+  return {
+    bucket,
+    productViews: 0,
+    wishlistSaves: 0,
+    alertSubscriptions: 0,
+    notificationsSent: 0,
+    notificationClicks: 0,
+    wishlistAddToCart: 0,
+    wishlistOrders: 0,
+    restockOrders: 0,
+  };
+}
+
 /**
  * The daily counters over a range, grouped into day, week or month buckets.
  * Buckets without activity are still returned so a chart shows a flat line
@@ -494,17 +508,7 @@ export async function dailySeries(
     const liveByDay = new Map<string, DailySeriesRow>();
     const dayFor = (date: Date) => {
       const day = date.toISOString().slice(0, 10);
-      const row = liveByDay.get(day) ?? {
-        bucket: day,
-        productViews: 0,
-        wishlistSaves: 0,
-        alertSubscriptions: 0,
-        notificationsSent: 0,
-        notificationClicks: 0,
-        wishlistAddToCart: 0,
-        wishlistOrders: 0,
-        restockOrders: 0,
-      };
+      const row = liveByDay.get(day) ?? emptyDailySeriesRow(day);
       liveByDay.set(day, row);
       return row;
     };
@@ -527,17 +531,7 @@ export async function dailySeries(
     }
     const buckets = new Map<string, DailySeriesRow>();
     for (const day of rangeDays(range)) {
-      const row = liveByDay.get(day) ?? {
-        bucket: day,
-        productViews: 0,
-        wishlistSaves: 0,
-        alertSubscriptions: 0,
-        notificationsSent: 0,
-        notificationClicks: 0,
-        wishlistAddToCart: 0,
-        wishlistOrders: 0,
-        restockOrders: 0,
-      };
+      const row = liveByDay.get(day) ?? emptyDailySeriesRow(day);
       const key = bucketKey(day, groupBy);
       const bucket = buckets.get(key) ?? { ...row, bucket: key };
       if (buckets.has(key)) {

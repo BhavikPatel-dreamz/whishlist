@@ -8,7 +8,6 @@
  */
 
 import type { ActionFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
 import { runScheduledEmailReports } from "../jobs/scheduled-email-reports.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {

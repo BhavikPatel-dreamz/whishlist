@@ -4,7 +4,7 @@ import { useLoaderData, useNavigate } from "@remix-run/react";
 import db from "../db.server";
 import productDetailStyles from "../components/analytics/product-detail.css?url";
 import { requireAdminShop } from "../lib/admin-auth.server";
-import { paramsRange, parseAnalyticsParams, rangeBounds } from "../lib/analytics-params";
+import { paramsRange, parseAnalyticsParams, parseReturnTo, rangeBounds } from "../lib/analytics-params";
 import { getCustomerNamesByIds, getProductsByIds } from "../lib/shopify-data.server";
 
 const CHANNELS = new Set(["EMAIL", "SMS", "WHATSAPP", "PUSH"]);
@@ -205,19 +205,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
       : group.contact,
   }));
 
-  const returnToParam = url.searchParams.get("returnTo") ?? "";
-  let returnTo = "/app";
-  try {
-    const target = new URL(returnToParam, url.origin);
-    if (
-      target.origin === url.origin &&
-      (target.pathname === "/app" || target.pathname.startsWith("/app/"))
-    ) {
-      returnTo = `${target.pathname}${target.search}${target.hash}`;
-    }
-  } catch {
-    returnTo = "/app";
-  }
+  const returnTo = parseReturnTo(url, url.searchParams.get("returnTo") ?? "");
 
   return json({
     product: product.get(productId)?.title ?? productId,

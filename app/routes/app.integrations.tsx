@@ -288,6 +288,27 @@ export default function Integrations() {
   const emailResult = emailFetcher.data;
   const smsResult = smsFetcher.data;
 
+  const emailAlertsSelect = (
+    <Select
+      label="Email alerts"
+      options={[
+        { label: "Enabled", value: "true" },
+        { label: "Disabled", value: "false" },
+      ]}
+      value={String(emailAlertsEnabled)}
+      onChange={(value) => setEmailAlertsEnabled(value === "true")}
+    />
+  );
+
+  const emailReportLink = (
+    <Text as="p" tone="subdued">
+      <Link to="/app/analytics?report=notification-log">
+        Open the email send log and delivery report
+      </Link>
+      {" "}(Starter: last 25, Growth: last 50, Scale: full history).
+    </Text>
+  );
+
   return (
     <Page
       fullWidth
@@ -352,22 +373,9 @@ export default function Integrations() {
                 <Text as="p" tone="subdued">
                   Turn email alerts on or off. Default (inbuilt) sends through Wishlist Stock Notify. Choose your own provider for unlimited Scale sends.
                 </Text>
-                <Text as="p" tone="subdued">
-                  <Link to="/app/analytics?report=notification-log">
-                    Open the email send log and delivery report
-                  </Link>
-                  {" "}(Starter: last 25, Growth: last 50, Scale: full history).
-                </Text>
+{emailReportLink}
               </BlockStack>
-              <Select
-                label="Email alerts"
-                options={[
-                  { label: "Enabled", value: "true" },
-                  { label: "Disabled", value: "false" },
-                ]}
-                value={String(emailAlertsEnabled)}
-                onChange={(value) => setEmailAlertsEnabled(value === "true")}
-              />
+{emailAlertsSelect}
               {emailResult?.intent === "saveEmailIntegration" && (
                 <Banner tone={emailResult.ok ? "success" : "critical"}>
                   {emailResult.ok ? "Email integration settings saved." : emailResult.error}
@@ -445,21 +453,8 @@ export default function Integrations() {
                 <Text as="p" tone="subdued">
                   Emails sent {data.sentLabel}. Starter and Growth use the default inbuilt sender (Wishlist Stock Notify). Upgrade to Scale to choose your own email provider for unlimited sends.
                 </Text>
-                <Text as="p" tone="subdued">
-                  <Link to="/app/analytics?report=notification-log">
-                    Open the email send log and delivery report
-                  </Link>
-                  {" "}(Starter: last 25, Growth: last 50, Scale: full history).
-                </Text>
-                <Select
-                  label="Email alerts"
-                  options={[
-                    { label: "Enabled", value: "true" },
-                    { label: "Disabled", value: "false" },
-                  ]}
-                  value={String(emailAlertsEnabled)}
-                  onChange={(value) => setEmailAlertsEnabled(value === "true")}
-                />
+{emailReportLink}
+{emailAlertsSelect}
                 {emailResult?.intent === "saveEmailIntegration" && (
                   <Banner tone={emailResult.ok ? "success" : "critical"}>
                     {emailResult.ok ? "Email alerts updated." : emailResult.error}

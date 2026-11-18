@@ -4,7 +4,7 @@ import { useLoaderData, useNavigate } from "@remix-run/react";
 import { ProductDetailPage } from "../components/analytics/ProductDetailDrawer";
 import classicAnalyticsStyles from "../components/analytics/ClassicAnalytics.css?url";
 import { requireAdminShop } from "../lib/admin-auth.server";
-import { paramsRange, parseAnalyticsParams } from "../lib/analytics-params";
+import { paramsRange, parseAnalyticsParams, parseReturnTo } from "../lib/analytics-params";
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   await requireAdminShop(request);
@@ -15,19 +15,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
   const url = new URL(request.url);
   const range = paramsRange(parseAnalyticsParams(url.searchParams));
-  const returnToParam = url.searchParams.get("returnTo") ?? "";
-  let returnTo = "/app";
-  try {
-    const target = new URL(returnToParam, url.origin);
-    if (
-      target.origin === url.origin &&
-      (target.pathname === "/app" || target.pathname.startsWith("/app/"))
-    ) {
-      returnTo = `${target.pathname}${target.search}${target.hash}`;
-    }
-  } catch {
-    returnTo = "/app";
-  }
+  const returnTo = parseReturnTo(url, url.searchParams.get("returnTo") ?? "");
 
   return json({
     productId,

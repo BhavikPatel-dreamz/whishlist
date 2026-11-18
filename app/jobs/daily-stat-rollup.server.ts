@@ -13,7 +13,7 @@
 
 import { Prisma } from "@prisma/client";
 import db from "../db.server";
-import type { DateRange } from "../lib/analytics-params";
+import { rangeDays, type DateRange } from "../lib/analytics-params";
 
 const DAY_MS = 86400000;
 
@@ -325,19 +325,6 @@ type RollupNotifMap = {
   };
 };
 
-/** All calendar days a range covers, as `YYYY-MM-DD`. */
-function rangeDays(range: DateRange): string[] {
-  const days: string[] = [];
-  const end = Date.parse(`${range.to}T00:00:00Z`);
-  for (
-    let cursor = Date.parse(`${range.from}T00:00:00Z`);
-    cursor <= end;
-    cursor += DAY_MS
-  ) {
-    days.push(new Date(cursor).toISOString().slice(0, 10));
-  }
-  return days;
-}
 
 /**
  * Roll up a single shop for a single date. Reads the raw counters for that

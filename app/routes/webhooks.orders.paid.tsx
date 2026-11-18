@@ -1,11 +1,9 @@
-import type { ActionFunctionArgs } from "@remix-run/node";
-import { getOrCreateShop } from "../lib/shop.server";
 import { verifyPayloadSignature } from "../lib/crypto.server";
 import { recordStockAlertPurchase } from "../models/stock-alert.server";
 import {
   attributeOrderLines,
   attributeWishlistOrders,
-  handleOrderWebhook,
+  createOrderWebhook,
 } from "../lib/order-webhook.server";
 
 function stockAlertToken(lineItem: any): string | null {
@@ -51,21 +49,13 @@ async function recordAlertPurchase(
 }
 
 /** Acknowledge `orders/paid` webhooks. */
-export const action = async ({ request }: ActionFunctionArgs) =>
-  handleOrderWebhook(request, "/webhooks/orders/paid", async ({ shop, payload }) => {
-    const shopRecord = await getOrCreateShop(shop);
-    const order = payload;
-    const orderId = order?.id ? String(order.id) : null;
-    if (!orderId) return;
-
-    const items = order?.line_items || [];
-    const customerId = order?.customer?.id ? String(order.customer.id) : null;
-    await attributeWishlistOrders({
-      shopRecordId: shopRecord.id,
-      orderId,
-      items,
-      customerId,
-      onLineItem: (lineItem) => recordAlertPurchase(lineItem, order, orderId),
-    });
-    await attributeOrderLines({ shopRecordId: shopRecord.id, order });
+export const action = createOrderWebhook("/webhooks/orders/paid", async (ctx) => {
+  await attributeWishlistOrders({
+    shopRecordId: ctx.shopRecord.id,
+    orderId: ctx.orderId,
+    items: ctx.items,
+    customerId: ctx.customerId,
+    onLineItem: (lineItem) => recordAlertPurchase(lineItem, ctx.order, ctx.orderId),
   });
+  await attributeOrderLines({ shopRecordId: ctx.shopRecord.id, order: ctx.order });
+});

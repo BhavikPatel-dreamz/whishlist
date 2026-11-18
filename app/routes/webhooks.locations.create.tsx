@@ -1,17 +1,4 @@
-import type { ActionFunctionArgs } from "@remix-run/node";
-import { authenticate } from "../shopify.server";
-import { withStoreAdmin } from "../lib/webhooks/store-resync.server";
+import { createResyncWebhookAction } from "../lib/webhooks/resync-webhook.server";
 import { resyncStoreLocations } from "../models/store.server";
 
-export const action = async ({ request }: ActionFunctionArgs) => {
-  try {
-    const { shop, topic } = await authenticate.webhook(request);
-    console.log(`Received ${topic} webhook for ${shop}`);
-    await withStoreAdmin(shop, (admin, shopId) => resyncStoreLocations(admin, shopId));
-    return new Response();
-  } catch (error) {
-    if (error instanceof Response) throw error;
-    console.error("locations/create handler error", error);
-    return new Response(null, { status: 500 });
-  }
-};
+export const action = createResyncWebhookAction("locations/create", resyncStoreLocations);

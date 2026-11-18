@@ -13,7 +13,7 @@ type RefundPayload = Record<string, any>;
 export const action = async ({ request }: ActionFunctionArgs) => {
   let stage = "authentication";
   try {
-    const { shop, topic, payload } = await authenticate.webhook(request);
+    const { shop, payload } = await authenticate.webhook(request);
     stage = "refund-processing";
 
     const shopRecord = await getOrCreateShop(shop);

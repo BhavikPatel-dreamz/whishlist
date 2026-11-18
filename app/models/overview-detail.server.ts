@@ -17,6 +17,25 @@ import { loadAnalyticsReport } from "./analytics-reports.server";
 
 const LIMIT = 5;
 
+function productTitle(row: any): string {
+  return String(row.title ?? row.productId ?? "Product");
+}
+
+function baseProductValues(row: any): any[] {
+  return [productTitle(row), count(Number(row.saves ?? 0))];
+}
+
+function reportParams(range: DateRange, sort: string): URLSearchParams {
+  return new URLSearchParams({
+    from: range.from,
+    to: range.to,
+    page: "1",
+    pageSize: String(LIMIT),
+    sort,
+    order: "desc",
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /*  Formatting                                                         */
 /* ------------------------------------------------------------------ */
@@ -119,14 +138,7 @@ async function savesDetail(
   admin: GraphqlClient,
   range: DateRange,
 ): Promise<OverviewDetail> {
-  const params = new URLSearchParams({
-    from: range.from,
-    to: range.to,
-    page: "1",
-    pageSize: String(LIMIT),
-    sort: "saves",
-    order: "desc",
-  });
+  const params = reportParams(range, "saves");
   const { response } = await loadAnalyticsReport(
     shopId,
     admin,
@@ -145,8 +157,7 @@ async function savesDetail(
     rows: response.rows.map((row) => ({
       productId: row.productId ? String(row.productId) : null,
       values: [
-        String(row.title ?? row.productId ?? "Product"),
-        count(Number(row.saves ?? 0)),
+        ...baseProductValues(row),
         percent(Number(row.conversionRate ?? row.conv ?? 0)),
       ],
     })),
@@ -160,14 +171,7 @@ async function conversionDetail(
   admin: GraphqlClient,
   range: DateRange,
 ): Promise<OverviewDetail> {
-  const params = new URLSearchParams({
-    from: range.from,
-    to: range.to,
-    page: "1",
-    pageSize: String(LIMIT),
-    sort: "conversionRate",
-    order: "desc",
-  });
+  const params = reportParams(range, "conversionRate");
   const { response } = await loadAnalyticsReport(
     shopId,
     admin,
@@ -188,8 +192,7 @@ async function conversionDetail(
     rows: response.rows.map((row) => ({
       productId: row.productId ? String(row.productId) : null,
       values: [
-        String(row.title ?? row.productId ?? "Product"),
-        count(Number(row.saves ?? 0)),
+        ...baseProductValues(row),
         count(Number(row.purchases ?? 0)),
         percent(Number(row.conversionRate ?? 0)),
       ],
@@ -602,14 +605,7 @@ async function attributedOrdersDetail(
   admin: GraphqlClient,
   range: DateRange,
 ): Promise<OverviewDetail> {
-  const params = new URLSearchParams({
-    from: range.from,
-    to: range.to,
-    page: "1",
-    pageSize: String(LIMIT),
-    sort: "date",
-    order: "desc",
-  });
+  const params = reportParams(range, "date");
   const { response } = await loadAnalyticsReport(
     shopId,
     admin,
@@ -644,26 +640,12 @@ async function attributedOrdersDetail(
   };
 }
 
-type RevenueProductRow = {
-  productId: string;
-  orders: number;
-  units: number;
-  revenue: Prisma.Decimal;
-};
-
 async function attributedRevenueDetail(
   shopId: string,
   admin: GraphqlClient,
   range: DateRange,
 ): Promise<OverviewDetail> {
-  const params = new URLSearchParams({
-    from: range.from,
-    to: range.to,
-    page: "1",
-    pageSize: String(LIMIT),
-    sort: "revenue",
-    order: "desc",
-  });
+  const params = reportParams(range, "revenue");
   const { response } = await loadAnalyticsReport(
     shopId,
     admin,

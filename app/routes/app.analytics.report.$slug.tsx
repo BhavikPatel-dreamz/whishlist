@@ -13,44 +13,9 @@ import { isReportSlug } from "../lib/report-contract";
 import { loadAnalyticsReport } from "../models/analytics-reports.server";
 import { ReportViewer } from "../components/analytics/ReportViewer";
 import { DateRangePicker } from "../components/analytics/DateRangePicker";
-import { AnalyticsNavigation } from "../components/analytics/AnalyticsNavigation";
+import { AnalyticsNavigation, REPORTS as REPORT_TITLES } from "../components/analytics/AnalyticsNavigation";
 import { downloadCsv } from "../lib/download.client";
 
-const REPORT_TITLES: Record<string, string> = {
-  overview: "Overview Dashboard",
-  "activity-trends": "Activity Trends",
-  "conversion-funnel": "Conversion Funnel",
-  "revenue-attribution": "Revenue & Sales Attribution",
-  "attribution-models": "Attribution Model Comparison",
-  "customer-value": "Customer-Value Impact",
-  "wishlisted-products": "Wishlisted Products",
-  "shared-wishlists": "Shared Wishlists",
-  "wishlist-orders": "Wishlist Orders",
-  "wishlist-conversion": "Wishlist Conversion",
-  "removed-abandoned": "Removed & Abandoned",
-  "wishlist-to-cart": "Wishlist to Cart",
-  "variant-demand": "Variant-Level Demand",
-  "save-sources": "Save Source Report",
-  "reminder-performance": "Reminder & Price-Drop Performance",
-  "guest-to-customer": "Guest-to-Customer Conversion",
-  "stock-list": "Stock List & Inventory",
-  "alert-subscriptions": "Alert Subscriptions",
-  "alert-customers": "Alert Request Customers",
-  "pending-alerts": "Pending Alerts",
-  "alert-purchases": "Alert Purchases",
-  "restock-conversion": "Restock Conversion",
-  "low-stock-demand": "Low Stock Demand",
-  // "notification-delivery": "Notification Delivery",
-  // "time-to-notify": "Time-to-Notify & Time-to-Purchase",
-  // "lost-sales": "Lost Sales / Missed Revenue",
-  // "sell-through": "Sell-Through After Restock",
-  // "subscription-sources": "Subscription Source Report",
-  "recurring-customers": "Recurring Customers",
-  "top-intent-customers": "Wishlist Savers",
-  "segments": "Customer Segments Export",
-  "notification-log": "Notification Log",
-  "usage": "Usage vs Plan",
-};
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const { admin, shop } = await requireAdminShop(request);

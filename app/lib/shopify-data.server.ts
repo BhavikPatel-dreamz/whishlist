@@ -184,6 +184,59 @@ export type ProductSummary = {
   }>;
 };
 
+function buildProductSummary(
+  node: any,
+  collections: Array<{ collectionId: string; title: string }>,
+): ProductSummary {
+  const variants = (node.variants?.nodes ?? []).map((variant: any) => ({
+    variantId: variant.id.split("/").pop() as string,
+    title: variant.title,
+    price: variant.price,
+    availableForSale: variant.availableForSale,
+    imageUrl: variant.image?.url ?? node.featuredImage?.url ?? null,
+    sku: variant.sku ?? null,
+  }));
+  const productId = node.id.split("/").pop() as string;
+  return {
+    productId,
+    title: node.title,
+    handle: node.handle,
+    status: node.status,
+    onlineStoreUrl: node.onlineStoreUrl,
+    imageUrl: node.featuredImage?.url ?? null,
+    totalInventory: node.totalInventory ?? 0,
+    totalVariants: node.totalVariants ?? variants.length,
+    minPrice: node.priceRangeV2?.minVariantPrice?.amount ?? null,
+    currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode ?? null,
+    availableForSale: variants.some((v: any) => v.availableForSale),
+    collections,
+    variants,
+  };
+}
+
+type ProductNode = {
+  id: string;
+  title: string;
+  handle: string;
+  status: string;
+  onlineStoreUrl: string | null;
+  totalInventory: number | null;
+  totalVariants: number | null;
+  featuredImage: { url: string } | null;
+  priceRangeV2: { minVariantPrice: { amount: string; currencyCode: string } };
+  variants: {
+    nodes: Array<{
+      id: string;
+      title: string;
+      price: string | null;
+      availableForSale: boolean;
+      sku: string | null;
+      image: { url: string } | null;
+    }>;
+  };
+  collections?: { nodes: Array<{ id: string; title: string }> };
+};
+
 export async function getCustomerNamesByIds(
   admin: GraphqlClient,
   customerIds: string[],
@@ -259,32 +312,7 @@ export async function getProductsByIds(
       while (next < chunks.length) {
         const chunk = chunks[next++];
         const data = await gql<{
-          nodes: Array<{
-            id: string;
-            title: string;
-            handle: string;
-            status: string;
-            onlineStoreUrl: string | null;
-            totalInventory: number | null;
-            totalVariants: number | null;
-            featuredImage: { url: string } | null;
-            priceRangeV2: {
-              minVariantPrice: { amount: string; currencyCode: string };
-            };
-            variants: {
-              nodes: Array<{
-                id: string;
-                title: string;
-                price: string | null;
-                availableForSale: boolean;
-                sku: string | null;
-                image: { url: string } | null;
-              }>;
-            };
-            collections: {
-              nodes: Array<{ id: string; title: string }>;
-            };
-          } | null>;
+          nodes: Array<ProductNode | null>;
         }>(
           admin,
           `#graphql
@@ -314,36 +342,11 @@ export async function getProductsByIds(
 
         for (const node of data.nodes) {
           if (!node) continue;
-          const variants = node.variants.nodes.map((variant) => ({
-            variantId: variant.id.split("/").pop() as string,
-            title: variant.title,
-            price: variant.price,
-            availableForSale: variant.availableForSale,
-            imageUrl: variant.image?.url ?? node.featuredImage?.url ?? null,
-            sku: variant.sku ?? null,
-          }));
-          const productId = node.id.split("/").pop() as string;
-          result.set(productId, {
-            productId,
-            title: node.title,
-            handle: node.handle,
-            status: node.status,
-            onlineStoreUrl: node.onlineStoreUrl,
-            imageUrl: node.featuredImage?.url ?? null,
-            totalInventory: node.totalInventory ?? 0,
-            totalVariants: node.totalVariants ?? variants.length,
-            minPrice: node.priceRangeV2?.minVariantPrice?.amount ?? null,
-            currencyCode:
-              node.priceRangeV2?.minVariantPrice?.currencyCode ?? null,
-            availableForSale: variants.some(
-              (variant) => variant.availableForSale,
-            ),
-            collections: node.collections.nodes.map((collection) => ({
-              collectionId: collection.id.split("/").pop() as string,
-              title: collection.title,
-            })),
-            variants,
-          });
+          const summary = buildProductSummary(node, (node.collections?.nodes ?? []).map((collection: any) => ({
+            collectionId: collection.id.split("/").pop() as string,
+            title: collection.title,
+          })));
+          result.set(summary.productId, summary);
         }
       }
     },
@@ -380,29 +383,7 @@ export async function getFirstProduct(
 ): Promise<ProductSummary | null> {
   const data = await gql<{
     products: {
-      nodes: Array<{
-        id: string;
-        title: string;
-        handle: string;
-        status: string;
-        onlineStoreUrl: string | null;
-        totalInventory: number | null;
-        totalVariants: number | null;
-        featuredImage: { url: string } | null;
-        priceRangeV2: {
-          minVariantPrice: { amount: string; currencyCode: string };
-        };
-        variants: {
-          nodes: Array<{
-            id: string;
-            title: string;
-            price: string | null;
-            availableForSale: boolean;
-            sku: string | null;
-            image: { url: string } | null;
-          }>;
-        };
-      }>;
+      nodes: Array<ProductNode>;
     };
   }>(
     admin,
@@ -430,28 +411,5 @@ export async function getFirstProduct(
 
   const node = data.products?.nodes?.[0];
   if (!node) return null;
-  const variants = node.variants.nodes.map((variant) => ({
-    variantId: variant.id.split("/").pop() as string,
-    title: variant.title,
-    price: variant.price,
-    availableForSale: variant.availableForSale,
-    imageUrl: variant.image?.url ?? node.featuredImage?.url ?? null,
-    sku: variant.sku ?? null,
-  }));
-  const productId = node.id.split("/").pop() as string;
-  return {
-    productId,
-    title: node.title,
-    handle: node.handle,
-    status: node.status,
-    onlineStoreUrl: node.onlineStoreUrl,
-    imageUrl: node.featuredImage?.url ?? null,
-    totalInventory: node.totalInventory ?? 0,
-    totalVariants: node.totalVariants ?? variants.length,
-    minPrice: node.priceRangeV2?.minVariantPrice?.amount ?? null,
-    currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode ?? null,
-    availableForSale: variants.some((variant) => variant.availableForSale),
-    collections: [],
-    variants,
-  };
+  return buildProductSummary(node, []);
 }

@@ -13,7 +13,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
 import db from "../db.server";
-import { requireAdminShop } from "../lib/admin-auth.server";
 
 /**
  * Resolves the redirect target for a notification log. Falls back to the shop's

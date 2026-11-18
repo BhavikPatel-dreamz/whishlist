@@ -1064,7 +1064,7 @@ export default function Settings() {
         </>
       ) : (
         <BlockStack gap="400">
-          {/* <Select label="Theme" options={["Dawn (Live Theme)", "Custom"]} value={cfg.theme} onChange={(v) => set("theme", v)} /> */}
+        
           <Divider />
           <Text as="h4" variant="headingSm">
             Button Position
@@ -1335,14 +1335,7 @@ export default function Settings() {
           ]}
         />
       </Section>
-      {/* {cfg.launchFrom === "header" && <>
-        <Divider />
-        <BlockStack gap="400">
-          <Text as="h3" variant="headingSm">Header placement</Text>
-          <TextField label="CSS Selector — Desktop & Tablet" value={cfg.headerDesktopSelector} onChange={(v) => set("headerDesktopSelector", v)} helpText="Optional. Enter the element the wishlist icon should appear next to. Leave blank to detect your theme header automatically." autoComplete="off" />
-          <TextField label="CSS Selector — Mobile" value={cfg.headerMobileSelector} onChange={(v) => set("headerMobileSelector", v)} helpText="Optional. Used on screens smaller than 750px." autoComplete="off" />
-        </BlockStack>
-      </>} */}
+    
       {cfg.launchFrom === "floating" && <>
         <Divider />
         <FieldRow label="Position">

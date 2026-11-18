@@ -453,16 +453,7 @@
     }
   }
 
-  function bindDrawerActions(container, items) {
-    window.__wishlistFeatures?.decorate(container);
-    container.querySelectorAll('[data-action="remove"]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const card = btn.closest('.ws-item');
-        const ok = await removeItem(card.dataset.productId);
-        if (ok) renderDrawer();
-      });
-    });
-
+  function bindAddToCartButtons(container, cardSelector, onAdded) {
     container.querySelectorAll('[data-action="add-to-cart"]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -474,10 +465,9 @@
           if (window.location.pathname !== '/cart') {
             window.location.assign('/cart');
           }
-          setTimeout(() => renderDrawer(), 800);
-          // notify app of move-to-cart for analytics
+          if (onAdded) onAdded();
           try {
-            const card = btn.closest('.ws-item');
+            const card = btn.closest(cardSelector);
             await window.wsTrack?.('WISHLIST_ADD_TO_CART', {
               productId: card?.dataset.productId || undefined,
               variantId: btn.dataset.variantId || undefined,
@@ -495,6 +485,19 @@
         }
       });
     });
+  }
+
+  function bindDrawerActions(container, items) {
+    window.__wishlistFeatures?.decorate(container);
+    container.querySelectorAll('[data-action="remove"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const card = btn.closest('.ws-item');
+        const ok = await removeItem(card.dataset.productId);
+        if (ok) renderDrawer();
+      });
+    });
+
+    bindAddToCartButtons(container, '.ws-item', () => setTimeout(() => renderDrawer(), 800));
 
     container.querySelectorAll('[data-action="notify"]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
@@ -593,37 +596,7 @@
       });
     });
 
-    container.querySelectorAll('[data-action="add-to-cart"]').forEach((btn) => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        btn.disabled = true;
-        btn.innerHTML = '<span class="ws-spinner"></span>';
-        const ok = await moveToCart(btn.dataset.variantId, btn.dataset.productHandle);
-        if (ok) {
-          btn.textContent = 'Added!';
-          if (window.location.pathname !== '/cart') {
-            window.location.assign('/cart');
-          }
-          // notify app of move-to-cart for analytics
-          try {
-            const card = btn.closest('.ws-page-card');
-            await window.wsTrack?.('WISHLIST_ADD_TO_CART', {
-              productId: card?.dataset.productId || undefined,
-              variantId: btn.dataset.variantId || undefined,
-              source: 'wishlist',
-            });
-          } catch (e) { }
-          if (typeof fetch === 'function') {
-            fetch('/cart.js').then((r) => r.json()).then((cart) => {
-              document.dispatchEvent(new CustomEvent('cart:change', { detail: { cart } }));
-            }).catch(() => { });
-          }
-        } else {
-          btn.textContent = 'Error';
-          btn.disabled = false;
-        }
-      });
-    });
+    bindAddToCartButtons(container, '.ws-page-card');
 
     container.querySelectorAll('[data-action="notify"]').forEach((btn) => {
       btn.addEventListener('click', (e) => {

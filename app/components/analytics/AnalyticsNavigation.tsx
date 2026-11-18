@@ -2,7 +2,7 @@ import { useNavigate, useSearchParams } from "@remix-run/react";
 import { Button, Tabs } from "@shopify/polaris";
 import type { ReportSlug } from "../../lib/report-contract";
 
-const REPORTS: Record<string, string> = {
+export const REPORTS: Record<string, string> = {
   overview: "Overview Dashboard",
   "activity-trends": "Activity Trends",
   "conversion-funnel": "Conversion Funnel",
@@ -31,7 +31,10 @@ const REPORTS: Record<string, string> = {
   // "sell-through": "Sell-Through After Restock",
   // "subscription-sources": "Subscription Source Report",
   "recurring-customers": "Recurring Customers",
+  "top-intent-customers": "Wishlist Savers",
+  "segments": "Customer Segments Export",
   "notification-log": "Notification Log",
+  "alert-customers": "Alert Request Customers",
   usage: "Usage vs Plan",
 };
 

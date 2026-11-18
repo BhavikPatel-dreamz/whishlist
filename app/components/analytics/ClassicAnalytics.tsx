@@ -1526,29 +1526,6 @@ export function ClassicAnalytics({ report, topProducts, productBreakdown }: Clas
                   onOpenProduct={(productId) => openProductDetail(productId)}
                   onOpenReport={(nextSlug) => selectReport(nextSlug)}
                 />
-                {/* <div className="ca-card">
-                  <h3 className="ca-h3">Go to a detail report</h3>
-                  <div className="ca-sub" style={{ flexWrap: "wrap" }}>
-                    {["wishlist-conversion", "restock-conversion", "revenue-attribution", "low-stock-demand", "notification-delivery"].map((s) => (
-                      <button
-                        key={s}
-                        className="ca-chip"
-                        onClick={() => {
-                          selectReport(s);
-                        }}
-                      >
-                        {REPORT_TITLES[s]}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="ca-mu">
-                    Revenue here is{" "}
-                    <span className="ca-badge ca-a">Estimated</span>{" "}
-                    plus{" "}
-                    <span className="ca-badge ca-b">Direct</span>{" "}
-                    combined.
-                  </p>
-                </div> */}
               </div>
             </>
           ) : slug === "activity-trends" ? (

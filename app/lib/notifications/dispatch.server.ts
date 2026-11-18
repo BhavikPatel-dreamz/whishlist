@@ -1,5 +1,4 @@
-import type { Shop, StockAlert } from "@prisma/client";
-import db from "../../db.server";
+import type { Plan, Shop, StockAlert } from "@prisma/client";
 import { resolveSettingsForPlan } from "../shop.server";
 import { appOrigin } from "../app-url.server";
 import { signPayload } from "../crypto.server";
@@ -33,7 +32,7 @@ import {
   reserveNotification,
 } from "../billing/usage.server";
 import { recordRestockNotificationLog } from "../../models/notification-log.server";
-import type { Plan } from "@prisma/client";
+
 
 const SEND_CONCURRENCY = 10;
 
@@ -197,6 +196,7 @@ export async function dispatchRestockAlerts(params: {
         }),
       ),
     );
+    // eslint-disable-next-line no-loop-func
     results.forEach((result, index) => {
       if (result.status === "fulfilled" && result.value === "sent") sent += 1;
       else if (result.status === "fulfilled" && result.value === "held") {

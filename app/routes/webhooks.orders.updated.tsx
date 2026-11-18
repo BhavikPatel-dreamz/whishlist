@@ -1,27 +1,18 @@
-import type { ActionFunctionArgs } from "@remix-run/node";
-import { getOrCreateShop } from "../lib/shop.server";
 import {
   attributeOrderLines,
   attributeWishlistOrders,
-  handleOrderWebhook,
+  createOrderWebhook,
 } from "../lib/order-webhook.server";
 
 /** Acknowledge `orders/updated` webhooks. */
-export const action = async ({ request }: ActionFunctionArgs) =>
-  handleOrderWebhook(request, "/webhooks/orders/updated", async ({ shop, payload }) => {
-    const order = payload;
-    if (order?.financial_status !== "paid" || !order?.id) return;
-
-    const shopRecord = await getOrCreateShop(shop);
-    const orderId = String(order.id);
-    const items = order?.line_items || [];
-    const customerId = order?.customer?.id ? String(order.customer.id) : null;
-
-    await attributeWishlistOrders({
-      shopRecordId: shopRecord.id,
-      orderId,
-      items,
-      customerId,
-    });
-    await attributeOrderLines({ shopRecordId: shopRecord.id, order });
+export const action = createOrderWebhook("/webhooks/orders/updated", async (ctx) => {
+  const order = ctx.order;
+  if (order?.financial_status !== "paid") return;
+  await attributeWishlistOrders({
+    shopRecordId: ctx.shopRecord.id,
+    orderId: ctx.orderId,
+    items: ctx.items,
+    customerId: ctx.customerId,
   });
+  await attributeOrderLines({ shopRecordId: ctx.shopRecord.id, order });
+});

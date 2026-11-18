@@ -3,6 +3,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useNavigate } from "@remix-run/react";
 import productDetailStyles from "../components/analytics/product-detail.css?url";
 import { requireAdminShop } from "../lib/admin-auth.server";
+import { parseReturnTo } from "../lib/analytics-params";
 import { getProductsByIds, type ProductSummary } from "../lib/shopify-data.server";
 import db from "../db.server";
 
@@ -107,19 +108,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     )
   ).get(detail.productId);
   const url = new URL(request.url);
-  const returnToParam = url.searchParams.get("returnTo") ?? "";
-  let returnTo = "/app";
-  try {
-    const target = new URL(returnToParam, url.origin);
-    if (
-      target.origin === url.origin &&
-      (target.pathname === "/app" || target.pathname.startsWith("/app/"))
-    ) {
-      returnTo = `${target.pathname}${target.search}${target.hash}`;
-    }
-  } catch {
-    returnTo = "/app";
-  }
+  const returnTo = parseReturnTo(url, url.searchParams.get("returnTo") ?? "");
 
   return json({
     detail: {

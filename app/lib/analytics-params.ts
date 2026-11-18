@@ -177,6 +177,23 @@ export function paramsRange(params: AnalyticsParams): DateRange {
   return { from: params.from, to: params.to };
 }
 
+/** Safely resolve a `returnTo` query param to an internal app path. */
+export function parseReturnTo(url: URL, returnToParam: string): string {
+  let returnTo = "/app";
+  try {
+    const target = new URL(returnToParam, url.origin);
+    if (
+      target.origin === url.origin &&
+      (target.pathname === "/app" || target.pathname.startsWith("/app/"))
+    ) {
+      returnTo = `${target.pathname}${target.search}${target.hash}`;
+    }
+  } catch {
+    returnTo = "/app";
+  }
+  return returnTo;
+}
+
 /** The range of the comparison period, or null when comparison is off. */
 export function compareRange(params: AnalyticsParams): DateRange | null {
   return params.compare ? previousRange(paramsRange(params)) : null;

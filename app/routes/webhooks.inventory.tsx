@@ -5,7 +5,8 @@ import { claimWebhook, pruneWebhookEvents } from "../lib/webhook-events.server";
 import { getOrCreateShop } from "../lib/shop.server";
 import { dispatchRestockAlerts } from "../lib/notifications/dispatch.server";
 import { getShopContext, getVariantByInventoryItem } from "../lib/shopify-data.server";
-import { ALERT_STATUS } from "../models/stock-alert.server";
+import { waitingAlertStatuses } from "../models/stock-alert.server";
+import { releaseWebhookAndFail } from "../lib/webhooks/webhook-failure.server";
 import { pruneRateLimits } from "../lib/rate-limit.server";
 
 type InventoryLevelPayload = {
@@ -43,9 +44,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // Cheapest possible short-circuit: most stores have no one waiting most of the time.
-    const waitingStatuses = shopRecord.doubleOptIn
-      ? [ALERT_STATUS.pending, ALERT_STATUS.confirmed]
-      : [ALERT_STATUS.pending];
+    const waitingStatuses = waitingAlertStatuses(shopRecord.doubleOptIn);
     const waiting = await db.stockAlert.count({
       where: { shopId: shopRecord.id, status: { in: waitingStatuses } },
     });
@@ -72,13 +71,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   } catch (error) {
     console.error(`[${topic}] ${shop} processing failed`, error);
-    // Release the receipt so a redelivery can retry processing.
-    if (webhookId) {
-      await db.webhookEvent
-        .deleteMany({ where: { shopId: shopRecord.id, webhookId } })
-        .catch(() => {});
-    }
-    return new Response("Processing failed", { status: 500 });
+    return releaseWebhookAndFail(shopRecord.id, webhookId);
   }
 
   // Opportunistically prune old receipts and expired rate-limit buckets.

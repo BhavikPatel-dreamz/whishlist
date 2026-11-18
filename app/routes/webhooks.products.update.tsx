@@ -5,7 +5,8 @@ import { claimWebhook } from "../lib/webhook-events.server";
 import { getOrCreateShop } from "../lib/shop.server";
 import { dispatchRestockAlerts } from "../lib/notifications/dispatch.server";
 import { getShopContext, getVariantsByIds } from "../lib/shopify-data.server";
-import { ALERT_STATUS } from "../models/stock-alert.server";
+import { waitingAlertStatuses } from "../models/stock-alert.server";
+import { releaseWebhookAndFail } from "../lib/webhooks/webhook-failure.server";
 
 type ProductPayload = {
   id?: number | string;
@@ -35,9 +36,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const productId = product.id ? String(product.id) : null;
     if (!productId || product.status !== "active") return new Response();
 
-    const waitingStatuses = shopRecord.doubleOptIn
-      ? [ALERT_STATUS.pending, ALERT_STATUS.confirmed]
-      : [ALERT_STATUS.pending];
+    const waitingStatuses = waitingAlertStatuses(shopRecord.doubleOptIn);
     const pending = await db.stockAlert.findMany({
       where: { shopId: shopRecord.id, productId, status: { in: waitingStatuses } },
       select: { variantId: true },
@@ -67,13 +66,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   } catch (error) {
     console.error(`[${topic}] ${shop} processing failed`, error);
-    // Release the receipt so a redelivery can retry processing.
-    if (webhookId) {
-      await db.webhookEvent
-        .deleteMany({ where: { shopId: shopRecord.id, webhookId } })
-        .catch(() => {});
-    }
-    return new Response("Processing failed", { status: 500 });
+    return releaseWebhookAndFail(shopRecord.id, webhookId);
   }
 
   return new Response();

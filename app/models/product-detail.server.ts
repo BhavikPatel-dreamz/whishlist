@@ -16,6 +16,28 @@ import {
 
 const WAITING_STATUSES = new Set(["PENDING", "CONFIRMED", "SENDING"]);
 
+const STOCK_ALERT_SELECT = {
+  id: true,
+  customerId: true,
+  email: true,
+  phone: true,
+  contactKey: true,
+  channel: true,
+  variantId: true,
+  variantTitle: true,
+  status: true,
+  confirmed: true,
+  createdAt: true,
+  notifiedAt: true,
+  convertedAt: true,
+  purchasedAt: true,
+  purchaseOrderId: true,
+  purchaseRevenue: true,
+  purchaseCurrency: true,
+  pendingReason: true,
+  lastError: true,
+} as const;
+
 const REVENUE_ORDER = [
   "WISHLIST:DIRECT",
   "WISHLIST:ESTIMATED",
@@ -119,27 +141,7 @@ export async function loadProductDetail(
     db.stockAlert.findMany({
       where: { shopId, productId, createdAt: bounds },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      select: {
-        id: true,
-        customerId: true,
-        email: true,
-        phone: true,
-        contactKey: true,
-        channel: true,
-        variantId: true,
-        variantTitle: true,
-        status: true,
-        confirmed: true,
-        createdAt: true,
-        notifiedAt: true,
-        convertedAt: true,
-        purchasedAt: true,
-        purchaseOrderId: true,
-        purchaseRevenue: true,
-        purchaseCurrency: true,
-        pendingReason: true,
-        lastError: true,
-      },
+      select: STOCK_ALERT_SELECT,
     }),
     db.notificationLog.findMany({
       where: {
@@ -203,27 +205,7 @@ export async function loadProductDetail(
       ? db.stockAlert.findMany({
           where: { shopId, productId, variantId },
           orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-          select: {
-            id: true,
-            customerId: true,
-            email: true,
-            phone: true,
-            contactKey: true,
-            channel: true,
-            variantId: true,
-            variantTitle: true,
-            status: true,
-            confirmed: true,
-            createdAt: true,
-            notifiedAt: true,
-            convertedAt: true,
-            purchasedAt: true,
-            purchaseOrderId: true,
-            purchaseRevenue: true,
-            purchaseCurrency: true,
-            pendingReason: true,
-            lastError: true,
-          },
+          select: STOCK_ALERT_SELECT,
         })
       : Promise.resolve(null),
   ]);

@@ -41,6 +41,13 @@ export async function action({ request }: ActionFunctionArgs) {
         features.wishlistMode === "multi" && body.listName
           ? listName(body.listName)
           : null;
+      const shareItems = await db.wishlistItem.findMany({
+        where: {
+          ...identityWhere(ctx.shop.id, identity),
+          ...(selectedList ? { listName: selectedList } : {}),
+        },
+        select: { productId: true, handle: true },
+      });
       if (body.mode) {
         if (!["copylink", "facebook", "x", "email"].includes(String(body.mode)))
           throw new ProxyError(400, "Invalid sharing mode", "invalid_mode");
@@ -51,13 +58,7 @@ export async function action({ request }: ActionFunctionArgs) {
           });
           if (updated.count) return json({ ok: true });
         }
-        const items = await db.wishlistItem.findMany({
-          where: {
-            ...identityWhere(ctx.shop.id, identity),
-            ...(selectedList ? { listName: selectedList } : {}),
-          },
-          select: { productId: true, handle: true },
-        });
+        const items = shareItems;
         await db.wishlistShare.create({
           data: {
             shopId: ctx.shop.id,
@@ -69,13 +70,7 @@ export async function action({ request }: ActionFunctionArgs) {
         });
         return json({ ok: true });
       }
-      const items = await db.wishlistItem.findMany({
-        where: {
-          ...identityWhere(ctx.shop.id, identity),
-          ...(selectedList ? { listName: selectedList } : {}),
-        },
-        select: { productId: true, handle: true },
-      });
+      const items = shareItems;
       const shareId = randomUUID();
       await db.wishlistShare.create({
         data: {

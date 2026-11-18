@@ -10,10 +10,41 @@ import {
   type OrderLine,
 } from "../models/attribution.server";
 import { verifyPayloadSignature } from "./crypto.server";
+import { getOrCreateShop } from "./shop.server";
 
 type LineItem = Record<string, any>;
 
 type OrderPayload = Record<string, any>;
+
+export type OrderContext = {
+  shopRecord: any;
+  order: any;
+  orderId: string;
+  items: any[];
+  customerId: string | null;
+};
+
+export function createOrderWebhook(
+  path: string,
+  process: (ctx: OrderContext) => Promise<void>,
+) {
+  return async ({ request }: { request: Request }) =>
+    handleOrderWebhook(request, path, async ({ shop, payload }) => {
+      const ctx = await getOrderContext(shop, payload as OrderPayload);
+      if (!ctx) return;
+      await process(ctx);
+    });
+}
+
+export async function getOrderContext(shop: string, payload: OrderPayload) {
+  const shopRecord = await getOrCreateShop(shop);
+  const order = payload;
+  const orderId = order?.id ? String(order.id) : null;
+  if (!orderId) return null;
+  const items = order?.line_items || [];
+  const customerId = order?.customer?.id ? String(order.customer.id) : null;
+  return { shopRecord, order, orderId, items, customerId };
+}
 
 export function isWishlistLineItem(lineItem: LineItem): boolean {
   const properties = lineItem?.properties;

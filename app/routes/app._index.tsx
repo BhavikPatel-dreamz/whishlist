@@ -316,14 +316,6 @@ export default function Dashboard() {
               ready to buy.
             </p>
             <WishlistPreview />
-            {/* <a
-              className="ws-home-featureLink"
-              href={wishlistEditor}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Customize wishlist <span aria-hidden="true">→</span>
-            </a> */}
           </article>
           <article className="ws-home-featureCard">
             <AlertPreview />
@@ -333,14 +325,6 @@ export default function Dashboard() {
               rekindle your shoppers’ interest and bring them back to the
               products they love.
             </p>
-            {/* <a
-              className="ws-home-featureLink"
-              href={backInStockEditor}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Manage stock alerts <span aria-hidden="true">→</span>
-            </a> */}
           </article>
           <article className="ws-home-featureCard">
             <h3>Convert Interest into Sales.</h3>
@@ -350,9 +334,6 @@ export default function Dashboard() {
               favorites into your next opportunity.
             </p>
             <AnalyticsPreview />
-            {/* <Link className="ws-home-featureLink" to="/app/analytics">
-              Explore analytics <span aria-hidden="true">→</span>
-            </Link> */}
           </article>
         </div>
       </section>

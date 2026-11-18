@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import { getOrCreateShop } from "../lib/shop.server";
+import db from "../db.server";
 
 type InventoryPayload = Record<string, any>;
 
@@ -12,7 +13,7 @@ type InventoryPayload = Record<string, any>;
 export const action = async ({ request }: ActionFunctionArgs) => {
   let stage = "authentication";
   try {
-    const { shop, topic, payload } = await authenticate.webhook(request);
+    const { shop, payload } = await authenticate.webhook(request);
     stage = "inventory-processing";
 
     const shopRecord = await getOrCreateShop(shop);
@@ -52,8 +53,6 @@ async function dbInventoryCacheUpsert(
   quantity: number,
   status: string,
 ) {
-  // Dynamic import to avoid a direct import cycle with db.server in this route.
-  const { default: db } = await import("../db.server");
   const now = new Date();
   const updateData: Record<string, unknown> = {
     quantity,

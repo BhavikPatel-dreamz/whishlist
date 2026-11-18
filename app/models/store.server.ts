@@ -228,27 +228,19 @@ async function upsertInstallerFromOfflineSessionFields(
   });
   if (!row?.email && !row?.userId && !row?.firstName) return;
 
+  const installerData = {
+    shopifyUserId: row.userId != null ? String(row.userId) : null,
+    firstName: row.firstName,
+    lastName: row.lastName,
+    email: row.email,
+    locale: row.locale,
+    accountOwner: Boolean(row.accountOwner),
+    collaborator: Boolean(row.collaborator),
+  };
   await db.storeInstaller.upsert({
     where: { shopId },
-    create: {
-      shopId,
-      shopifyUserId: row.userId != null ? String(row.userId) : null,
-      firstName: row.firstName,
-      lastName: row.lastName,
-      email: row.email,
-      locale: row.locale,
-      accountOwner: Boolean(row.accountOwner),
-      collaborator: Boolean(row.collaborator),
-    },
-    update: {
-      shopifyUserId: row.userId != null ? String(row.userId) : null,
-      firstName: row.firstName,
-      lastName: row.lastName,
-      email: row.email,
-      locale: row.locale,
-      accountOwner: Boolean(row.accountOwner),
-      collaborator: Boolean(row.collaborator),
-    },
+    create: { shopId, ...installerData },
+    update: installerData,
   });
 }
 
@@ -605,27 +597,6 @@ async function syncMarkets(admin: AdminClient, shopId: string) {
   }
 }
 
-async function syncShopLocales(admin: AdminClient, shopId: string) {
-  const data = await adminGraphqlJson<{
-    shopLocales: Array<{
-      locale?: string | null;
-      primary?: boolean | null;
-      published?: boolean | null;
-    }>;
-  }>(
-    admin,
-    `#graphql
-      query StoreLocales {
-        shopLocales { locale primary published }
-      }
-    `,
-  );
-  await db.shop.update({
-    where: { id: shopId },
-    data: { shopLocales: asJson(data.shopLocales || []) },
-  });
-}
-
 async function syncThemes(admin: AdminClient, shopId: string) {
   const data = await adminGraphqlJson<{
     themes: {
@@ -651,76 +622,14 @@ async function syncThemes(admin: AdminClient, shopId: string) {
   });
 }
 
-async function syncPublications(admin: AdminClient, shopId: string) {
-  const data = await adminGraphqlJson<{
-    publications: {
-      nodes: Array<{
-        id?: string | null;
-        name?: string | null;
-        catalog?: { title?: string | null } | null;
-      }>;
-    };
-  }>(
-    admin,
-    `#graphql
-      query StorePublications {
-        publications(first: 25) {
-          nodes { id name catalog { title } }
-        }
-      }
-    `,
-  );
-  await db.shop.update({
-    where: { id: shopId },
-    data: { publications: asJson(data.publications?.nodes || []) },
-  });
-}
-
-async function syncResourceCounts(admin: AdminClient, shopId: string) {
-  const data = await adminGraphqlJson<{
-    productsCount?: { count?: number | null } | null;
-    collectionsCount?: { count?: number | null } | null;
-    ordersCount?: { count?: number | null } | null;
-    customersCount?: { count?: number | null } | null;
-  }>(
-    admin,
-    `#graphql
-      query StoreCounts {
-        productsCount { count }
-        collectionsCount { count }
-        ordersCount { count }
-        customersCount { count }
-      }
-    `,
-  );
-
-  await db.storeStats.create({
-    data: {
-      shopId,
-      productsCount: data.productsCount?.count ?? 0,
-      collectionsCount: data.collectionsCount?.count ?? 0,
-      ordersCount: data.ordersCount?.count ?? 0,
-      customersCount: data.customersCount?.count ?? 0,
-      capturedAt: new Date(),
-    },
-  });
-}
-
 /** Heavy install enrichers — each isolated so one failure never blocks the rest. */
 export async function enrichStoreProfile(
   admin: AdminClient,
   shopId: string,
 ): Promise<void> {
-  // Temporarily only sync app installation metadata. Locations/markets/locales/
-  // themes/publications/counts are unused for now (scopes/webhooks also dropped).
+
   const tasks: Array<[string, () => Promise<void>]> = [
-    ["currentAppInstallation", () => syncCurrentAppInstallation(admin, shopId)],
-    // ["locations", () => syncLocations(admin, shopId)],
-    // ["markets", () => syncMarkets(admin, shopId)],
-    // ["shopLocales", () => syncShopLocales(admin, shopId)],
-    // ["themes", () => syncThemes(admin, shopId)],
-    // ["publications", () => syncPublications(admin, shopId)],
-    // ["counts", () => syncResourceCounts(admin, shopId)],
+    ["currentAppInstallation", () => syncCurrentAppInstallation(admin, shopId)]
   ];
 
   for (const [label, run] of tasks) {

@@ -13,6 +13,12 @@ export const ALERT_STATUS = {
 } as const;
 
 export type AlertStatus = (typeof ALERT_STATUS)[keyof typeof ALERT_STATUS];
+
+export function waitingAlertStatuses(doubleOptIn: boolean): string[] {
+  return doubleOptIn
+    ? [ALERT_STATUS.pending, ALERT_STATUS.confirmed]
+    : [ALERT_STATUS.pending];
+}
 export type AlertChannel = "email" | "sms" | "whatsapp";
 
 export function stockAlertContactKey(
