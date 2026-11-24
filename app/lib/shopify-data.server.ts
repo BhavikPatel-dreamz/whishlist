@@ -181,6 +181,10 @@ export type ProductSummary = {
     availableForSale: boolean;
     imageUrl: string | null;
     sku: string | null;
+    /** Stock across all locations. Null when Shopify does not track it. */
+    inventoryQuantity: number | null;
+    /** Whether this variant has inventory tracking enabled. */
+    tracked: boolean;
   }>;
 };
 
@@ -195,6 +199,8 @@ function buildProductSummary(
     availableForSale: variant.availableForSale,
     imageUrl: variant.image?.url ?? node.featuredImage?.url ?? null,
     sku: variant.sku ?? null,
+    inventoryQuantity: variant.inventoryQuantity ?? null,
+    tracked: Boolean(variant.inventoryItem?.tracked),
   }));
   const productId = node.id.split("/").pop() as string;
   return {
@@ -232,10 +238,19 @@ type ProductNode = {
       availableForSale: boolean;
       sku: string | null;
       image: { url: string } | null;
+      inventoryQuantity: number | null;
+      inventoryItem: { tracked: boolean } | null;
     }>;
   };
   collections?: { nodes: Array<{ id: string; title: string }> };
 };
+
+const PRODUCT_VARIANT_FIELDS = `
+  id title price availableForSale sku
+  image { url }
+  inventoryQuantity
+  inventoryItem { tracked }
+`;
 
 export async function getCustomerNamesByIds(
   admin: GraphqlClient,
@@ -244,45 +259,58 @@ export async function getCustomerNamesByIds(
   const result = new Map<string, string>();
   if (!customerIds.length) return result;
 
-  try {
-    const data = await gql<{
-      nodes: Array<{
-        id: string;
-        displayName?: string | null;
-        firstName?: string | null;
-        lastName?: string | null;
-      } | null>;
-    }>(
-      admin,
-      `#graphql
-       query CustomerNames($ids: [ID!]!) {
-         nodes(ids: $ids) {
-           ... on Customer {
-             id
-             displayName
-             firstName
-             lastName
-           }
-         }
-       }`,
-      { ids: customerIds.map((id) => toCustomerGid(id)) },
-    );
+  // Shopify caps `nodes(ids:)` at 250 ids. Chunk and run a few batches at once
+  // instead of firing one unbounded Promise.all (which easily hits rate limits).
+  const chunks: string[][] = [];
+  for (let i = 0; i < customerIds.length; i += 200)
+    chunks.push(customerIds.slice(i, i + 200));
 
-    for (const node of data.nodes ?? []) {
-      if (!node) continue;
-      const customerId = node.id.split("/").pop() as string;
-      const fullName = [node.firstName, node.lastName]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
-      result.set(
-        customerId,
-        node.displayName || fullName || `Customer ${customerId}`,
-      );
+  let next = 0;
+  const workers = Array.from({ length: Math.min(3, chunks.length) }, async () => {
+    while (next < chunks.length) {
+      const chunk = chunks[next++];
+      try {
+        const data = await gql<{
+          nodes: Array<{
+            id: string;
+            displayName?: string | null;
+            firstName?: string | null;
+            lastName?: string | null;
+          } | null>;
+        }>(
+          admin,
+          `#graphql
+           query CustomerNames($ids: [ID!]!) {
+             nodes(ids: $ids) {
+               ... on Customer {
+                 id
+                 displayName
+                 firstName
+                 lastName
+               }
+             }
+           }`,
+          { ids: chunk.map((id) => toCustomerGid(id)) },
+        );
+
+        for (const node of data.nodes ?? []) {
+          if (!node) continue;
+          const customerId = node.id.split("/").pop() as string;
+          const fullName = [node.firstName, node.lastName]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+          result.set(
+            customerId,
+            node.displayName || fullName || `Customer ${customerId}`,
+          );
+        }
+      } catch {
+        // App may not have Customer data access — fall back to IDs
+      }
     }
-  } catch {
-    // App may not have Customer data access — fall back to IDs
-  }
+  });
+  await Promise.all(workers);
 
   return result;
 }
@@ -295,15 +323,18 @@ export async function getProductsByIds(
   admin: GraphqlClient,
   productIds: string[],
   variantLimit = 50,
+  includeCollections = true,
 ): Promise<Map<string, ProductSummary>> {
   const result = new Map<string, ProductSummary>();
   if (!productIds.length) return result;
 
-  // `nodes` accepts at most 250 ids per call. Chunks run concurrently (bounded) —
-  // a 250-item wishlist used to take three sequential round trips.
+  // `nodes` accepts at most 250 ids per call. Requests with full variant data
+  // use smaller chunks to stay within Shopify's per-query cost limit; cheap
+  // (one-variant) hydration keeps the larger 100-id chunks.
+  const chunkSize = variantLimit > 1 ? 10 : 100;
   const chunks: string[][] = [];
-  for (let i = 0; i < productIds.length; i += 100)
-    chunks.push(productIds.slice(i, i + 100));
+  for (let i = 0; i < productIds.length; i += chunkSize)
+    chunks.push(productIds.slice(i, i + chunkSize));
 
   let next = 0;
   const workers = Array.from(
@@ -329,11 +360,9 @@ export async function getProductsByIds(
              featuredImage { url }
              priceRangeV2 { minVariantPrice { amount currencyCode } }
              variants(first: $variantLimit) {
-               nodes { id title price availableForSale sku image { url } }
+               nodes { ${PRODUCT_VARIANT_FIELDS} }
              }
-             collections(first: 50) {
-               nodes { id title }
-             }
+             ${includeCollections ? "collections(first: 50) { nodes { id title } }" : ""}
            }
          }
        }`,
@@ -401,7 +430,7 @@ export async function getFirstProduct(
            featuredImage { url }
            priceRangeV2 { minVariantPrice { amount currencyCode } }
            variants(first: 10) {
-             nodes { id title price availableForSale sku image { url } }
+             nodes { ${PRODUCT_VARIANT_FIELDS} }
            }
          }
        }

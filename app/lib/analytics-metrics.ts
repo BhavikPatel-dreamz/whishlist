@@ -150,6 +150,7 @@ export function summarizeMetrics(
       }
       return {
         id: String(index),
+        customerId: shopper.customerId,
         name: shopper.customerId
           ? names.get(shopper.customerId) || `Customer ${shopper.customerId}`
           : `Guest shopper ${index + 1}`,

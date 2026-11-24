@@ -14,11 +14,18 @@ import { getUIConfigByShopId } from "../models/ui-config.server";
 export async function loader({ request }: LoaderFunctionArgs) {
   const { session, admin, shop } = await requireAdminShop(request);
   const params = new URL(request.url).searchParams;
-  const [metrics, backInStockMetrics, uiConfig] = await Promise.all([
-    loadAnalyticsMetrics(shop.id, admin, params),
+  const [backInStockMetrics, uiConfig] = await Promise.all([
     loadReportsOverview(shop.id, admin, params),
     getUIConfigByShopId(shop.id),
   ]);
+  // The dashboard only shows 20 rows per column. Hydrate/rank just those, plus
+  // the alert products needed for the back-in-stock "Running out soon" list.
+  const metrics = await loadAnalyticsMetrics(shop.id, admin, params, {
+    limit: 20,
+    extraProductIds: backInStockMetrics.popularRequestedProducts.map(
+      (product) => product.productId,
+    ),
+  });
   return {
     metrics,
     backInStockMetrics,

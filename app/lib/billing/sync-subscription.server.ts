@@ -8,6 +8,10 @@ import { PLAN_CODES } from "./plan.server";
 const CACHE_MS = 5 * 60 * 1000;
 const cache = new Map<string, number>();
 
+function markSynced(shopDomain: string): void {
+  cache.set(shopDomain, Date.now());
+}
+
 type AdminClient = Pick<GraphqlClient, "graphql">;
 
 export async function fetchActiveSubscription(shopGid: string): Promise<PartnerSubscription | null> {
@@ -63,7 +67,7 @@ export async function recordPlanHandle(shopDomain: string, handle: string): Prom
   const localGid = `app-pricing:${shop.id}`;
   if (planCode === PLAN_CODES.starter) {
     await expireSubscription(shop.id, localGid);
-    cache.set(shopDomain, Date.now());
+    markSynced(shopDomain);
     return;
   }
   const subscriptionData = { planCode, status: "ACTIVE" as const, currentPeriodEnd: null };
@@ -72,7 +76,7 @@ export async function recordPlanHandle(shopDomain: string, handle: string): Prom
     create: { shopId: shop.id, shopifyGid: localGid, ...subscriptionData },
     update: subscriptionData,
   });
-  cache.set(shopDomain, Date.now());
+  markSynced(shopDomain);
 }
 
 async function syncFromAdminInstallation(admin: AdminClient, shopDomain: string): Promise<void> {
@@ -114,7 +118,7 @@ async function syncFromAdminInstallation(admin: AdminClient, shopDomain: string)
       currentPeriodEnd: periodEnd && !Number.isNaN(periodEnd.getTime()) ? periodEnd : null,
     },
   });
-  cache.set(shopDomain, Date.now());
+  markSynced(shopDomain);
 }
 
 /**
@@ -128,25 +132,32 @@ export async function syncShopSubscription(params: {
   force?: boolean;
 }): Promise<void> {
   const { admin, shopDomain, force = false } = params;
-  if (!process.env.SHOPIFY_PARTNER_ORG_ID || !process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN || !process.env.SHOPIFY_APP_GID) {
-    await syncFromAdminInstallation(admin, shopDomain).catch(() => {});
-    return;
-  }
-
   const cachedAt = cache.get(shopDomain);
   if (!force && cachedAt && Date.now() - cachedAt < CACHE_MS) return;
+
+  if (!process.env.SHOPIFY_PARTNER_ORG_ID || !process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN || !process.env.SHOPIFY_APP_GID) {
+    // No Partner API: use the Admin API fallback, but do not repeat the round
+    // trip on every admin navigation when the shop has no paid subscription.
+    await syncFromAdminInstallation(admin, shopDomain).catch(() => {});
+    markSynced(shopDomain);
+    return;
+  }
 
   const shop = await getOrCreateShop(shopDomain);
   const shopResponse = await admin.graphql(`{ shop { id } }`);
   const payload = (await shopResponse.json()) as { data?: { shop?: { id?: string } } };
   const shopGid = payload.data?.shop?.id;
-  if (!shopGid) return;
+  if (!shopGid) {
+    markSynced(shopDomain);
+    return;
+  }
 
   let subscription: PartnerSubscription | null;
   try {
     subscription = await fetchActiveSubscription(shopGid);
   } catch (error) {
     console.error(`[billing] subscription sync failed for ${shopDomain}`);
+    markSynced(shopDomain);
     return;
   }
 
@@ -155,7 +166,7 @@ export async function syncShopSubscription(params: {
 
   if (!record) {
     await expireSubscription(shop.id, localGid);
-    cache.set(shopDomain, Date.now());
+    markSynced(shopDomain);
     return;
   }
 
@@ -169,5 +180,5 @@ export async function syncShopSubscription(params: {
     create: { shopId: shop.id, shopifyGid: localGid, ...subscriptionData },
     update: subscriptionData,
   });
-  cache.set(shopDomain, Date.now());
+  markSynced(shopDomain);
 }

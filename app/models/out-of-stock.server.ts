@@ -1,4 +1,5 @@
 import { gqlRequest } from "../lib/graphql.server";
+import { ttlRemember } from "../lib/ttl-cache.server";
 import type { GraphqlClient } from "../lib/shopify-data.server";
 
 type VariantNode = {
@@ -75,7 +76,7 @@ export type InventoryVariant = {
  * product with one sold out variant (and other variants still in stock) never showed up
  * at all. Walking the variants instead shows exactly which variant is running out.
  */
-export async function loadInventoryVariants(
+async function fetchInventoryVariants(
   admin: GraphqlClient,
 ): Promise<InventoryVariant[]> {
   const rows: InventoryVariant[] = [];
@@ -139,10 +140,29 @@ export async function loadInventoryVariants(
   return rows;
 }
 
+const INVENTORY_TTL_MS = 60_000;
+
+/**
+ * Walking every tracked product is expensive on large stores. Admin callers
+ * pass their shop id so repeated navigations reuse the scan for one minute.
+ */
+export async function loadInventoryVariants(
+  admin: GraphqlClient,
+  cacheKey?: string,
+): Promise<InventoryVariant[]> {
+  if (!cacheKey) return fetchInventoryVariants(admin);
+  return ttlRemember(
+    `inventory:${cacheKey}`,
+    () => fetchInventoryVariants(admin),
+    INVENTORY_TTL_MS,
+  );
+}
+
 /** The variants that are currently out of stock, across all locations. */
 export async function loadOutOfStockVariants(
   admin: GraphqlClient,
+  cacheKey?: string,
 ): Promise<InventoryVariant[]> {
-  const variants = await loadInventoryVariants(admin);
+  const variants = await loadInventoryVariants(admin, cacheKey);
   return variants.filter((variant) => variant.inventory <= 0);
 }

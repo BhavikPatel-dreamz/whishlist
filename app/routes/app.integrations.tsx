@@ -14,6 +14,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
+import { ArrowLeftIcon } from "@shopify/polaris-icons";
 import { encryptSecret, maskSecret } from "../lib/crypto.server";
 import {
   EMAIL_PROVIDERS,
@@ -312,15 +313,20 @@ export default function Integrations() {
   return (
     <Page
       fullWidth
-      backAction={{
-        content: returnTo.endsWith("back-in-stock")
-          ? "Back to Back-in-Stock"
-          : "Back to Configurations",
-        onAction: () => navigate(returnTo),
-      }}
     >
       <TitleBar title={section === "sms" ? "SMS alerts" : section === "whatsapp" ? "WhatsApp alerts" : section === "email" ? "Email delivery" : "Integrations"} />
       <BlockStack gap="400">
+        <InlineStack align="start">
+          <Button
+            variant="plain"
+            icon={ArrowLeftIcon}
+            onClick={() => navigate(returnTo)}
+          >
+            {returnTo.endsWith("back-in-stock")
+              ? "Back-in-Stock Configuration"
+              : "Back to Configurations"}
+          </Button>
+        </InlineStack>
         {!section && (
           <>
             <Text as="p" tone="subdued">

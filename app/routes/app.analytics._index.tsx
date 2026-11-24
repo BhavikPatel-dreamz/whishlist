@@ -33,7 +33,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
   if (!params.has("compare")) params.set("compare", "true");
   if (!params.has("pageSize")) params.set("pageSize", "8");
 
-  const reportResult = await loadAnalyticsReport(shop.id, admin, slug, params);
+  const range = paramsRange(parseAnalyticsParams(params));
+  const [reportResult, topProducts] = await Promise.all([
+    loadAnalyticsReport(shop.id, admin, slug, params),
+    // Overview only; the other reports do not render this strip.
+    slug === "overview" && params.get("format") !== "csv"
+      ? loadTopWishlistedProducts(shop.id, admin, range, 5)
+      : Promise.resolve([] as Awaited<ReturnType<typeof loadTopWishlistedProducts>>),
+  ]);
   if (params.get("format") === "csv") {
     const body = toCsv([
       REPORT_CSV_COLUMNS[slug],
@@ -49,15 +56,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   const { response } = reportResult;
-  const analyticsParams = parseAnalyticsParams(params);
-  const range = paramsRange(analyticsParams);
-
-  // Overview: slim top-5 (not a second full wishlisted-products report).
-  // Funnel: skip product breakdown (section is commented out in UI).
-  const topProducts =
-    slug === "overview"
-      ? await loadTopWishlistedProducts(shop.id, admin, range, 5)
-      : [];
   const productBreakdown: typeof topProducts = [];
 
   return json({ report: response, topProducts, productBreakdown });

@@ -1,5 +1,12 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "@remix-run/node";
-import { Link, Outlet, useLoaderData, useNavigation, useRouteError } from "@remix-run/react";
+import {
+  Link,
+  Outlet,
+  useLoaderData,
+  useNavigation,
+  useRouteError,
+  type ShouldRevalidateFunction,
+} from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
@@ -34,6 +41,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
+
+/**
+ * This layout only serves a static apiKey and the subscription sync. Child
+ * routes revalidate on every search-param change, so re-running auth + billing
+ * sync here would add a network round trip to each filter/page navigation.
+ * Shopify sends `plan_handle` after a charge confirmation — that must still run.
+ */
+export const shouldRevalidate: ShouldRevalidateFunction = ({ nextUrl }) =>
+  nextUrl.searchParams.has("plan_handle");
 
 export default function App() {
   const { apiKey } = useLoaderData<typeof loader>();

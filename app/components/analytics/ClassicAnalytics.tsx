@@ -174,6 +174,32 @@ function fmtP(v: number): string {
 function fmt$(v: number): string {
   return "$" + Math.round(v).toLocaleString("en-US");
 }
+
+function escapeSvgText(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function formatMetricValue(value: number, metric: string): string {
+  if (metric === "wishlistConversionRate") return fmtP(value);
+  if (metric === "attributedRevenue") return fmt$(value);
+  return fmtN(value);
+}
+
+function formatEnglishDate(value: string): string {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00Z`)
+    : new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
 /** Format days, e.g. 3.5 d. */
 function fmtX(v: number): string {
   return v.toFixed(1) + " d";
@@ -367,8 +393,23 @@ function trendChart(
     );
     if (previous) {
       svg += `<path d="${path(previous.values)}" fill="none" stroke="${colours[index % colours.length]}" stroke-width="1.6" stroke-dasharray="4 3" opacity="0.55"/>`;
+      previous.values.forEach((value, pointIndex) => {
+        const previousKey = `previous${item.key[0].toUpperCase()}${item.key.slice(1)}`;
+        const rawValue = Number(series[pointIndex]?.[previousKey] ?? 0);
+        if (!Number.isFinite(rawValue) || rawValue <= 0) return;
+        const count = escapeSvgText(formatMetricValue(rawValue, selectedMetric));
+        const date = escapeSvgText(formatEnglishDate(labels[pointIndex]));
+        svg += `<circle cx="${x(pointIndex)}" cy="${y(value)}" r="3.5" fill="var(--ca-sf)" stroke="${colours[index % colours.length]}" stroke-width="1.5" opacity="0.95"><title lang="en">Previous period\nDate: ${date}\nCount: ${count}</title></circle>`;
+      });
     }
     svg += `<path d="${path(item.values)}" fill="none" stroke="${colours[index % colours.length]}" stroke-width="2.4" stroke-linejoin="round"/>`;
+    item.values.forEach((value, pointIndex) => {
+      const rawValue = Number(series[pointIndex]?.[item.key] ?? 0);
+      if (!Number.isFinite(rawValue) || rawValue <= 0) return;
+      const count = escapeSvgText(formatMetricValue(rawValue, selectedMetric));
+      const date = escapeSvgText(formatEnglishDate(labels[pointIndex]));
+      svg += `<circle cx="${x(pointIndex)}" cy="${y(value)}" r="3.5" fill="var(--ca-sf)" stroke="${colours[index % colours.length]}" stroke-width="1.5"><title lang="en">Current period\nDate: ${date}\nCount: ${count}</title></circle>`;
+    });
   });
   svg +=
     `<text x="${m}" y="${H - 6}" font-size="10" fill="var(--ca-mu)">${labels[0]}</text>` +

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import db from "../db.server";
+import { ttlRemember } from "../lib/ttl-cache.server";
 import {
   loadInventoryVariants,
   loadOutOfStockVariants,
@@ -35,6 +36,18 @@ export async function loadReportsOverview(
   params: URLSearchParams,
 ) {
   const range = metricsDateRange(params);
+  return ttlRemember(
+    `reports-overview:${shopId}:${range.from}:${range.to}`,
+    () => loadReportsOverviewUncached(shopId, admin, range),
+    45_000,
+  );
+}
+
+async function loadReportsOverviewUncached(
+  shopId: string,
+  admin: GraphqlClient,
+  range: ReturnType<typeof metricsDateRange>,
+) {
   const { gte: start, lt: end } = metricsDateBounds(range);
   const alertDate = { gte: start, lt: end };
   const [
@@ -283,7 +296,7 @@ export async function loadReport(
       note: "",
     };
   } else if (tab === "stock") {
-    const variants = await loadInventoryVariants(admin);
+    const variants = await loadInventoryVariants(admin, shopId);
     const stock = variants.map((variant) => variant.inventory);
     inventory = {
       tracked: stock.length,
@@ -335,7 +348,7 @@ export async function loadReport(
         (kind ? " Filtered by stock status." : ""),
     };
   } else if (tab === "products" && params.get("kind") === "running-low") {
-    const variants = await loadOutOfStockVariants(admin);
+    const variants = await loadOutOfStockVariants(admin, shopId);
     table = {
       title: "Running out soon",
       description: "Variants that are currently out of stock in your store",
