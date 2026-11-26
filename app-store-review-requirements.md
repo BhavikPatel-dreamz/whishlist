@@ -58,7 +58,7 @@ Group 1.2 Bill through the Shopify Billing API or Shopify App Pricing
 
 1.2.1 Use Shopify App Pricing or the Shopify Billing API
 **Description:** Apps that use off-platform billing cannot be distributed through the Shopify App store. Your app must use [Shopify App Pricing](https://shopify.dev/docs/apps/launch/billing/shopify-app-pricing) or the [Shopify Billing API](https://shopify.dev/docs/apps/billing) for any app charges.
-**Verification guidance:** Check for Shopify Billing API usage (e.g., appSubscriptionCreate, appPurchaseOneTimeCreate mutations) or Managed Pricing configuration. Flag any external billing integrations, third-party payment forms for app charges. If no billing logic is found at all, inform the developer that this is fine if the app is truly free, but if any charges are made to the merchant—even through a separate platform or website outside the Shopify app—they must implement Shopify Billing. Charging merchants externally while listing the Shopify app as free is not allowed.
+**Verification guidance:** Check for Shopify Billing API usage (e.g., appSubscriptionCreate, appPurchaseOneTimeCreate mutations) or App Pricing configuration. Flag any external billing integrations, third-party payment forms for app charges. If no billing logic is found at all, inform the developer that this is fine if the app is truly free, but if any charges are made to the merchant—even through a separate platform or website outside the Shopify app—they must implement Shopify Billing. Charging merchants externally while listing the Shopify app as free is not allowed.
 
 1.2.2 Implement Shopify App Pricing or the Shopify Billing API correctly
 **Description:** If your app has any charges, it must correctly implement [Shopify App Pricing](https://shopify.dev/docs/apps/launch/billing/shopify-app-pricing) or the [Shopify Billing API](https://shopify.dev/docs/apps/billing) to ensure that it can accept, decline and [request approval for charges again on reinstall](https://shopify.dev/docs/apps/billing/subscriptions).
@@ -112,7 +112,7 @@ Group 2.3 Provide seamless and secure installation
 
 Section 3. Security
 
-Group 3.1 Secure data with valid TLS/SSL certificates
+Group 3.1 Protect merchant and buyer data through secure data practices
 
 3.1.1 Use a valid TLS/SSL certificate
 **Description:** All data exchanged between a client (such as a merchant's web browser) and your app server should be encrypted using Transport Layer Security (TLS) to ensure that any data transmitted can only be read by your application server. Websites secured by a TLS certificate will display HTTPS and the small padlock icon in the browser address bar. Your app must have a valid [TLS/SSL certificate](https://shopify.dev/docs/apps/store/security/tls-certificates) without any errors.

@@ -104,8 +104,8 @@ function HelpIllustration({ support = false }: { support?: boolean }) {
 }
 
 export function DashboardHelp() {
-  const supportEmail = "devdyna@gmail.com";
-  const supportUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(supportEmail)}`;
+  const supportEmail = "support@dynamicdreamz.com";
+  const supportUrl = `mailto:${supportEmail}`;
 
   return (
     <>
@@ -118,7 +118,7 @@ export function DashboardHelp() {
               <a className="ws-help-email" href={supportUrl} target="_blank" rel="noopener noreferrer">
                 {supportEmail}
               </a>
-              . We will respond to you within 24-48 hours
+              . Include your store URL and a short description of the issue.
             </p>
             <a className="ws-help-button" href={supportUrl} target="_blank" rel="noopener noreferrer">
               Get Help <span aria-hidden="true">→</span>
@@ -128,18 +128,17 @@ export function DashboardHelp() {
         </article>
         <article className="ws-help-card">
           <div className="ws-help-content">
-            <h2 className="ws-help-title">Visit Knowledge Base</h2>
+            <h2 className="ws-help-title">Contact Dynamic Dreamz</h2>
             <p className="ws-help-description">
-              Everything from enabling features to optimizing your store. Find
-              guides, tutorials, and best practices.
+              Get in touch with the team for help with setup or troubleshooting.
             </p>
             <a
               className="ws-help-button"
-              href="https://www.dynamicdreamz.com/"
+              href="https://www.dynamicdreamz.com/contact-us/"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Visit Knowledge Base <span aria-hidden="true">→</span>
+              Contact Us <span aria-hidden="true">→</span>
             </a>
           </div>
           <HelpIllustration />

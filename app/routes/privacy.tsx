@@ -181,6 +181,11 @@ export default function PrivacyPolicy() {
         may contact us using the details below and we will work with the
         merchant to respond as appropriate.
       </p>
+      <p>
+        When Shopify sends us a customer data request, we provide the data the
+        App stores for that customer to the merchant using the store contact
+        email saved in Shopify Admin.
+      </p>
 
       <h2 style={h2}>9. Children</h2>
       <p>

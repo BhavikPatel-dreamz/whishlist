@@ -49,9 +49,8 @@ export const links = () => [
   { rel: "stylesheet", href: smartSaveStyles },
 ];
 
-/* Replace with your real help-centre URLs */
-const TUTORIAL_URL = "https://example.com/docs/advanced-button";
-const SELECTOR_HELP_URL = "https://example.com/docs/find-css-selectors";
+const TUTORIAL_URL = "https://help.shopify.com/en/manual/online-store/themes/customizing-themes/edit-code/edit-theme-code";
+const SELECTOR_HELP_URL = "https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_selectors";
 
 /* -------------------------------------------------------------------------- */
 /*  Config model                                                              */
