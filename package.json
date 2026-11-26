@@ -1,6 +1,7 @@
 {
   "name": "wishlist-back-in-stock",
   "private": true,
+  "packageManager": "pnpm@12.6.0",
   "scripts": {
     "security:scan": "bash .githooks/pre-commit --ci",
     "build": "prisma generate && remix vite:build",

@@ -1,28 +1,26 @@
-# Restock email worker (Postgres poller). No HTTP service.
-# Deploy:
-#   fly deploy --config fly.toml --dockerfile Dockerfile.worker
+# fly.toml app configuration file generated for wishlist-restock-worker on 2026-10-29T17:00:28+05:30
 #
-# If fly launch rewrites this file, restore it and deploy with the command above.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "wishlist-restock-worker"
-primary_region = "iad"
+app = 'wishlist-restock-worker'
+primary_region = 'iad'
 
 [build]
-  dockerfile = "Dockerfile.worker"
+  dockerfile = 'Dockerfile.worker'
 
 [env]
-  NODE_ENV = "production"
-  RESTOCK_QUEUE_ENABLED = "true"
-  RESTOCK_WORKER_CONCURRENCY = "5"
-  RESTOCK_SEND_RATE = "5"
+  NODE_ENV = 'production'
+  RESTOCK_QUEUE_ENABLED = 'true'
+  RESTOCK_SEND_RATE = '5'
+  RESTOCK_WORKER_CONCURRENCY = '5'
 
-# Fly default process name is "app". Do not use a custom "worker" name
-# unless every [[services]] / [[http_service]] also lists that name.
 [processes]
-  app = "pnpm exec tsx app/workers/restock-worker.server.ts"
+  app = 'pnpm exec tsx app/workers/restock-worker.server.ts'
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "256mb"
+  size = 'shared-cpu-1x'
+  memory = '256mb'
   cpus = 1
-  processes = ["app"]
+  memory_mb = 256
+  processes = ['app']
