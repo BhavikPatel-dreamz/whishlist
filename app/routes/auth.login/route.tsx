@@ -42,7 +42,7 @@ export default function Auth() {
               Install from Shopify
             </Text>
             <Text as="p">
-              Wishlist Stock Notify must be installed from the Shopify App Store
+              Dreamz Wishlist &amp; Restock must be installed from the Shopify App Store
               or Shopify admin. Shop domains are not entered here.
             </Text>
           </FormLayout>

@@ -63,7 +63,7 @@ Full write-up: `docs/stock-alert-notification-audit.md`.
 
 ## Completed (billing UI)
 
-- App listing/display name: **Wishlist Stock Notify** (`shopify.app.toml` `name`). App proxy subpath and pricing handle stay `wishlist-stock` unless `SHOPIFY_APP_HANDLE` overrides.
+- App listing/display name: **Dreamz Wishlist & Restock** (`shopify.app.toml` `name`). Keep the Partner Dashboard listing name aligned. App proxy subpath and pricing handle stay `wishlist-stock` unless `SHOPIFY_APP_HANDLE` overrides.
 - Manage Subscription on Configurations opens Shopify’s hosted plan page (`pricing_plans`) with `target="_top"`. Monthly and annual comparison and charge confirmation happen on that Shopify page. App handle defaults to `wishlist-stock` (`SHOPIFY_APP_HANDLE` overrides it).
 - `/app/settings/pricing` redirects to the same page.
 

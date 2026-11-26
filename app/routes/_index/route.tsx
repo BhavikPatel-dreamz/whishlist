@@ -34,7 +34,7 @@ export default function App() {
           lost sales — automatically.
         </p>
         <p className={styles.text}>
-          Install Wishlist Stock Notify from the Shopify App Store or your
+          Install Dreamz Wishlist & Restock from the Shopify App Store or your
           Shopify admin. Installation authenticates through Shopify — you
           never need to enter your shop domain here.
         </p>

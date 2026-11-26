@@ -2,11 +2,11 @@ import type { CSSProperties } from "react";
 import type { MetaFunction } from "@remix-run/node";
 
 export const meta: MetaFunction = () => [
-  { title: "Privacy Policy | Wishlist Stock Notify" },
+  { title: "Privacy Policy | Dreamz Wishlist & Restock" },
   {
     name: "description",
     content:
-      "Privacy policy for Wishlist Stock Notify, a Shopify app by Dynamic Dreamz for wishlists and back-in-stock alerts.",
+      "Privacy policy for Dreamz Wishlist & Restock, a Shopify app by Dynamic Dreamz for wishlists and back-in-stock alerts.",
   },
 ];
 
@@ -38,7 +38,7 @@ export default function PrivacyPolicy() {
   return (
     <main style={page}>
       <p style={{ ...muted, margin: "0 0 1.5rem", fontSize: "0.9rem" }}>
-        Wishlist Stock Notify
+        Dreamz Wishlist &amp; Restock
       </p>
       <h1 style={h1}>Privacy Policy</h1>
       <p style={muted}>Last updated: October 27, 2026</p>
@@ -47,7 +47,7 @@ export default function PrivacyPolicy() {
         This Privacy Policy describes how <strong>Dynamic Dreamz</strong>{" "}
         (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) collects, uses, and
         shares information when merchants install and use{" "}
-        <strong>Wishlist Stock Notify</strong> (the &quot;App&quot;) on their
+        <strong>Dreamz Wishlist &amp; Restock</strong> (the &quot;App&quot;) on their
         Shopify store, and when shoppers use wishlist and back-in-stock features
         powered by the App.
       </p>
@@ -199,7 +199,7 @@ export default function PrivacyPolicy() {
 
       <h2 style={h2}>11. Contact</h2>
       <p>
-        For privacy questions about Wishlist Stock Notify:
+        For privacy questions about Dreamz Wishlist &amp; Restock:
       </p>
       <ul style={list}>
         <li>
@@ -208,7 +208,7 @@ export default function PrivacyPolicy() {
             support@dynamicdreamz.com
           </a>
         </li>
-        <li>App: Wishlist Stock Notify on Shopify</li>
+        <li>App: Dreamz Wishlist &amp; Restock on Shopify</li>
         <li>Developer: Dynamic Dreamz</li>
       </ul>
     </main>

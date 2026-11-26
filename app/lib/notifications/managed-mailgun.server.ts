@@ -1,5 +1,5 @@
 /**
- * Platform-managed Mailgun credentials (Wishlist Stock Notify side).
+ * Platform-managed Mailgun credentials (Dreamz Wishlist & Restock side).
  * Merchants on Starter/Growth — and Scale without their own provider —
  * send through these env vars, not their own API keys.
  *
@@ -58,7 +58,7 @@ export function managedSenderEmail(): string {
   );
 }
 
-export function managedSenderName(fallback = "Wishlist Stock Notify"): string {
+export function managedSenderName(fallback = "Dreamz Wishlist & Restock"): string {
   return (
     sanitizeEnvValue(process.env.DEFAULT_SENDER_NAME, "DEFAULT_SENDER_NAME") ||
     fallback

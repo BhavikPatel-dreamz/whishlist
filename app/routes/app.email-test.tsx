@@ -104,14 +104,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const result = await sendEmail(settings, {
     to,
-    subject: `[Dev test] Wishlist Stock Notify — ${new Date().toISOString()}`,
+    subject: `[Dev test] Dreamz Wishlist & Restock — ${new Date().toISOString()}`,
     text:
-      "This is a developer test email from Wishlist Stock Notify.\n" +
+      "This is a developer test email from Dreamz Wishlist & Restock.\n" +
       `Shop: ${shop.shop}\nProvider: ${settings.provider}\n`,
     html: `
       <div style="font-family:sans-serif;line-height:1.5;max-width:520px">
         <h2 style="margin:0 0 12px">Developer email test</h2>
-        <p>This message confirms transactional email from <strong>Wishlist Stock Notify</strong>.</p>
+        <p>This message confirms transactional email from <strong>Dreamz Wishlist &amp; Restock</strong>.</p>
         <ul>
           <li><strong>Shop:</strong> ${shop.shop}</li>
           <li><strong>Provider:</strong> ${settings.provider}</li>

@@ -377,7 +377,7 @@ export default function Integrations() {
               <BlockStack gap="100">
                 <Text as="h2" variant="headingMd">Email delivery</Text>
                 <Text as="p" tone="subdued">
-                  Turn email alerts on or off. Default (inbuilt) sends through Wishlist Stock Notify. Choose your own provider for unlimited Scale sends.
+                  Turn email alerts on or off. Default (inbuilt) sends through Dreamz Wishlist &amp; Restock. Choose your own provider for unlimited Scale sends.
                 </Text>
 {emailReportLink}
               </BlockStack>
@@ -411,7 +411,7 @@ export default function Integrations() {
                 }}
                 helpText={
                   usingDefaultProvider
-                    ? "Uses the built-in Wishlist Stock Notify sender. No API key needed."
+                    ? "Uses the built-in Dreamz Wishlist & Restock sender. No API key needed."
                     : "Your provider credentials are encrypted before they are stored."
                 }
               />
@@ -457,7 +457,7 @@ export default function Integrations() {
                 <Text as="h2" variant="headingMd">Email delivery</Text>
                 <Text as="p" variant="headingLg">{data.emailsSent}</Text>
                 <Text as="p" tone="subdued">
-                  Emails sent {data.sentLabel}. Starter and Growth use the default inbuilt sender (Wishlist Stock Notify). Upgrade to Scale to choose your own email provider for unlimited sends.
+                  Emails sent {data.sentLabel}. Starter and Growth use the default inbuilt sender (Dreamz Wishlist & Restock). Upgrade to Scale to choose your own email provider for unlimited sends.
                 </Text>
 {emailReportLink}
 {emailAlertsSelect}

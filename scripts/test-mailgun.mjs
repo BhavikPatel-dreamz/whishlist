@@ -38,7 +38,7 @@ const fromEmail = (
   process.env.MAILGUN_FROM_EMAIL ||
   ""
 ).trim();
-const fromName = (process.env.DEFAULT_SENDER_NAME || "Wishlist Stock Notify").trim();
+const fromName = (process.env.DEFAULT_SENDER_NAME || "Dreamz Wishlist & Restock").trim();
 const baseUrl = (
   process.env.MAILGUN_API_BASE_URL || "https://api.mailgun.net"
 )
@@ -69,9 +69,9 @@ const auth = Buffer.from(`api:${apiKey}`).toString("base64");
 const form = new URLSearchParams({
   from: `${fromName} <${fromEmail}>`,
   to,
-  subject: "Wishlist Stock Notify — Mailgun test",
-  text: "This is a test email from Wishlist Stock Notify platform Mailgun settings.",
-  html: "<p>This is a <strong>test email</strong> from Wishlist Stock Notify platform Mailgun settings.</p>",
+  subject: "Dreamz Wishlist & Restock — Mailgun test",
+  text: "This is a test email from Dreamz Wishlist & Restock platform Mailgun settings.",
+  html: "<p>This is a <strong>test email</strong> from Dreamz Wishlist &amp; Restock platform Mailgun settings.</p>",
 });
 
 console.log(`\nSending test message to ${to} via ${baseUrl} domain ${domain}…`);

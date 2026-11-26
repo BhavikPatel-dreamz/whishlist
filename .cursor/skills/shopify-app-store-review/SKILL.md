@@ -41,7 +41,7 @@ shopify doc fetch --url https://shopify.dev/docs/apps/launch/app-store-review/ap
 - https://shopify.dev/docs/apps/launch/billing
 - https://shopify.dev/docs/apps/launch/app-store-review/submit-app-for-review
 
-## Project notes (Wishlist Stock Notify)
+## Project notes (Dreamz Wishlist & Restock)
 
 - Embedded Remix app; theme extension with wishlist + back-in-stock embeds
 - Billing via Shopify App Pricing (Starter/Growth/Scale); welcome path `/app/settings`
